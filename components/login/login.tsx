@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,11 +14,16 @@ import {
 } from "@/components/ui/carousel"
 import Autoplay from "embla-carousel-autoplay"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { useAuth } from "@/lib/auth/auth-context"
 
 export function Login() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const { login } = useAuth()
+  const router = useRouter()
 
   // Versión del sistema
   const systemVersion = "v1.0.0"
@@ -32,13 +38,17 @@ export function Login() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
+    setError(null)
 
-    // Aquí puedes agregar la lógica de autenticación
-    console.log("Login attempt:", { email, password })
+    const result = await login({ email, password })
 
-    setTimeout(() => {
-      setIsLoading(false)
-    }, 1000)
+    if (result.ok) {
+      router.push("/dashboard")
+    } else {
+      setError(result.message ?? "Error al iniciar sesión")
+    }
+
+    setIsLoading(false)
   }
 
   return (
@@ -66,6 +76,13 @@ export function Login() {
                   Ingresa tu email para acceder a tu cuenta
                 </p>
               </div>
+
+              {/* Mensaje de error */}
+              {error && (
+                <div className="rounded-md bg-destructive/15 p-3 text-sm text-destructive text-center">
+                  {error}
+                </div>
+              )}
 
               <div className="grid gap-6">
                 {/* Email */}
