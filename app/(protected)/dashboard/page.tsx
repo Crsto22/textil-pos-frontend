@@ -1,146 +1,122 @@
 "use client"
 
-import { useRouter } from "next/navigation"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { ThemeToggle } from "@/components/theme-toggle"
-import { Button } from "@/components/ui/button"
-import { Package, ShoppingCart, DollarSign, Users, LogOut } from "lucide-react"
-import { useAuth } from "@/lib/auth/auth-context"
+import { useState } from "react"
+import { DollarSign, Package, TrendingUp } from "lucide-react"
+import { MetricCard } from "@/components/Card"
+import { SalesLineChart, TopProductsBarChart } from "@/components/Charts"
+
+type FilterKey = "hoy" | "7dias" | "30dias" | "12meses" | "dia" | null
+
+const filterOptions: { key: FilterKey; label: string }[] = [
+  { key: "hoy", label: "Hoy" },
+  { key: "7dias", label: "Últimos 7 días" },
+  { key: "30dias", label: "Últimos 30 días" },
+  { key: "12meses", label: "Últimos 12 meses" },
+  { key: "dia", label: "Por día" },
+]
+
+// Demo data
+const salesData = [
+  { date: "01/02", ventas: 1200 },
+  { date: "02/02", ventas: 980 },
+  { date: "03/02", ventas: 1540 },
+  { date: "04/02", ventas: 870 },
+  { date: "05/02", ventas: 2100 },
+  { date: "06/02", ventas: 1680 },
+  { date: "07/02", ventas: 1920 },
+]
+
+const topProducts = [
+  { name: "Polo Algodón", cantidad: 45 },
+  { name: "Jean Slim Fit", cantidad: 38 },
+  { name: "Camisa Formal", cantidad: 30 },
+  { name: "Short Deportivo", cantidad: 24 },
+  { name: "Blusa Estampada", cantidad: 19 },
+]
 
 export default function DashboardPage() {
-  const { user, logout } = useAuth()
-  const router = useRouter()
+  const [activeFilter, setActiveFilter] = useState<FilterKey>("7dias")
 
-  const handleLogout = async () => {
-    await logout()
-    router.replace("/")
+  const handleFilter = (key: FilterKey) => {
+    setActiveFilter(key)
   }
 
-  // Datos de ejemplo para las estadísticas
-  const stats = [
-    {
-      title: "Ventas Totales",
-      value: "S/. 12,584.00",
-      description: "+20.1% desde el mes pasado",
-      icon: DollarSign,
-      color: "text-green-600"
-    },
-    {
-      title: "Productos",
-      value: "248",
-      description: "Total en inventario",
-      icon: Package,
-      color: "text-blue-600"
-    },
-    {
-      title: "Órdenes",
-      value: "86",
-      description: "+12 desde ayer",
-      icon: ShoppingCart,
-      color: "text-purple-600"
-    },
-    {
-      title: "Clientes",
-      value: "142",
-      description: "+8 nuevos este mes",
-      icon: Users,
-      color: "text-orange-600"
-    }
-  ]
+  const clearFilters = () => {
+    setActiveFilter(null)
+  }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b">
-        <div className="flex items-center justify-between p-6">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Bienvenido, {user?.nombre} {user?.apellido} — {user?.rol}
-            </p>
+    <div className="space-y-6">
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-2">
+        {filterOptions.map((f) => (
+          <button
+            key={f.key}
+            onClick={() => handleFilter(f.key)}
+            className={`
+              px-4 py-2 rounded-lg text-sm font-medium transition-colors
+              ${activeFilter === f.key
+                ? "bg-[#3266E4] text-white shadow-sm"
+                : "bg-white dark:bg-[oklch(0.15_0_0)] text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-[oklch(0.3_0_0)] hover:bg-gray-50 dark:hover:bg-white/5"
+              }
+            `}
+          >
+            {f.label}
+          </button>
+        ))}
+        <button
+          onClick={clearFilters}
+          className="px-4 py-2 rounded-lg text-sm font-medium text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+        >
+          Limpiar filtros
+        </button>
+      </div>
+
+      {/* Metric Cards */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <MetricCard
+          title="Ventas Totales"
+          value="S/ 10,290.00"
+          icon={DollarSign}
+          iconColor="text-green-600"
+          trend={{ value: 12.5, label: "vs período anterior" }}
+        />
+        <MetricCard
+          title="Productos Vendidos"
+          value="156"
+          icon={Package}
+          iconColor="text-[#3266E4]"
+          trend={{ value: 8.2, label: "vs período anterior" }}
+        />
+        <MetricCard
+          title="Ganancias"
+          value="S/ 3,420.00"
+          icon={TrendingUp}
+          iconColor="text-purple-600"
+          trend={{ value: -2.4, label: "vs período anterior" }}
+        />
+      </div>
+
+      {/* Charts */}
+      <div className="grid gap-6 lg:grid-cols-7">
+        {/* Sales line chart */}
+        <div className="lg:col-span-4 bg-white dark:bg-[oklch(0.15_0_0)] rounded-xl shadow-sm border border-gray-100 dark:border-[oklch(0.3_0_0)] p-5">
+          <div className="mb-4">
+            <h2 className="text-base font-bold text-gray-900 dark:text-white">Ventas por Fecha</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Resumen del período seleccionado</p>
           </div>
-          <div className="flex items-center gap-2">
-            <ThemeToggle />
-            <Button variant="outline" size="icon" onClick={handleLogout} title="Cerrar sesión">
-              <LogOut className="h-4 w-4" />
-            </Button>
+          <SalesLineChart data={salesData} />
+        </div>
+
+        {/* Top 5 products */}
+        <div className="lg:col-span-3 bg-white dark:bg-[oklch(0.15_0_0)] rounded-xl shadow-sm border border-gray-100 dark:border-[oklch(0.3_0_0)] p-5">
+          <div className="mb-4">
+            <h2 className="text-base font-bold text-gray-900 dark:text-white">Top 5 Productos</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Más vendidos en el período</p>
           </div>
+          <TopProductsBarChart data={topProducts} />
         </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="p-6">
-        {/* Stats Grid */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
-          {stats.map((stat, index) => {
-            const Icon = stat.icon
-            return (
-              <Card key={index}>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">
-                    {stat.title}
-                  </CardTitle>
-                  <Icon className={`h-4 w-4 ${stat.color}`} />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{stat.value}</div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {stat.description}
-                  </p>
-                </CardContent>
-              </Card>
-            )
-          })}
-        </div>
-
-        {/* Additional Content Section */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-          <Card className="col-span-4">
-            <CardHeader>
-              <CardTitle>Resumen de Ventas</CardTitle>
-              <CardDescription>
-                Vista general del rendimiento de ventas
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="pl-2">
-              <div className="flex items-center justify-center h-[300px] text-muted-foreground">
-                Gráfico de ventas (próximamente)
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="col-span-3">
-            <CardHeader>
-              <CardTitle>Actividad Reciente</CardTitle>
-              <CardDescription>
-                Últimas transacciones del sistema
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {[1, 2, 3, 4].map((item) => (
-                  <div key={item} className="flex items-center gap-4">
-                    <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center">
-                      <ShoppingCart className="h-4 w-4" />
-                    </div>
-                    <div className="flex-1 space-y-1">
-                      <p className="text-sm font-medium leading-none">
-                        Venta #{1000 + item}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        Hace {item} hora{item > 1 ? 's' : ''}
-                      </p>
-                    </div>
-                    <div className="font-medium">
-                      +S/. {(100 * 500 + 50).toFixed(2)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </main>
+      </div>
     </div>
   )
 }

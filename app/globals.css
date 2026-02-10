@@ -120,16 +120,25 @@
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground font-sans;
   }
-  h1, h2, h3, h4, h5, h6 {
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     font-family: var(--font-sora-semibold);
     font-weight: 600;
   }
 
   /* Asegurar que inputs, textareas y selects usen las variables CSS */
-  input, textarea, select {
+  input,
+  textarea,
+  select {
     @apply bg-background text-foreground border-input;
   }
 
@@ -146,7 +155,26 @@
   }
 
   /* Párrafos y spans heredan foreground */
-  p, span {
+  p,
+  span {
     @apply text-foreground;
   }
+}
+
+/* Sidebar scrollbar */
+.sidebar-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sidebar-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.35);
 }
