@@ -15,12 +15,12 @@ import {
 import Autoplay from "embla-carousel-autoplay"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { useAuth } from "@/lib/auth/auth-context"
+import { toast } from "sonner"
 
 export function Login() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   const { login } = useAuth()
   const router = useRouter()
@@ -38,14 +38,14 @@ export function Login() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
-    setError(null)
 
     const result = await login({ email, password })
 
     if (result.ok) {
+      toast.success("Sesión iniciada correctamente")
       router.push("/dashboard")
     } else {
-      setError(result.message ?? "Error al iniciar sesión")
+      toast.error(result.message ?? "Error al iniciar sesión")
     }
 
     setIsLoading(false)
@@ -77,13 +77,6 @@ export function Login() {
                 </p>
               </div>
 
-              {/* Mensaje de error */}
-              {error && (
-                <div className="rounded-md bg-destructive/15 p-3 text-sm text-destructive text-center">
-                  {error}
-                </div>
-              )}
-
               <div className="grid gap-6">
                 {/* Email */}
                 <div className="grid gap-2">
@@ -114,7 +107,14 @@ export function Login() {
 
                 {/* Login button */}
                 <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? "Iniciando sesión..." : "Iniciar Sesión"}
+                  {isLoading ? (
+                    <span className="flex items-center gap-2">
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                      Iniciando sesión...
+                    </span>
+                  ) : (
+                    "Iniciar Sesión"
+                  )}
                 </Button>
               </div>
 

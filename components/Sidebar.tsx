@@ -74,10 +74,10 @@ export function Sidebar({ isOpen, collapsed, onClose, onToggleCollapse }: Sideba
 
     const itemClass = (active: boolean) =>
         [
-            "group relative w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+            "group relative w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium",
             collapsed ? "justify-center" : "",
             active
-                ? "bg-white text-slate-900 shadow-[0_2px_10px_rgba(0,0,0,0.12)]"
+                ? "bg-white text-slate-900 font-semibold shadow-[0_2px_10px_rgba(0,0,0,0.12)]"
                 : "text-slate-400 hover:bg-white/[0.07] hover:text-white",
         ].join(" ")
 
