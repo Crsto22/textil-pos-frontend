@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Search, Plus, Pencil, ChevronRight, User } from "lucide-react"
+import { MagnifyingGlassIcon, PlusIcon, PencilSquareIcon, ChevronRightIcon, UserIcon } from "@heroicons/react/24/outline"
 
 interface Client {
     id: number
@@ -34,7 +34,7 @@ export default function ClientesPage() {
             {/* Top bar */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div className="relative flex-1 w-full sm:max-w-sm">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                     <input
                         type="text"
                         placeholder="Buscar por nombre o documento..."
@@ -44,7 +44,7 @@ export default function ClientesPage() {
                     />
                 </div>
                 <button className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#3266E4] text-white text-sm font-medium hover:bg-[#2755c7] transition-colors shrink-0">
-                    <Plus className="h-4 w-4" />
+                    <PlusIcon className="h-4 w-4" />
                     Nuevo cliente
                 </button>
             </div>
@@ -73,7 +73,7 @@ export default function ClientesPage() {
                                         <td className="py-3 px-4">
                                             <div className="flex items-center gap-3">
                                                 <div className="h-8 w-8 rounded-full bg-[#3266E4]/10 flex items-center justify-center shrink-0">
-                                                    <User className="h-4 w-4 text-[#3266E4]" />
+                                                    <UserIcon className="h-4 w-4 text-[#3266E4]" />
                                                 </div>
                                                 <div className="min-w-0">
                                                     <p className="font-medium text-gray-900 dark:text-white truncate">{c.nombre}</p>
@@ -91,9 +91,9 @@ export default function ClientesPage() {
                                         <td className="py-3 px-4">
                                             <div className="flex items-center gap-1">
                                                 <button className="h-7 w-7 rounded flex items-center justify-center text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors">
-                                                    <Pencil className="h-3.5 w-3.5" />
+                                                    <PencilSquareIcon className="h-3.5 w-3.5" />
                                                 </button>
-                                                <ChevronRight className="h-4 w-4 text-gray-300" />
+                                                <ChevronRightIcon className="h-4 w-4 text-gray-300" />
                                             </div>
                                         </td>
                                     </tr>
@@ -109,7 +109,7 @@ export default function ClientesPage() {
                         <div className="space-y-4">
                             <div className="text-center pb-4 border-b border-gray-100 dark:border-[oklch(0.3_0_0)]">
                                 <div className="h-14 w-14 rounded-full bg-[#3266E4]/10 flex items-center justify-center mx-auto mb-2">
-                                    <User className="h-7 w-7 text-[#3266E4]" />
+                                    <UserIcon className="h-7 w-7 text-[#3266E4]" />
                                 </div>
                                 <h3 className="font-bold text-gray-900 dark:text-white">{selectedClient.nombre}</h3>
                                 <p className="text-xs text-gray-400">{selectedClient.email}</p>
@@ -143,7 +143,7 @@ export default function ClientesPage() {
                         </div>
                     ) : (
                         <div className="flex flex-col items-center justify-center h-48 text-gray-400 text-sm">
-                            <User className="h-10 w-10 mb-2 opacity-30" />
+                            <UserIcon className="h-10 w-10 mb-2 opacity-30" />
                             <p>Selecciona un cliente para ver detalles</p>
                         </div>
                     )}

@@ -12,6 +12,7 @@ export default function ProtectedLayout({ children }: { children: ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth()
   const router = useRouter()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -25,8 +26,17 @@ export default function ProtectedLayout({ children }: { children: ReactNode }) {
     <>
       {isLoading && <LoaderOverlay />}
       <div className="flex h-screen overflow-hidden">
-        <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-        <div className="flex flex-1 flex-col lg:ml-[260px] min-w-0 transition-all duration-300">
+        <Sidebar
+          isOpen={sidebarOpen}
+          collapsed={sidebarCollapsed}
+          onClose={() => setSidebarOpen(false)}
+          onToggleCollapse={() => setSidebarCollapsed((prev) => !prev)}
+        />
+        <div
+          className={`flex min-w-0 flex-1 flex-col transition-all duration-300 ${
+            sidebarCollapsed ? "lg:ml-[88px]" : "lg:ml-[260px]"
+          }`}
+        >
           <Header onMenuToggle={() => setSidebarOpen(true)} />
           <main className="flex-1 overflow-y-auto bg-gray-50 dark:bg-[oklch(0.1_0_0)] p-6">
             {children}

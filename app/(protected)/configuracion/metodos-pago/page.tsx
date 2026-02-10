@@ -1,23 +1,23 @@
 "use client"
 
 import { useState } from "react"
-import { Banknote, Smartphone, CreditCard, Building } from "lucide-react"
-import type { LucideIcon } from "lucide-react"
+import { BanknotesIcon, DevicePhoneMobileIcon, CreditCardIcon, BuildingLibraryIcon } from "@heroicons/react/24/outline"
+import type { ComponentType, SVGProps } from "react"
 
 interface PaymentMethod {
     key: string
     label: string
     description: string
-    icon: LucideIcon
+    icon: ComponentType<SVGProps<SVGSVGElement>>
     activo: boolean
 }
 
 const initialMethods: PaymentMethod[] = [
-    { key: "efectivo", label: "Efectivo", description: "Pago en efectivo directo", icon: Banknote, activo: true },
-    { key: "yape", label: "Yape", description: "Pago con Yape (BCP)", icon: Smartphone, activo: true },
-    { key: "plin", label: "Plin", description: "Pago con Plin (BBVA, Interbank, Scotiabank)", icon: Smartphone, activo: true },
-    { key: "transferencia", label: "Transferencia", description: "Transferencia bancaria", icon: Building, activo: false },
-    { key: "tarjeta", label: "Tarjeta", description: "Visa, Mastercard u otras tarjetas", icon: CreditCard, activo: false },
+    { key: "efectivo", label: "Efectivo", description: "Pago en efectivo directo", icon: BanknotesIcon, activo: true },
+    { key: "yape", label: "Yape", description: "Pago con Yape (BCP)", icon: DevicePhoneMobileIcon, activo: true },
+    { key: "plin", label: "Plin", description: "Pago con Plin (BBVA, Interbank, Scotiabank)", icon: DevicePhoneMobileIcon, activo: true },
+    { key: "transferencia", label: "Transferencia", description: "Transferencia bancaria", icon: BuildingLibraryIcon, activo: false },
+    { key: "tarjeta", label: "Tarjeta", description: "Visa, Mastercard u otras tarjetas", icon: CreditCardIcon, activo: false },
 ]
 
 export default function MetodosPagoPage() {

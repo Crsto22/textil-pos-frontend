@@ -1,7 +1,7 @@
 "use client"
 
 import { usePathname } from "next/navigation"
-import { Menu } from "lucide-react"
+import { Bars3Icon } from "@heroicons/react/24/outline"
 import { ThemeToggle } from "@/components/theme-toggle"
 
 interface HeaderProps {
@@ -32,7 +32,7 @@ export function Header({ onMenuToggle }: HeaderProps) {
                     className="lg:hidden flex items-center justify-center h-9 w-9 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
                     aria-label="Abrir menú"
                 >
-                    <Menu className="h-5 w-5 text-gray-700 dark:text-gray-300" />
+                    <Bars3Icon className="h-5 w-5 text-gray-700 dark:text-gray-300" />
                 </button>
                 <h1 className="text-xl font-bold tracking-tight text-gray-900 dark:text-white">
                     {title}

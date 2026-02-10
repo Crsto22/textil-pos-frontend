@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { DollarSign, Package, TrendingUp } from "lucide-react"
+import { CurrencyDollarIcon, CubeIcon, ArrowTrendingUpIcon } from "@heroicons/react/24/outline"
 import { MetricCard } from "@/components/Card"
 import { SalesLineChart, TopProductsBarChart } from "@/components/Charts"
 
@@ -77,21 +77,21 @@ export default function DashboardPage() {
         <MetricCard
           title="Ventas Totales"
           value="S/ 10,290.00"
-          icon={DollarSign}
+          icon={CurrencyDollarIcon}
           iconColor="text-green-600"
           trend={{ value: 12.5, label: "vs período anterior" }}
         />
         <MetricCard
           title="Productos Vendidos"
           value="156"
-          icon={Package}
+          icon={CubeIcon}
           iconColor="text-[#3266E4]"
           trend={{ value: 8.2, label: "vs período anterior" }}
         />
         <MetricCard
           title="Ganancias"
           value="S/ 3,420.00"
-          icon={TrendingUp}
+          icon={ArrowTrendingUpIcon}
           iconColor="text-purple-600"
           trend={{ value: -2.4, label: "vs período anterior" }}
         />

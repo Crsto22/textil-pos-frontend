@@ -6,7 +6,7 @@ import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { GalleryVerticalEnd } from "lucide-react"
+import { ViewColumnsIcon } from "@heroicons/react/24/solid"
 import {
   Carousel,
   CarouselContent,
@@ -59,7 +59,7 @@ export function Login() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="flex h-6 w-6 items-center justify-center rounded-md bg-primary text-primary-foreground">
-              <GalleryVerticalEnd className="size-4" />
+              <ViewColumnsIcon className="size-4" />
             </div>
             <h1 className="font-medium">Sistema POS Textil</h1>
           </div>

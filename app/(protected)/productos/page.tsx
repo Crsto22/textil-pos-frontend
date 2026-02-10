@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Search, Plus, Pencil, Power, Eye, EyeOff } from "lucide-react"
+import { MagnifyingGlassIcon, PlusIcon, PencilSquareIcon, BoltIcon, EyeIcon, EyeSlashIcon } from "@heroicons/react/24/outline"
 
 interface Product {
     id: number
@@ -54,7 +54,7 @@ export default function ProductosPage() {
             {/* Top bar */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div className="relative flex-1 w-full sm:max-w-sm">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                     <input
                         type="text"
                         placeholder="Buscar producto..."
@@ -64,7 +64,7 @@ export default function ProductosPage() {
                     />
                 </div>
                 <button className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#3266E4] text-white text-sm font-medium hover:bg-[#2755c7] transition-colors shrink-0">
-                    <Plus className="h-4 w-4" />
+                    <PlusIcon className="h-4 w-4" />
                     Agregar producto
                 </button>
             </div>
@@ -119,7 +119,7 @@ export default function ProductosPage() {
                             {/* Actions */}
                             <div className="flex gap-2 pt-2 border-t border-gray-50 dark:border-[oklch(0.2_0_0)]">
                                 <button className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium bg-gray-50 dark:bg-white/5 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors">
-                                    <Pencil className="h-3.5 w-3.5" />
+                                    <PencilSquareIcon className="h-3.5 w-3.5" />
                                     Editar
                                 </button>
                                 <button
@@ -129,7 +129,7 @@ export default function ProductosPage() {
                                             : "bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-500/20"
                                         }`}
                                 >
-                                    {p.activo ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                                    {p.activo ? <EyeSlashIcon className="h-3.5 w-3.5" /> : <EyeIcon className="h-3.5 w-3.5" />}
                                     {p.activo ? "Desactivar" : "Activar"}
                                 </button>
                             </div>

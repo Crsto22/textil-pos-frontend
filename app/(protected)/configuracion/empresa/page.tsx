@@ -1,6 +1,6 @@
 "use client"
 
-import { Building2, Upload } from "lucide-react"
+import { BuildingOffice2Icon, ArrowUpTrayIcon } from "@heroicons/react/24/outline"
 
 export default function ConfigEmpresaPage() {
     return (
@@ -13,12 +13,12 @@ export default function ConfigEmpresaPage() {
                 {/* Logo */}
                 <div className="flex items-center gap-5">
                     <div className="h-20 w-20 rounded-xl bg-[#3266E4]/10 flex items-center justify-center shrink-0">
-                        <Building2 className="h-8 w-8 text-[#3266E4]" />
+                        <BuildingOffice2Icon className="h-8 w-8 text-[#3266E4]" />
                     </div>
                     <div>
                         <p className="text-sm font-medium text-gray-900 dark:text-white mb-1">Logo de la empresa</p>
                         <button className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 dark:border-[oklch(0.3_0_0)] text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
-                            <Upload className="h-4 w-4" />
+                            <ArrowUpTrayIcon className="h-4 w-4" />
                             Subir logo
                         </button>
                     </div>

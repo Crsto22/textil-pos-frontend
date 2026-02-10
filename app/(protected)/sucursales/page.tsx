@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Plus, MapPin, Users, Pencil } from "lucide-react"
+import { PlusIcon, MapPinIcon, UsersIcon, PencilSquareIcon } from "@heroicons/react/24/outline"
 
 interface Branch {
     id: number
@@ -26,7 +26,7 @@ export default function SucursalesPage() {
             <div className="flex items-center justify-between">
                 <p className="text-sm text-gray-500 dark:text-gray-400">{branches.length} sucursales registradas</p>
                 <button className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#3266E4] text-white text-sm font-medium hover:bg-[#2755c7] transition-colors">
-                    <Plus className="h-4 w-4" />
+                    <PlusIcon className="h-4 w-4" />
                     Nueva sucursal
                 </button>
             </div>
@@ -38,7 +38,7 @@ export default function SucursalesPage() {
                         <div className="flex items-start justify-between">
                             <div className="flex items-center gap-3">
                                 <div className="h-10 w-10 rounded-lg bg-[#3266E4]/10 flex items-center justify-center">
-                                    <MapPin className="h-5 w-5 text-[#3266E4]" />
+                                    <MapPinIcon className="h-5 w-5 text-[#3266E4]" />
                                 </div>
                                 <div>
                                     <h3 className="font-bold text-gray-900 dark:text-white">{b.nombre}</h3>
@@ -46,18 +46,18 @@ export default function SucursalesPage() {
                                 </div>
                             </div>
                             <button className="h-8 w-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors">
-                                <Pencil className="h-4 w-4" />
+                                <PencilSquareIcon className="h-4 w-4" />
                             </button>
                         </div>
 
                         <div className="flex items-start gap-2 text-sm text-gray-500 dark:text-gray-400">
-                            <MapPin className="h-4 w-4 shrink-0 mt-0.5" />
+                            <MapPinIcon className="h-4 w-4 shrink-0 mt-0.5" />
                             <p>{b.direccion}</p>
                         </div>
 
                         <div>
                             <div className="flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
-                                <Users className="h-3.5 w-3.5" />
+                                <UsersIcon className="h-3.5 w-3.5" />
                                 <span>Usuarios asignados ({b.usuarios.length})</span>
                             </div>
                             <div className="flex flex-wrap gap-1.5">

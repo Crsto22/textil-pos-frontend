@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Search, Plus, Shield, ShieldCheck, Power } from "lucide-react"
+import { MagnifyingGlassIcon, PlusIcon, ShieldExclamationIcon, ShieldCheckIcon, BoltIcon } from "@heroicons/react/24/outline"
 
 interface UserData {
     id: number
@@ -44,7 +44,7 @@ export default function UsuariosPage() {
             {/* Top bar */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div className="relative flex-1 w-full sm:max-w-sm">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                     <input
                         type="text"
                         placeholder="Buscar usuario..."
@@ -54,7 +54,7 @@ export default function UsuariosPage() {
                     />
                 </div>
                 <button className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#3266E4] text-white text-sm font-medium hover:bg-[#2755c7] transition-colors shrink-0">
-                    <Plus className="h-4 w-4" />
+                    <PlusIcon className="h-4 w-4" />
                     Nuevo usuario
                 </button>
             </div>
@@ -80,9 +80,9 @@ export default function UsuariosPage() {
                                         <div className="flex items-center gap-3">
                                             <div className={`h-8 w-8 rounded-full flex items-center justify-center shrink-0 ${u.rol === "Administrador" ? "bg-purple-100 dark:bg-purple-500/20" : "bg-[#3266E4]/10"}`}>
                                                 {u.rol === "Administrador" ? (
-                                                    <ShieldCheck className="h-4 w-4 text-purple-600" />
+                                                    <ShieldCheckIcon className="h-4 w-4 text-purple-600" />
                                                 ) : (
-                                                    <Shield className="h-4 w-4 text-[#3266E4]" />
+                                                    <ShieldExclamationIcon className="h-4 w-4 text-[#3266E4]" />
                                                 )}
                                             </div>
                                             <span className="font-medium text-gray-900 dark:text-white">{u.nombre} {u.apellido}</span>
@@ -107,7 +107,7 @@ export default function UsuariosPage() {
                                                 }`}
                                             title={u.activo ? "Desactivar" : "Activar"}
                                         >
-                                            <Power className="h-4 w-4" />
+                                            <BoltIcon className="h-4 w-4" />
                                         </button>
                                     </td>
                                 </tr>

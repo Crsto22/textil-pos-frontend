@@ -1,12 +1,12 @@
 "use client"
 
-import type { LucideIcon } from "lucide-react"
-import { TrendingUp, TrendingDown } from "lucide-react"
+import { ArrowTrendingUpIcon, ArrowTrendingDownIcon } from "@heroicons/react/24/outline"
+import type { ComponentType, SVGProps } from "react"
 
 interface MetricCardProps {
     title: string
     value: string
-    icon: LucideIcon
+    icon: ComponentType<SVGProps<SVGSVGElement>>
     trend?: {
         value: number       // e.g. 12.5 for +12.5%
         label: string       // e.g. "vs período anterior"
@@ -29,9 +29,9 @@ export function MetricCard({ title, value, icon: Icon, trend, iconColor = "text-
             {trend && (
                 <div className="flex items-center gap-1.5 text-xs">
                     {isPositive ? (
-                        <TrendingUp className="h-3.5 w-3.5 text-green-500" />
+                        <ArrowTrendingUpIcon className="h-3.5 w-3.5 text-green-500" />
                     ) : (
-                        <TrendingDown className="h-3.5 w-3.5 text-red-500" />
+                        <ArrowTrendingDownIcon className="h-3.5 w-3.5 text-red-500" />
                     )}
                     <span className={isPositive ? "text-green-600 dark:text-green-400 font-medium" : "text-red-600 dark:text-red-400 font-medium"}>
                         {isPositive ? "+" : ""}{trend.value}%

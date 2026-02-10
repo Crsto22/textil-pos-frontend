@@ -1,7 +1,7 @@
 "use client"
 
 import { useAuth } from "@/lib/auth/auth-context"
-import { Lock, User } from "lucide-react"
+import { LockClosedIcon, UserIcon } from "@heroicons/react/24/outline"
 
 export default function ConfigCuentaPage() {
     const { user } = useAuth()
@@ -15,7 +15,7 @@ export default function ConfigCuentaPage() {
             {/* Profile info */}
             <div className="bg-white dark:bg-[oklch(0.15_0_0)] rounded-xl border border-gray-100 dark:border-[oklch(0.3_0_0)] shadow-sm p-6 space-y-5">
                 <div className="flex items-center gap-3 pb-3 border-b border-gray-100 dark:border-[oklch(0.3_0_0)]">
-                    <User className="h-5 w-5 text-[#3266E4]" />
+                    <UserIcon className="h-5 w-5 text-[#3266E4]" />
                     <h2 className="font-bold text-gray-900 dark:text-white">Datos personales</h2>
                 </div>
 
@@ -56,7 +56,7 @@ export default function ConfigCuentaPage() {
             {/* Change password */}
             <div className="bg-white dark:bg-[oklch(0.15_0_0)] rounded-xl border border-gray-100 dark:border-[oklch(0.3_0_0)] shadow-sm p-6 space-y-5">
                 <div className="flex items-center gap-3 pb-3 border-b border-gray-100 dark:border-[oklch(0.3_0_0)]">
-                    <Lock className="h-5 w-5 text-[#3266E4]" />
+                    <LockClosedIcon className="h-5 w-5 text-[#3266E4]" />
                     <h2 className="font-bold text-gray-900 dark:text-white">Cambiar contraseña</h2>
                 </div>
 
