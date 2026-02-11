@@ -20,11 +20,11 @@ export default function ProtectedLayout({ children }: { children: ReactNode }) {
     }
   }, [isLoading, isAuthenticated, router])
 
-  if (!isAuthenticated && !isLoading) return null
+  if (isLoading) return <LoaderOverlay />
+  if (!isAuthenticated) return null
 
   return (
     <>
-      {isLoading && <LoaderOverlay />}
       <div className="flex h-screen overflow-hidden">
         <Sidebar
           isOpen={sidebarOpen}

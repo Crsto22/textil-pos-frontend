@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth/auth-context"
+
 import {
     Squares2X2Icon,
     ChevronLeftIcon,
@@ -16,9 +17,10 @@ import {
     XMarkIcon,
     HomeModernIcon,
     BuildingOffice2Icon,
+    SwatchIcon,
+    TagIcon,
 } from "@heroicons/react/24/outline"
 import {
-    
     Squares2X2Icon as Squares2X2IconSolid,
     CreditCardIcon as CreditCardIconSolid,
     CubeIcon as CubeIconSolid,
@@ -28,6 +30,8 @@ import {
     WrenchScrewdriverIcon as WrenchScrewdriverIconSolid,
     UsersIcon as UsersIconSolid,
     BuildingOffice2Icon as BuildingOffice2IconSolid,
+    SwatchIcon as SwatchIconSolid,
+    TagIcon as TagIconSolid,
 } from "@heroicons/react/24/solid"
 
 interface SidebarProps {
@@ -40,10 +44,15 @@ interface SidebarProps {
 const navItems = [
     { label: "Dashboard", href: "/dashboard", icon: Squares2X2Icon, iconActive: Squares2X2IconSolid },
     { label: "Ventas", href: "/ventas", icon: ShoppingCartIcon, iconActive: ShoppingCartIconSolid },
-    { label: "Productos", href: "/productos", icon: CubeIcon, iconActive: CubeIconSolid },
     { label: "Clientes", href: "/clientes", icon: UsersIcon, iconActive: UsersIconSolid },
     { label: "Usuarios", href: "/usuarios", icon: WrenchScrewdriverIcon, iconActive: WrenchScrewdriverIconSolid },
     { label: "Sucursales", href: "/sucursales", icon: BuildingOffice2Icon, iconActive: BuildingOffice2IconSolid },
+]
+
+const catalogItems = [
+    { label: "Productos", href: "/productos", icon: CubeIcon, iconActive: CubeIconSolid },
+    { label: "Tallas", href: "/productos/tallas", icon: TagIcon, iconActive: TagIconSolid },
+    { label: "Colores", href: "/productos/colores", icon: SwatchIcon, iconActive: SwatchIconSolid },
 ]
 
 const configItems = [
@@ -85,7 +94,7 @@ export function Sidebar({ isOpen, collapsed, onClose, onToggleCollapse }: Sideba
         <>
             {isOpen && (
                 <div
-                    className="fixed inset-0 z-40 bg-slate-900/45 backdrop-blur-[1px] lg:hidden"
+                    className="fixed inset-0 z-40 bg-slate-900/45 lg:hidden"
                     onClick={onClose}
                 />
             )}
@@ -137,6 +146,33 @@ export function Sidebar({ isOpen, collapsed, onClose, onToggleCollapse }: Sideba
 
                 <nav className="sidebar-scroll flex-1 space-y-1 overflow-y-auto px-3 py-4">
                     {navItems.map((item) => {
+                        const active = isActive(item.href)
+                        const Icon = active ? item.iconActive : item.icon
+
+                        return (
+                            <button
+                                key={item.href}
+                                onClick={() => handleNav(item.href)}
+                                className={itemClass(active)}
+                                title={collapsed ? item.label : undefined}
+                            >
+                                <Icon className={`h-5 w-5 shrink-0 ${active ? "text-blue-600" : ""}`} />
+                                {!collapsed && (
+                                    <span className="truncate">{item.label}</span>
+                                )}
+                            </button>
+                        )
+                    })}
+
+                    <div className="my-3 border-t border-slate-700/50" />
+
+                    {!collapsed && (
+                        <p className="px-2 text-[11px] font-medium uppercase tracking-[0.14em] text-slate-500">
+                            Catálogo
+                        </p>
+                    )}
+
+                    {catalogItems.map((item) => {
                         const active = isActive(item.href)
                         const Icon = active ? item.iconActive : item.icon
                         return (
