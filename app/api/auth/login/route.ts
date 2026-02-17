@@ -52,8 +52,13 @@ export async function POST(request: NextRequest) {
       idUsuario: data.idUsuario,
       nombre: data.nombre,
       apellido: data.apellido,
+      correo: data.correo,
+      dni: data.dni,
+      telefono: data.telefono,
       rol: data.rol,
+      fechaCreacion: data.fechaCreacion,
       idSucursal: data.idSucursal,
+      nombreSucursal: data.nombreSucursal,
     }
 
     const response = NextResponse.json(

@@ -1,5 +1,9 @@
 import { memo } from "react"
-import { TrashIcon } from "@heroicons/react/24/outline"
+import {
+  ChevronRightIcon,
+  PencilSquareIcon,
+  TrashIcon,
+} from "@heroicons/react/24/outline"
 
 import { UsuariosTableSkeleton } from "@/components/usuarios/UsuariosTableSkeleton"
 import type { Usuario } from "@/lib/types/usuario"
@@ -7,6 +11,7 @@ import {
   estadoBadge,
   getAvatarColor,
   getInitials,
+  getSucursalDisplay,
   rolBadge,
 } from "@/components/usuarios/usuarios.utils"
 
@@ -16,6 +21,7 @@ interface UsuariosTableProps {
   isSearchMode: boolean
   selectedUserId: number | null
   onSelectUser: (usuario: Usuario) => void
+  onEditUser: (usuario: Usuario) => void
   onDeleteUser: (usuario: Usuario) => void
 }
 
@@ -25,6 +31,7 @@ function UsuariosTableComponent({
   isSearchMode,
   selectedUserId,
   onSelectUser,
+  onEditUser,
   onDeleteUser,
 }: UsuariosTableProps) {
   return (
@@ -52,7 +59,7 @@ function UsuariosTableComponent({
                 Estado
               </th>
               <th className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Acción
+                Acciones
               </th>
             </tr>
           </thead>
@@ -83,6 +90,10 @@ function UsuariosTableComponent({
                     dot: "bg-gray-400",
                     cls: "text-gray-600",
                   }
+                const sucursalDisplay = getSucursalDisplay(
+                  usuario.rol,
+                  usuario.nombreSucursal
+                )
 
                 return (
                   <tr
@@ -95,17 +106,17 @@ function UsuariosTableComponent({
                     }`}
                   >
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
+                      <div className="flex min-w-0 items-center gap-3">
                         <div
                           className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold ${color.bg} ${color.text}`}
                         >
                           {initials}
                         </div>
-                        <div>
-                          <span className="font-semibold">
+                        <div className="min-w-0">
+                          <span className="block truncate font-semibold">
                             {usuario.nombre} {usuario.apellido}
                           </span>
-                          <p className="text-xs text-muted-foreground sm:hidden">
+                          <p className="truncate text-xs text-muted-foreground sm:hidden">
                             {usuario.correo}
                           </p>
                         </div>
@@ -118,7 +129,7 @@ function UsuariosTableComponent({
                       {usuario.correo}
                     </td>
                     <td className="hidden px-4 py-3 font-semibold text-muted-foreground lg:table-cell">
-                      {usuario.nombreSucursal}
+                      {sucursalDisplay}
                     </td>
                     <td className="px-4 py-3">
                       <span
@@ -136,18 +147,40 @@ function UsuariosTableComponent({
                       </span>
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          onDeleteUser(usuario)
-                        }}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10"
-                        aria-label={`Eliminar a ${usuario.nombre} ${usuario.apellido}`}
-                        title="Eliminar usuario"
-                      >
-                        <TrashIcon className="h-4 w-4" />
-                      </button>
+                      <div className="inline-flex items-center gap-2">
+                        <div className="inline-flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              onEditUser(usuario)
+                            }}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-blue-600 transition-colors hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-500/10"
+                            aria-label={`Editar a ${usuario.nombre} ${usuario.apellido}`}
+                            title="Editar usuario"
+                          >
+                            <PencilSquareIcon className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              onDeleteUser(usuario)
+                            }}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10"
+                            aria-label={`Eliminar a ${usuario.nombre} ${usuario.apellido}`}
+                            title="Eliminar usuario"
+                          >
+                            <TrashIcon className="h-4 w-4" />
+                          </button>
+                        </div>
+                        <ChevronRightIcon
+                          className={`h-4 w-4 shrink-0 transition-colors ${
+                            isSelected ? "text-blue-600" : "text-muted-foreground/50"
+                          }`}
+                          aria-hidden="true"
+                        />
+                      </div>
                     </td>
                   </tr>
                 )

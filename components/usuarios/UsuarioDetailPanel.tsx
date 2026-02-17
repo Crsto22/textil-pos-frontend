@@ -4,28 +4,33 @@ import {
   CalendarDaysIcon,
   EnvelopeIcon,
   IdentificationIcon,
+  KeyIcon,
   PhoneIcon,
   UserCircleIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline"
 
+import { Button } from "@/components/ui/button"
 import type { Usuario } from "@/lib/types/usuario"
 import {
   estadoBadge,
   formatFecha,
   getAvatarColor,
   getInitials,
+  getSucursalDisplay,
   rolBadge,
 } from "@/components/usuarios/usuarios.utils"
 
 interface UsuarioDetailPanelProps {
   selectedUser: Usuario | null
   onClose: () => void
+  onResetPassword: (usuario: Usuario) => void
 }
 
 function UsuarioDetailPanelComponent({
   selectedUser,
   onClose,
+  onResetPassword,
 }: UsuarioDetailPanelProps) {
   return (
     <aside className="hidden w-80 shrink-0 xl:block">
@@ -45,6 +50,10 @@ function UsuarioDetailPanelComponent({
                 dot: "bg-gray-400",
                 cls: "text-gray-600",
               }
+            const sucursalDisplay = getSucursalDisplay(
+              selectedUser.rol,
+              selectedUser.nombreSucursal
+            )
 
             return (
               <>
@@ -126,7 +135,7 @@ function UsuarioDetailPanelComponent({
                           Sucursal
                         </p>
                         <p className="text-sm font-medium">
-                          {selectedUser.nombreSucursal}
+                          {sucursalDisplay}
                         </p>
                       </div>
                     </div>
@@ -142,6 +151,18 @@ function UsuarioDetailPanelComponent({
                       </div>
                     </div>
                   </div>
+                </div>
+
+                <div className="border-t px-6 py-5">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => onResetPassword(selectedUser)}
+                  >
+                    <KeyIcon className="h-4 w-4" />
+                    Cambiar contraseña
+                  </Button>
                 </div>
               </>
             )

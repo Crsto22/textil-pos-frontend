@@ -15,6 +15,8 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const q = searchParams.get("q") ?? ""
     const page = searchParams.get("page") ?? "0"
+    const rol = searchParams.get("rol")?.trim() ?? ""
+    const idSucursal = searchParams.get("idSucursal")?.trim() ?? ""
 
     // Reenviar Authorization del cliente al backend
     const authHeader = request.headers.get("authorization")
@@ -26,8 +28,21 @@ export async function GET(request: NextRequest) {
 
     let backendRes: Response
     try {
+      const backendParams = new URLSearchParams({
+        q,
+        page,
+      })
+
+      if (rol) {
+        backendParams.set("rol", rol)
+      }
+
+      if (idSucursal) {
+        backendParams.set("idSucursal", idSucursal)
+      }
+
       backendRes = await fetch(
-        `${BACKEND_URL}/api/usuario/buscar?q=${encodeURIComponent(q)}&page=${encodeURIComponent(page)}`,
+        `${BACKEND_URL}/api/usuario/buscar?${backendParams.toString()}`,
         { headers }
       )
     } catch {

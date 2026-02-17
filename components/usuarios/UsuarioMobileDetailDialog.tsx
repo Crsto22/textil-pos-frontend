@@ -4,18 +4,19 @@ import {
   CalendarDaysIcon,
   EnvelopeIcon,
   IdentificationIcon,
-  PencilSquareIcon,
+  KeyIcon,
   PhoneIcon,
 } from "@heroicons/react/24/outline"
 
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogFooter } from "@/components/ui/dialog"
+import { Dialog, DialogContent } from "@/components/ui/dialog"
 import type { Usuario } from "@/lib/types/usuario"
 import {
   estadoBadge,
   formatFecha,
   getAvatarColor,
   getInitials,
+  getSucursalDisplay,
   rolBadge,
 } from "@/components/usuarios/usuarios.utils"
 
@@ -23,14 +24,14 @@ interface UsuarioMobileDetailDialogProps {
   open: boolean
   selectedUser: Usuario | null
   onOpenChange: (open: boolean) => void
-  onEditUser: (usuario: Usuario) => void
+  onResetPassword: (usuario: Usuario) => void
 }
 
 function UsuarioMobileDetailDialogComponent({
   open,
   selectedUser,
   onOpenChange,
-  onEditUser,
+  onResetPassword,
 }: UsuarioMobileDetailDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -50,6 +51,10 @@ function UsuarioMobileDetailDialogComponent({
                 dot: "bg-gray-400",
                 cls: "text-gray-600",
               }
+            const sucursalDisplay = getSucursalDisplay(
+              selectedUser.rol,
+              selectedUser.nombreSucursal
+            )
 
             return (
               <>
@@ -122,7 +127,7 @@ function UsuarioMobileDetailDialogComponent({
                           Sucursal
                         </p>
                         <p className="text-sm font-medium">
-                          {selectedUser.nombreSucursal}
+                          {sucursalDisplay}
                         </p>
                       </div>
                     </div>
@@ -140,16 +145,17 @@ function UsuarioMobileDetailDialogComponent({
                   </div>
                 </div>
 
-                <DialogFooter className="mt-4">
+                <div className="border-t pt-4">
                   <Button
                     type="button"
+                    variant="outline"
                     className="w-full"
-                    onClick={() => onEditUser(selectedUser)}
+                    onClick={() => onResetPassword(selectedUser)}
                   >
-                    <PencilSquareIcon className="mr-2 h-4 w-4" />
-                    Editar Usuario
+                    <KeyIcon className="h-4 w-4" />
+                    Cambiar contraseña
                   </Button>
-                </DialogFooter>
+                </div>
               </>
             )
           })()}

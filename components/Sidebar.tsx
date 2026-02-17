@@ -19,6 +19,7 @@ import {
     BuildingOffice2Icon,
     SwatchIcon,
     TagIcon,
+    RectangleStackIcon,
 } from "@heroicons/react/24/outline"
 import {
     Squares2X2Icon as Squares2X2IconSolid,
@@ -32,6 +33,7 @@ import {
     BuildingOffice2Icon as BuildingOffice2IconSolid,
     SwatchIcon as SwatchIconSolid,
     TagIcon as TagIconSolid,
+    RectangleStackIcon as RectangleStackIconSolid,
 } from "@heroicons/react/24/solid"
 
 interface SidebarProps {
@@ -51,6 +53,7 @@ const navItems = [
 
 const catalogItems = [
     { label: "Productos", href: "/productos", icon: CubeIcon, iconActive: CubeIconSolid },
+    { label: "Categorias", href: "/productos/categorias", icon: RectangleStackIcon, iconActive: RectangleStackIconSolid },
     { label: "Tallas", href: "/productos/tallas", icon: TagIcon, iconActive: TagIconSolid },
     { label: "Colores", href: "/productos/colores", icon: SwatchIcon, iconActive: SwatchIconSolid },
 ]

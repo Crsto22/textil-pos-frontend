@@ -1,76 +1,172 @@
 "use client"
 
-import { useState } from "react"
-import { PlusIcon, MapPinIcon, UsersIcon, PencilSquareIcon } from "@heroicons/react/24/outline"
+import { useCallback, useState } from "react"
+import { PlusIcon } from "@heroicons/react/24/outline"
 
-interface Branch {
-    id: number
-    nombre: string
-    direccion: string
-    telefono: string
-    usuarios: string[]
-}
-
-const demoBranches: Branch[] = [
-    { id: 1, nombre: "Sucursal Principal", direccion: "Av. Ejemplo 123, Lima", telefono: "01-2345678", usuarios: ["Bryan Torres", "María García", "Luis Mendoza"] },
-    { id: 2, nombre: "Sucursal Norte", direccion: "Jr. Norte 456, Los Olivos", telefono: "01-8765432", usuarios: ["Carlos López"] },
-    { id: 3, nombre: "Sucursal Sur", direccion: "Av. Sur 789, Surco", telefono: "01-3456789", usuarios: ["Ana Rodríguez"] },
-]
+import { SucursalesCards } from "@/components/sucursales/SucursalesCards"
+import { SucursalesPagination } from "@/components/sucursales/SucursalesPagination"
+import { SucursalesSearch } from "@/components/sucursales/SucursalesSearch"
+import { SucursalCreateDialog } from "@/components/sucursales/modals/SucursalCreateDialog"
+import { SucursalDeleteDialog } from "@/components/sucursales/modals/SucursalDeleteDialog"
+import { SucursalEditDialog } from "@/components/sucursales/modals/SucursalEditDialog"
+import { useSucursales } from "@/lib/hooks/useSucursales"
+import type {
+  Sucursal,
+  SucursalCreateRequest,
+  SucursalUpdateRequest,
+} from "@/lib/types/sucursal"
 
 export default function SucursalesPage() {
-    const [branches] = useState(demoBranches)
+  const [openCreate, setOpenCreate] = useState(false)
+  const [openEdit, setOpenEdit] = useState(false)
+  const [editTarget, setEditTarget] = useState<Sucursal | null>(null)
+  const [openDelete, setOpenDelete] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<Sucursal | null>(null)
 
-    return (
-        <div className="space-y-6">
-            {/* Top bar */}
-            <div className="flex items-center justify-between">
-                <p className="text-sm text-gray-500 dark:text-gray-400">{branches.length} sucursales registradas</p>
-                <button className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#3266E4] text-white text-sm font-medium hover:bg-[#2755c7] transition-colors">
-                    <PlusIcon className="h-4 w-4" />
-                    Nueva sucursal
-                </button>
-            </div>
+  const {
+    page,
+    error,
+    search,
+    debouncedSearch,
+    setSearch,
+    isSearchMode,
+    displayedSucursales,
+    displayedTotalPages,
+    displayedTotalElements,
+    displayedPage,
+    displayedLoading,
+    setDisplayedPage,
+    fetchSucursales,
+    fetchBuscar,
+    createSucursal,
+    updateSucursal,
+    deleteSucursal,
+  } = useSucursales()
 
-            {/* Branch cards */}
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {branches.map((b) => (
-                    <div key={b.id} className="bg-white dark:bg-[oklch(0.15_0_0)] rounded-xl border border-gray-100 dark:border-[oklch(0.3_0_0)] shadow-sm p-5 space-y-4 hover:shadow-md transition-shadow">
-                        <div className="flex items-start justify-between">
-                            <div className="flex items-center gap-3">
-                                <div className="h-10 w-10 rounded-lg bg-[#3266E4]/10 flex items-center justify-center">
-                                    <MapPinIcon className="h-5 w-5 text-[#3266E4]" />
-                                </div>
-                                <div>
-                                    <h3 className="font-bold text-gray-900 dark:text-white">{b.nombre}</h3>
-                                    <p className="text-xs text-gray-400">{b.telefono}</p>
-                                </div>
-                            </div>
-                            <button className="h-8 w-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors">
-                                <PencilSquareIcon className="h-4 w-4" />
-                            </button>
-                        </div>
+  const handleRetry = useCallback(() => {
+    if (isSearchMode) {
+      void fetchBuscar(debouncedSearch, displayedPage)
+      return
+    }
+    void fetchSucursales(page)
+  }, [
+    debouncedSearch,
+    displayedPage,
+    fetchBuscar,
+    fetchSucursales,
+    isSearchMode,
+    page,
+  ])
 
-                        <div className="flex items-start gap-2 text-sm text-gray-500 dark:text-gray-400">
-                            <MapPinIcon className="h-4 w-4 shrink-0 mt-0.5" />
-                            <p>{b.direccion}</p>
-                        </div>
+  const handleOpenCreate = useCallback(() => {
+    setOpenCreate(true)
+  }, [])
 
-                        <div>
-                            <div className="flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
-                                <UsersIcon className="h-3.5 w-3.5" />
-                                <span>Usuarios asignados ({b.usuarios.length})</span>
-                            </div>
-                            <div className="flex flex-wrap gap-1.5">
-                                {b.usuarios.map((u) => (
-                                    <span key={u} className="px-2.5 py-1 rounded-full bg-gray-100 dark:bg-white/10 text-xs text-gray-600 dark:text-gray-300 font-medium">
-                                        {u}
-                                    </span>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                ))}
-            </div>
+  const handleOpenEdit = useCallback((sucursal: Sucursal) => {
+    setEditTarget(sucursal)
+    setOpenEdit(true)
+  }, [])
+
+  const handleOpenDelete = useCallback((sucursal: Sucursal) => {
+    setDeleteTarget(sucursal)
+    setOpenDelete(true)
+  }, [])
+
+  const handleEditOpenChange = useCallback((open: boolean) => {
+    setOpenEdit(open)
+    if (!open) {
+      setEditTarget(null)
+    }
+  }, [])
+
+  const handleDeleteOpenChange = useCallback((open: boolean) => {
+    setOpenDelete(open)
+    if (!open) {
+      setDeleteTarget(null)
+    }
+  }, [])
+
+  const handleCreate = useCallback(
+    async (payload: SucursalCreateRequest) => createSucursal(payload),
+    [createSucursal]
+  )
+
+  const handleUpdate = useCallback(
+    async (id: number, payload: SucursalUpdateRequest) =>
+      updateSucursal(id, payload),
+    [updateSucursal]
+  )
+
+  const handleDelete = useCallback(
+    async (id: number) => {
+      const success = await deleteSucursal(id)
+      if (success) {
+        setDeleteTarget(null)
+      }
+      return success
+    },
+    [deleteSucursal]
+  )
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="w-full sm:max-w-md">
+          <SucursalesSearch search={search} onSearchChange={setSearch} />
         </div>
-    )
+        <div className="shrink-0">
+          <button
+            onClick={handleOpenCreate}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700 sm:w-auto"
+          >
+            <PlusIcon className="h-4 w-4" />
+            Nueva Sucursal
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">
+          {error}
+          <button onClick={handleRetry} className="ml-2 underline hover:no-underline">
+            Reintentar
+          </button>
+        </div>
+      )}
+
+      <SucursalesCards
+        sucursales={displayedSucursales}
+        loading={displayedLoading}
+        onEditSucursal={handleOpenEdit}
+        onDeleteSucursal={handleOpenDelete}
+      />
+
+      <SucursalesPagination
+        totalElements={displayedTotalElements}
+        totalPages={displayedTotalPages}
+        page={displayedPage}
+        onPageChange={setDisplayedPage}
+      />
+
+      <SucursalCreateDialog
+        open={openCreate}
+        onOpenChange={setOpenCreate}
+        onCreate={handleCreate}
+      />
+
+      <SucursalEditDialog
+        open={openEdit}
+        sucursal={editTarget}
+        onOpenChange={handleEditOpenChange}
+        onUpdate={handleUpdate}
+      />
+
+      <SucursalDeleteDialog
+        open={openDelete}
+        target={deleteTarget}
+        onOpenChange={handleDeleteOpenChange}
+        onDelete={handleDelete}
+      />
+    </div>
+  )
 }

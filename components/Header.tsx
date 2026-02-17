@@ -15,6 +15,8 @@ const pageTitles: Record<string, string> = {
     "/clientes": "Clientes",
     "/usuarios": "Usuarios",
     "/sucursales": "Sucursales",
+    "/productos/tallas": "Tallas",
+    "/productos/colores": "Colores",
     "/configuracion/empresa": "Configuración de Empresa",
     "/configuracion/cuenta": "Configuración de Cuenta",
     "/configuracion/metodos-pago": "Métodos de Pago",

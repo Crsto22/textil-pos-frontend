@@ -37,8 +37,12 @@ export const rolBadge: Record<string, { label: string; cls: string }> = {
     cls: "bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-400",
   },
   VENTAS: {
-    label: "Vendedor",
+    label: "Ventas",
     cls: "bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400",
+  },
+  ALMACEN: {
+    label: "Almacen",
+    cls: "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400",
   },
 }
 
@@ -53,4 +57,11 @@ export const estadoBadge: Record<string, { label: string; dot: string; cls: stri
     dot: "bg-red-500",
     cls: "text-red-700 dark:text-red-400",
   },
+}
+
+export function getSucursalDisplay(rol: string, nombreSucursal?: string | null) {
+  const nombreNormalizado = nombreSucursal?.trim()
+  if (nombreNormalizado) return nombreNormalizado
+  if (rol === "ADMINISTRADOR") return "GLOBAL"
+  return "Sin sucursal asignada"
 }

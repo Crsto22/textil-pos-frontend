@@ -6,6 +6,18 @@ export interface Talla {
   estado: string
 }
 
+export interface TallaCreateRequest {
+  nombre: string
+}
+
+export interface TallaUpdateRequest {
+  nombre: string
+}
+
+export interface TallaDeleteResponse {
+  message: string
+}
+
 /**
  * Respuesta paginada genérica del backend (Spring Boot Page<T>).
  * Reutilizable para cualquier endpoint paginado.

@@ -5,16 +5,10 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/lib/auth/auth-context";
 import { Toaster } from "sonner";
 
-const soraExtraLight = localFont({
-  src: "../public/font/Sora-ExtraLight.ttf",
-  variable: "--font-sora-extralight",
-  weight: "200",
-});
-
-const soraSemiBold = localFont({
-  src: "../public/font/Sora-SemiBold.ttf",
-  variable: "--font-sora-semibold",
-  weight: "600",
+const soraLight = localFont({
+  src: "../public/font/Sora-Light.ttf",
+  variable: "--font-sora-light",
+  weight: "300",
 });
 
 export const metadata: Metadata = {
@@ -29,9 +23,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" suppressHydrationWarning>
-      <body
-        className={`${soraExtraLight.variable} ${soraSemiBold.variable} antialiased`}
-      >
+      <body className={`${soraLight.variable} antialiased`}>
         <ThemeProvider
           attribute="class"
           defaultTheme="system"

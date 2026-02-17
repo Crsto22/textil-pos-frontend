@@ -3,11 +3,13 @@
 import { useCallback, useState } from "react"
 
 import { UsuarioDetailPanel } from "@/components/usuarios/UsuarioDetailPanel"
+import { UsuariosFilters } from "@/components/usuarios/UsuariosFilters"
 import { UsuarioMobileDetailDialog } from "@/components/usuarios/UsuarioMobileDetailDialog"
 import { UsuariosHeader } from "@/components/usuarios/UsuariosHeader"
 import { UsuariosPagination } from "@/components/usuarios/UsuariosPagination"
 import { UsuariosSearch } from "@/components/usuarios/UsuariosSearch"
 import { UsuariosTable } from "@/components/usuarios/UsuariosTable"
+import { UsuarioResetPasswordDialog } from "@/components/usuarios/modals/UsuarioResetPasswordDialog"
 import { UsuarioCreateDialog } from "@/components/usuarios/modals/UsuarioCreateDialog"
 import { UsuarioDeleteDialog } from "@/components/usuarios/modals/UsuarioDeleteDialog"
 import { UsuarioEditDialog } from "@/components/usuarios/modals/UsuarioEditDialog"
@@ -15,6 +17,7 @@ import { useUsuarios } from "@/lib/hooks/useUsuarios"
 import type {
   Usuario,
   UsuarioCreateRequest,
+  UsuarioResetPasswordRequest,
   UsuarioUpdateRequest,
 } from "@/lib/types/usuario"
 
@@ -29,12 +32,18 @@ export default function UsuariosPage() {
   const [openDelete, setOpenDelete] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Usuario | null>(null)
 
+  const [openResetPassword, setOpenResetPassword] = useState(false)
+  const [resetPasswordTarget, setResetPasswordTarget] = useState<Usuario | null>(
+    null
+  )
+
   const {
-    totalElements,
-    activeCount,
     search,
     setSearch,
-    debouncedSearch,
+    roleFilter,
+    setRoleFilter,
+    branchFilter,
+    setBranchFilter,
     isSearchMode,
     displayedUsers,
     displayedLoading,
@@ -45,6 +54,8 @@ export default function UsuariosPage() {
     createUsuario,
     updateUsuario,
     deleteUsuario,
+    resetUsuarioPassword,
+    isResettingPassword,
   } = useUsuarios()
 
   const handleSelectUser = useCallback((usuario: Usuario) => {
@@ -63,19 +74,6 @@ export default function UsuariosPage() {
     setEditTarget(usuario)
     setOpenEdit(true)
   }, [])
-
-  const handleOpenEditFromSelected = useCallback(() => {
-    if (!selectedUser) return
-    openEditModal(selectedUser)
-  }, [openEditModal, selectedUser])
-
-  const handleMobileEdit = useCallback(
-    (usuario: Usuario) => {
-      openEditModal(usuario)
-      setMobileDetail(false)
-    },
-    [openEditModal]
-  )
 
   const handleCreate = useCallback(
     async (payload: UsuarioCreateRequest) => createUsuario(payload),
@@ -125,6 +123,12 @@ export default function UsuariosPage() {
     [deleteUsuario]
   )
 
+  const handleResetPassword = useCallback(
+    async (id: number, payload: UsuarioResetPasswordRequest) =>
+      resetUsuarioPassword(id, payload),
+    [resetUsuarioPassword]
+  )
+
   const handleMobileOpenChange = useCallback((open: boolean) => {
     setMobileDetail(open)
     if (!open) {
@@ -146,6 +150,13 @@ export default function UsuariosPage() {
     }
   }, [])
 
+  const handleResetPasswordOpenChange = useCallback((open: boolean) => {
+    setOpenResetPassword(open)
+    if (!open) {
+      setResetPasswordTarget(null)
+    }
+  }, [])
+
   const handleRequestDelete = useCallback((usuario: Usuario) => {
     setDeleteTarget(usuario)
     setOpenDelete(true)
@@ -159,22 +170,35 @@ export default function UsuariosPage() {
     setSelectedUser(null)
   }, [])
 
+  const handleRequestResetPassword = useCallback((usuario: Usuario) => {
+    setResetPasswordTarget(usuario)
+    setOpenResetPassword(true)
+  }, [])
+
+  const handleRequestResetPasswordFromMobile = useCallback((usuario: Usuario) => {
+    setMobileDetail(false)
+    setResetPasswordTarget(usuario)
+    setOpenResetPassword(true)
+  }, [])
+
   return (
     <div className="space-y-6">
       <div className="flex gap-6">
         <div className="min-w-0 flex-1">
-          <UsuariosHeader
-            isSearchMode={isSearchMode}
-            displayedTotalElements={displayedTotalElements}
-            debouncedSearch={debouncedSearch}
-            totalElements={totalElements}
-            activeCount={activeCount}
-            selectedUser={selectedUser}
-            onOpenCreate={handleOpenCreate}
-            onOpenEdit={handleOpenEditFromSelected}
-          />
-
-          <UsuariosSearch search={search} onSearchChange={setSearch} />
+          <div className="mb-6 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex w-full flex-col gap-3 lg:flex-row lg:items-center">
+              <div className="w-full lg:max-w-md">
+                <UsuariosSearch search={search} onSearchChange={setSearch} />
+              </div>
+              <UsuariosFilters
+                roleFilter={roleFilter}
+                branchFilter={branchFilter}
+                onRoleFilterChange={setRoleFilter}
+                onBranchFilterChange={setBranchFilter}
+              />
+            </div>
+            <UsuariosHeader onOpenCreate={handleOpenCreate} />
+          </div>
 
           <UsuariosTable
             users={displayedUsers}
@@ -182,6 +206,7 @@ export default function UsuariosPage() {
             isSearchMode={isSearchMode}
             selectedUserId={selectedUser?.idUsuario ?? null}
             onSelectUser={handleSelectUser}
+            onEditUser={openEditModal}
             onDeleteUser={handleRequestDelete}
           />
 
@@ -196,6 +221,7 @@ export default function UsuariosPage() {
         <UsuarioDetailPanel
           selectedUser={selectedUser}
           onClose={handleCloseSelectedUser}
+          onResetPassword={handleRequestResetPassword}
         />
       </div>
 
@@ -203,7 +229,7 @@ export default function UsuariosPage() {
         open={mobileDetail}
         selectedUser={selectedUser}
         onOpenChange={handleMobileOpenChange}
-        onEditUser={handleMobileEdit}
+        onResetPassword={handleRequestResetPasswordFromMobile}
       />
 
       <UsuarioCreateDialog
@@ -224,6 +250,14 @@ export default function UsuariosPage() {
         target={deleteTarget}
         onOpenChange={handleDeleteOpenChange}
         onDelete={handleDelete}
+      />
+
+      <UsuarioResetPasswordDialog
+        open={openResetPassword}
+        target={resetPasswordTarget}
+        isSubmitting={isResettingPassword}
+        onOpenChange={handleResetPasswordOpenChange}
+        onSubmit={handleResetPassword}
       />
     </div>
   )

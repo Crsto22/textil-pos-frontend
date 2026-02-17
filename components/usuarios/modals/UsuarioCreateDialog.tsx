@@ -17,9 +17,18 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
+import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { emptyCreate, type UsuarioCreateRequest } from "@/lib/types/usuario"
+import { Switch } from "@/components/ui/switch"
+import { useSucursalOptions } from "@/lib/hooks/useSucursalOptions"
+import {
+  emptyCreate,
+  isUsuarioRol,
+  usuarioRolRequiresSucursal,
+  USUARIO_ROLE_OPTIONS,
+  type UsuarioCreateRequest,
+} from "@/lib/types/usuario"
 
 interface UsuarioCreateDialogProps {
   open: boolean
@@ -34,6 +43,32 @@ export function UsuarioCreateDialog({
 }: UsuarioCreateDialogProps) {
   const [form, setForm] = useState<UsuarioCreateRequest>(emptyCreate)
   const [isSaving, setIsSaving] = useState(false)
+  const {
+    sucursalOptions,
+    loadingSucursales,
+    errorSucursales,
+    searchSucursal,
+    setSearchSucursal,
+  } = useSucursalOptions(open)
+
+  const requiresSucursal = usuarioRolRequiresSucursal(form.rol)
+  const hasValidSucursal =
+    typeof form.idSucursal === "number" && form.idSucursal > 0
+
+  const comboboxOptions = useMemo<ComboboxOption[]>(
+    () =>
+      hasValidSucursal &&
+      !sucursalOptions.some((option) => option.value === String(form.idSucursal))
+        ? [
+            {
+              value: String(form.idSucursal),
+              label: `Sucursal #${form.idSucursal}`,
+            },
+            ...sucursalOptions,
+          ]
+        : sucursalOptions,
+    [form.idSucursal, hasValidSucursal, sucursalOptions]
+  )
 
   const isCreateValid = useMemo(
     () =>
@@ -42,21 +77,32 @@ export function UsuarioCreateDialog({
       form.dni.length === 8 &&
       form.telefono.length === 9 &&
       form.email.trim() !== "" &&
-      form.password.length >= 8,
-    [form]
+      form.password.length >= 8 &&
+      isUsuarioRol(form.rol) &&
+      (!requiresSucursal || hasValidSucursal),
+    [form, hasValidSucursal, requiresSucursal]
   )
 
   const handleOpenChange = (nextOpen: boolean) => {
     onOpenChange(nextOpen)
     if (!nextOpen) {
       setForm(emptyCreate)
+      setSearchSucursal("")
     }
   }
 
   const handleCreate = async () => {
+    if (!isCreateValid) return
+
+    const payload: UsuarioCreateRequest = {
+      ...form,
+      idSucursal: requiresSucursal ? form.idSucursal : null,
+      ...(form.estado === "INACTIVO" ? { estado: "INACTIVO" } : {}),
+    }
+
     setIsSaving(true)
     try {
-      const success = await onCreate(form)
+      const success = await onCreate(payload)
       if (success) {
         handleOpenChange(false)
       }
@@ -193,35 +239,85 @@ export function UsuarioCreateDialog({
               <Select
                 value={form.rol}
                 onValueChange={(value) =>
-                  setForm((previous) => ({ ...previous, rol: value }))
+                  setForm((previous) => {
+                    if (!isUsuarioRol(value)) return previous
+                    return {
+                      ...previous,
+                      rol: value,
+                      idSucursal: usuarioRolRequiresSucursal(value)
+                        ? previous.idSucursal
+                        : null,
+                    }
+                  })
                 }
               >
                 <SelectTrigger className="w-full" id="c-rol">
                   <SelectValue placeholder="Selecciona rol" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ADMINISTRADOR">Administrador</SelectItem>
-                  <SelectItem value="VENTAS">Ventas</SelectItem>
+                  {USUARIO_ROLE_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="c-sucursal">ID Sucursal</Label>
-              <Input
-                id="c-sucursal"
-                type="number"
-                min={1}
-                value={form.idSucursal}
-                onChange={(event) =>
-                  setForm((previous) => ({
-                    ...previous,
-                    idSucursal: Number(event.target.value),
-                  }))
-                }
-              />
+              <Label htmlFor="c-estado">Estado</Label>
+              <div className="flex h-9 items-center justify-between rounded-md border px-3">
+                <span
+                  className={`text-sm font-medium ${
+                    form.estado === "ACTIVO" ? "text-emerald-600" : "text-slate-500"
+                  }`}
+                >
+                  {form.estado === "ACTIVO" ? "Activo" : "Inactivo"}
+                </span>
+                <Switch
+                  id="c-estado"
+                  checked={form.estado === "ACTIVO"}
+                  onCheckedChange={(checked) =>
+                    setForm((previous) => ({
+                      ...previous,
+                      estado: checked ? "ACTIVO" : "INACTIVO",
+                    }))
+                  }
+                  aria-label="Cambiar estado del usuario"
+                />
+              </div>
             </div>
           </div>
+
+          {requiresSucursal ? (
+            <div className="grid gap-2">
+              <Label htmlFor="c-sucursal">Sucursal</Label>
+              <Combobox
+                id="c-sucursal"
+                value={hasValidSucursal ? String(form.idSucursal) : ""}
+                options={comboboxOptions}
+                searchValue={searchSucursal}
+                onSearchValueChange={setSearchSucursal}
+                onValueChange={(value) =>
+                  setForm((previous) => ({
+                    ...previous,
+                    idSucursal: Number(value),
+                  }))
+                }
+                placeholder="Selecciona una sucursal"
+                searchPlaceholder="Buscar sucursal..."
+                emptyMessage="No se encontraron sucursales"
+                loading={loadingSucursales}
+              />
+              {errorSucursales && (
+                <p className="text-xs text-red-500">{errorSucursales}</p>
+              )}
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              El rol Administrador no requiere sucursal.
+            </p>
+          )}
         </div>
 
         <DialogFooter>

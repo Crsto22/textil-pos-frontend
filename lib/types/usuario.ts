@@ -1,4 +1,38 @@
-// Tipos para el módulo de Usuarios
+// Tipos para el modulo de Usuarios
+
+export const USUARIO_ROLES = ["ADMINISTRADOR", "VENTAS", "ALMACEN"] as const
+
+export type UsuarioRol = (typeof USUARIO_ROLES)[number]
+export const ALL_USUARIO_ROLE_FILTER = "ALL" as const
+export const ALL_USUARIO_BRANCH_FILTER = "ALL" as const
+export type UsuarioRoleFilter = UsuarioRol | typeof ALL_USUARIO_ROLE_FILTER
+
+export interface UsuarioRoleOption {
+  value: UsuarioRol
+  label: string
+}
+
+export const USUARIO_ROLE_OPTIONS: UsuarioRoleOption[] = [
+  { value: "ADMINISTRADOR", label: "Administrador" },
+  { value: "VENTAS", label: "Ventas" },
+  { value: "ALMACEN", label: "Almacen" },
+]
+
+export function isUsuarioRol(value: string): value is UsuarioRol {
+  return (USUARIO_ROLES as readonly string[]).includes(value)
+}
+
+export function normalizeUsuarioRol(
+  value: string | null | undefined,
+  fallback: UsuarioRol = "VENTAS"
+): UsuarioRol {
+  if (!value) return fallback
+  return isUsuarioRol(value) ? value : fallback
+}
+
+export function usuarioRolRequiresSucursal(rol: UsuarioRol): boolean {
+  return rol === "VENTAS" || rol === "ALMACEN"
+}
 
 export interface Usuario {
   idUsuario: number
@@ -7,10 +41,10 @@ export interface Usuario {
   dni: string
   telefono: string
   correo: string
-  rol: "ADMINISTRADOR" | "VENTAS" | string
+  rol: UsuarioRol
   estado: "ACTIVO" | "INACTIVO" | string
   fechaCreacion: string
-  idSucursal: number
+  idSucursal: number | null
   nombreSucursal: string
 }
 
@@ -21,8 +55,9 @@ export interface UsuarioCreateRequest {
   telefono: string
   email: string
   password: string
-  rol: string
-  idSucursal: number
+  rol: UsuarioRol
+  estado?: "ACTIVO" | "INACTIVO" | string
+  idSucursal: number | null
 }
 
 export interface UsuarioUpdateRequest {
@@ -31,9 +66,14 @@ export interface UsuarioUpdateRequest {
   dni: string
   telefono: string
   correo: string
-  rol: string
+  rol: UsuarioRol
   estado: string
-  idSucursal: number
+  idSucursal: number | null
+}
+
+export interface UsuarioResetPasswordRequest {
+  passwordNueva: string
+  confirmarPassword: string
 }
 
 export const emptyCreate: UsuarioCreateRequest = {
@@ -44,7 +84,8 @@ export const emptyCreate: UsuarioCreateRequest = {
   email: "",
   password: "",
   rol: "VENTAS",
-  idSucursal: 1,
+  estado: "ACTIVO",
+  idSucursal: null,
 }
 
 export const emptyUpdate: UsuarioUpdateRequest = {
@@ -55,13 +96,11 @@ export const emptyUpdate: UsuarioUpdateRequest = {
   correo: "",
   rol: "VENTAS",
   estado: "ACTIVO",
-  idSucursal: 1,
+  idSucursal: null,
 }
 
 /**
- * Respuesta paginada genérica del backend (Spring Boot Page<T>).
- * Re-exportada desde talla.ts por conveniencia, pero también definida aquí
- * para que el módulo de usuarios sea autocontenido.
+ * Respuesta paginada generica del backend (Spring Boot Page<T>).
  */
 export interface PageResponse<T> {
   content: T[]

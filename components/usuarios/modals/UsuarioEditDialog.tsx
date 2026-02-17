@@ -17,10 +17,17 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
+import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
+import { useSucursalOptions } from "@/lib/hooks/useSucursalOptions"
 import {
   emptyUpdate,
+  isUsuarioRol,
+  normalizeUsuarioRol,
+  usuarioRolRequiresSucursal,
+  USUARIO_ROLE_OPTIONS,
   type Usuario,
   type UsuarioUpdateRequest,
 } from "@/lib/types/usuario"
@@ -40,6 +47,32 @@ export function UsuarioEditDialog({
 }: UsuarioEditDialogProps) {
   const [form, setForm] = useState<UsuarioUpdateRequest>(emptyUpdate)
   const [isUpdating, setIsUpdating] = useState(false)
+  const {
+    sucursalOptions,
+    loadingSucursales,
+    errorSucursales,
+    searchSucursal,
+    setSearchSucursal,
+  } = useSucursalOptions(open)
+
+  const requiresSucursal = usuarioRolRequiresSucursal(form.rol)
+  const hasValidSucursal =
+    typeof form.idSucursal === "number" && form.idSucursal > 0
+
+  const comboboxOptions = useMemo<ComboboxOption[]>(
+    () =>
+      hasValidSucursal &&
+      !sucursalOptions.some((option) => option.value === String(form.idSucursal))
+        ? [
+            {
+              value: String(form.idSucursal),
+              label: user?.nombreSucursal || `Sucursal #${form.idSucursal}`,
+            },
+            ...sucursalOptions,
+          ]
+        : sucursalOptions,
+    [form.idSucursal, hasValidSucursal, sucursalOptions, user?.nombreSucursal]
+  )
 
   useEffect(() => {
     if (!open || !user) return
@@ -50,11 +83,12 @@ export function UsuarioEditDialog({
       dni: user.dni,
       telefono: user.telefono,
       correo: user.correo,
-      rol: user.rol,
+      rol: normalizeUsuarioRol(user.rol),
       estado: user.estado,
       idSucursal: user.idSucursal,
     })
-  }, [open, user])
+    setSearchSucursal("")
+  }, [open, setSearchSucursal, user])
 
   const isEditValid = useMemo(
     () =>
@@ -62,23 +96,31 @@ export function UsuarioEditDialog({
       form.apellido.trim() !== "" &&
       form.dni.length === 8 &&
       form.telefono.length === 9 &&
-      form.correo.trim() !== "",
-    [form]
+      form.correo.trim() !== "" &&
+      isUsuarioRol(form.rol) &&
+      (!requiresSucursal || hasValidSucursal),
+    [form, hasValidSucursal, requiresSucursal]
   )
 
   const handleOpenChange = (nextOpen: boolean) => {
     onOpenChange(nextOpen)
     if (!nextOpen) {
       setForm(emptyUpdate)
+      setSearchSucursal("")
     }
   }
 
   const handleUpdate = async () => {
-    if (!user) return
+    if (!user || !isEditValid) return
+
+    const payload: UsuarioUpdateRequest = {
+      ...form,
+      idSucursal: requiresSucursal ? form.idSucursal : null,
+    }
 
     setIsUpdating(true)
     try {
-      const success = await onUpdate(user.idUsuario, form)
+      const success = await onUpdate(user.idUsuario, payload)
       if (success) {
         handleOpenChange(false)
       }
@@ -186,53 +228,85 @@ export function UsuarioEditDialog({
               <Select
                 value={form.rol}
                 onValueChange={(value) =>
-                  setForm((previous) => ({ ...previous, rol: value }))
+                  setForm((previous) => {
+                    if (!isUsuarioRol(value)) return previous
+                    return {
+                      ...previous,
+                      rol: value,
+                      idSucursal: usuarioRolRequiresSucursal(value)
+                        ? previous.idSucursal
+                        : null,
+                    }
+                  })
                 }
               >
                 <SelectTrigger className="w-full" id="e-rol">
                   <SelectValue placeholder="Selecciona rol" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ADMINISTRADOR">Administrador</SelectItem>
-                  <SelectItem value="VENTAS">Ventas</SelectItem>
+                  {USUARIO_ROLE_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
 
             <div className="grid gap-2">
               <Label htmlFor="e-estado">Estado</Label>
-              <Select
-                value={form.estado}
-                onValueChange={(value) =>
-                  setForm((previous) => ({ ...previous, estado: value }))
-                }
-              >
-                <SelectTrigger className="w-full" id="e-estado">
-                  <SelectValue placeholder="Selecciona estado" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ACTIVO">Activo</SelectItem>
-                  <SelectItem value="INACTIVO">Inactivo</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="flex h-9 items-center justify-between rounded-md border px-3">
+                <span
+                  className={`text-sm font-medium ${
+                    form.estado === "ACTIVO" ? "text-emerald-600" : "text-slate-500"
+                  }`}
+                >
+                  {form.estado === "ACTIVO" ? "Activo" : "Inactivo"}
+                </span>
+                <Switch
+                  id="e-estado"
+                  checked={form.estado === "ACTIVO"}
+                  onCheckedChange={(checked) =>
+                    setForm((previous) => ({
+                      ...previous,
+                      estado: checked ? "ACTIVO" : "INACTIVO",
+                    }))
+                  }
+                  aria-label="Cambiar estado del usuario"
+                />
+              </div>
             </div>
           </div>
 
-          <div className="grid gap-2">
-            <Label htmlFor="e-sucursal">ID Sucursal</Label>
-            <Input
-              id="e-sucursal"
-              type="number"
-              min={1}
-              value={form.idSucursal}
-              onChange={(event) =>
-                setForm((previous) => ({
-                  ...previous,
-                  idSucursal: Number(event.target.value),
-                }))
-              }
-            />
-          </div>
+          {requiresSucursal ? (
+            <div className="grid gap-2">
+              <Label htmlFor="e-sucursal">Sucursal</Label>
+              <Combobox
+                id="e-sucursal"
+                value={hasValidSucursal ? String(form.idSucursal) : ""}
+                options={comboboxOptions}
+                searchValue={searchSucursal}
+                onSearchValueChange={setSearchSucursal}
+                onValueChange={(value) =>
+                  setForm((previous) => ({
+                    ...previous,
+                    idSucursal: Number(value),
+                  }))
+                }
+                placeholder="Selecciona una sucursal"
+                searchPlaceholder="Buscar sucursal..."
+                emptyMessage="No se encontraron sucursales"
+                loading={loadingSucursales}
+              />
+              {errorSucursales && (
+                <p className="text-xs text-red-500">{errorSucursales}</p>
+              )}
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              El rol Administrador no requiere sucursal.
+            </p>
+          )}
         </div>
 
         <DialogFooter>

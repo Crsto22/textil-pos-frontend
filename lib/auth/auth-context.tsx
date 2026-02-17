@@ -25,7 +25,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  // Al montar, intentar refresh silencioso para restaurar sesión (soluciona F5)
+  const fetchCurrentUser = useCallback(
+    async (accessToken: string): Promise<AuthUser | null> => {
+      try {
+        const res = await fetch("/api/auth/me", {
+          method: "GET",
+          cache: "no-store",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+
+        if (!res.ok) return null
+
+        const data = (await res.json()) as AuthUser
+        return data
+      } catch {
+        return null
+      }
+    },
+    []
+  )
+
+  // Al montar, intenta refresh silencioso para restaurar sesion.
   useEffect(() => {
     const initAuth = async () => {
       try {
@@ -34,17 +56,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (res.ok) {
           const data: AuthResponse = await res.json()
           setAccessToken(data.access_token)
-          if (data.user) setUser(data.user)
+          const currentUser = await fetchCurrentUser(data.access_token)
+          setUser(currentUser ?? data.user ?? null)
+        } else {
+          setUser(null)
         }
       } catch {
-        // Sin sesión activa → mostrar login
+        setUser(null)
       } finally {
         setIsLoading(false)
       }
     }
 
     initAuth()
-  }, [])
+  }, [fetchCurrentUser])
 
   const login = useCallback(
     async (credentials: LoginRequest): Promise<{ ok: boolean; message?: string }> => {
@@ -64,21 +89,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { access_token, user: userData } = data as AuthResponse
 
         setAccessToken(access_token)
-        setUser(userData)
+        const currentUser = await fetchCurrentUser(access_token)
+        setUser(currentUser ?? userData ?? null)
 
         return { ok: true }
       } catch {
-        return { ok: false, message: "Error de conexión. Intente nuevamente." }
+        return { ok: false, message: "Error de conexion. Intente nuevamente." }
       }
     },
-    []
+    [fetchCurrentUser]
   )
 
   const logout = useCallback(async () => {
     try {
       await fetch("/api/auth/logout", { method: "POST" })
     } catch {
-      // Limpiar estado aunque falle la petición
+      // Limpiar estado aunque falle la peticion
     } finally {
       clearAccessToken()
       setUser(null)
