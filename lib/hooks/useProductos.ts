@@ -22,6 +22,7 @@ import type {
   Producto,
   ProductoCreateRequest,
   ProductoDeleteResponse,
+  ProductoResumen,
   ProductoUpdateRequest,
 } from "@/lib/types/producto"
 
@@ -54,10 +55,39 @@ function hasValidCategoriaId(idCategoria?: number | null): idCategoria is number
   return typeof idCategoria === "number" && idCategoria > 0
 }
 
+function normalizeProductoResumen(producto: Producto | ProductoResumen): ProductoResumen {
+  const resumen = producto as ProductoResumen
+  const normalizedColores = Array.isArray(resumen.colores)
+    ? resumen.colores.map((color) => ({
+        ...color,
+        imagenPrincipal:
+          color &&
+          typeof color === "object" &&
+          color.imagenPrincipal &&
+          typeof color.imagenPrincipal === "object"
+            ? color.imagenPrincipal
+            : null,
+        tallas: Array.isArray(color.tallas)
+          ? color.tallas.map((talla) => ({
+              tallaId: talla.tallaId,
+              nombre: talla.nombre,
+            }))
+          : [],
+      }))
+    : []
+
+  return {
+    ...producto,
+    precioMin: typeof resumen.precioMin === "number" ? resumen.precioMin : null,
+    precioMax: typeof resumen.precioMax === "number" ? resumen.precioMax : null,
+    colores: normalizedColores,
+  }
+}
+
 export function useProductos() {
   const { isLoading: isAuthLoading, user } = useAuth()
 
-  const [productos, setProductos] = useState<Producto[]>([])
+  const [productos, setProductos] = useState<ProductoResumen[]>([])
   const [page, setPage] = useState(0)
   const [totalPages, setTotalPages] = useState(0)
   const [totalElements, setTotalElements] = useState(0)
@@ -74,7 +104,7 @@ export function useProductos() {
     SEARCH_DEBOUNCE_MS,
     resetSearchPage
   )
-  const [searchResults, setSearchResults] = useState<Producto[]>([])
+  const [searchResults, setSearchResults] = useState<ProductoResumen[]>([])
   const [searchTotals, setSearchTotals] = useState<SearchTotals>({
     totalPages: 0,
     totalElements: 0,
@@ -96,9 +126,12 @@ export function useProductos() {
     setError(null)
 
     try {
-      const response = await authFetch(`/api/producto/listar?page=${pageNumber}`, {
-        signal: controller.signal,
-      })
+      const response = await authFetch(
+        `/api/producto/listar-resumen?page=${pageNumber}`,
+        {
+          signal: controller.signal,
+        }
+      )
       const data = await parseJsonSafe(response)
       if (controller.signal.aborted) return
 
@@ -112,14 +145,14 @@ export function useProductos() {
         return
       }
 
-      const pageData = data as PageResponse<Producto> | null
+      const pageData = data as PageResponse<ProductoResumen> | null
       const content = Array.isArray(pageData?.content) ? pageData.content : []
       const nextTotalPages =
         typeof pageData?.totalPages === "number" ? pageData.totalPages : 0
       const nextTotalElements =
         typeof pageData?.totalElements === "number" ? pageData.totalElements : 0
 
-      setProductos(content)
+      setProductos(content.map(normalizeProductoResumen))
       setTotalPages(nextTotalPages)
       setTotalElements(nextTotalElements)
     } catch (requestError) {
@@ -167,14 +200,14 @@ export function useProductos() {
         return
       }
 
-      const pageData = data as PageResponse<Producto> | null
+      const pageData = data as PageResponse<ProductoResumen> | null
       const content = Array.isArray(pageData?.content) ? pageData.content : []
       const nextTotalPages =
         typeof pageData?.totalPages === "number" ? pageData.totalPages : 0
       const nextTotalElements =
         typeof pageData?.totalElements === "number" ? pageData.totalElements : 0
 
-      setSearchResults(content)
+      setSearchResults(content.map(normalizeProductoResumen))
       setSearchTotals({
         totalPages: nextTotalPages,
         totalElements: nextTotalElements,

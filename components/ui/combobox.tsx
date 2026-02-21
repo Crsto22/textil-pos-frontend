@@ -25,6 +25,7 @@ interface ComboboxProps {
   searchPlaceholder?: string
   emptyMessage?: string
   loading?: boolean
+  loadingMessage?: string
   disabled?: boolean
 }
 
@@ -39,6 +40,7 @@ export function Combobox({
   searchPlaceholder = "Buscar...",
   emptyMessage = "No se encontraron resultados.",
   loading = false,
+  loadingMessage = "Buscando...",
   disabled = false,
 }: ComboboxProps) {
   const [open, setOpen] = useState(false)
@@ -85,7 +87,7 @@ export function Combobox({
 
         <div className="max-h-64 overflow-y-auto p-1">
           {loading ? (
-            <p className="px-2 py-2 text-sm text-muted-foreground">Buscando sucursales...</p>
+            <p className="px-2 py-2 text-sm text-muted-foreground">{loadingMessage}</p>
           ) : options.length === 0 ? (
             <p className="px-2 py-2 text-sm text-muted-foreground">{emptyMessage}</p>
           ) : (
