@@ -7,4 +7,5 @@ export interface Empresa {
   razonSocial: string
   correo: string
   fechaCreacion: string
+  logoUrl?: string
 }
