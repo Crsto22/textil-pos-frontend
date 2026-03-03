@@ -9,3 +9,8 @@ export interface Empresa {
   fechaCreacion: string
   logoUrl?: string
 }
+
+export interface EmpresaPublica {
+  nombre: string
+  logoUrl?: string | null
+}

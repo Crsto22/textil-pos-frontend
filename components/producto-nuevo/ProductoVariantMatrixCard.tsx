@@ -3,6 +3,7 @@
 import Image from "next/image"
 import { Squares2X2Icon, TrashIcon } from "@heroicons/react/24/outline"
 
+import { ShirtHangerIcon } from "@/components/icons/ShirtHangerIcon"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -19,6 +20,65 @@ interface ProductoVariantMatrixCardProps {
   ) => void
   onApplyVariantFieldToAll: (field: keyof VariantValues, value: string) => void
   onRemoveVariant: (key: string) => void
+}
+
+function normalizeHexColor(code: string | null | undefined): string {
+  const trimmed = String(code ?? "").trim()
+  if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(trimmed)) return trimmed
+  if (/^([0-9a-f]{3}|[0-9a-f]{6})$/i.test(trimmed)) return `#${trimmed}`
+  return "#94a3b8"
+}
+
+function resolveContrastTextColor(hexColor: string): "#111827" | "#ffffff" {
+  const clean = hexColor.replace("#", "")
+  const expanded =
+    clean.length === 3
+      ? clean
+          .split("")
+          .map((char) => `${char}${char}`)
+          .join("")
+      : clean
+
+  const red = Number.parseInt(expanded.slice(0, 2), 16)
+  const green = Number.parseInt(expanded.slice(2, 4), 16)
+  const blue = Number.parseInt(expanded.slice(4, 6), 16)
+  const luminance = 0.2126 * red + 0.7152 * green + 0.0722 * blue
+
+  return luminance > 170 ? "#111827" : "#ffffff"
+}
+
+function VariantCombinationPreview({ variant }: { variant: VariantRow }) {
+  const colorHex = normalizeHexColor(variant.color.codigo)
+  const tallaColor = resolveContrastTextColor(colorHex)
+
+  return (
+    <div className="flex items-center gap-3">
+      <div className="relative h-16 w-14 shrink-0">
+        <ShirtHangerIcon
+          className="h-full w-full drop-shadow-sm"
+          style={{ color: colorHex }}
+          title={`Prenda ${variant.color.nombre} talla ${variant.talla.nombre}`}
+        />
+        <span
+          className="pointer-events-none absolute left-1/2 top-[62%] -translate-x-1/2 -translate-y-1/2 text-[11px] font-extrabold tracking-wide"
+          style={{ color: tallaColor }}
+        >
+          {variant.talla.nombre}
+        </span>
+      </div>
+
+      <div className="min-w-0">
+        <p className="truncate font-semibold text-foreground">{variant.color.nombre}</p>
+        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span
+            className="inline-block h-2.5 w-2.5 rounded-full border border-black/15"
+            style={{ backgroundColor: colorHex }}
+          />
+          Talla {variant.talla.nombre}
+        </p>
+      </div>
+    </div>
+  )
 }
 
 export function ProductoVariantMatrixCard({
@@ -101,7 +161,7 @@ export function ProductoVariantMatrixCard({
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[980px] text-sm">
+            <table className="w-full min-w-[900px] text-sm">
               <thead>
                 <tr className="border-b bg-muted/30">
                   <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">
@@ -111,10 +171,7 @@ export function ProductoVariantMatrixCard({
                     SKU *
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                    Codigo Externo
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                    Precio ($)
+                    Precio
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">
                     Stock
@@ -128,9 +185,7 @@ export function ProductoVariantMatrixCard({
                 {variantRows.map((variant) => (
                   <tr key={variant.key} className="border-b last:border-0">
                     <td className="px-4 py-3">
-                      <span className="font-semibold">{variant.color.nombre}</span>
-                      <span className="px-2 text-muted-foreground">/</span>
-                      <span className="text-muted-foreground">{variant.talla.nombre}</span>
+                      <VariantCombinationPreview variant={variant} />
                     </td>
                     <td className="px-4 py-3">
                       <Input
@@ -144,31 +199,21 @@ export function ProductoVariantMatrixCard({
                       />
                     </td>
                     <td className="px-4 py-3">
-                      <Input
-                        type="text"
-                        className="max-w-[180px]"
-                        value={variant.codigoExterno}
-                        placeholder="Opcional"
-                        onChange={(event) =>
-                          onVariantFieldChange(
-                            variant.key,
-                            "codigoExterno",
-                            event.target.value
-                          )
-                        }
-                      />
-                    </td>
-                    <td className="px-4 py-3">
-                      <Input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        className="max-w-[150px]"
-                        value={variant.precio}
-                        onChange={(event) =>
-                          onVariantFieldChange(variant.key, "precio", event.target.value)
-                        }
-                      />
+                      <div className="relative max-w-[150px]">
+                        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground">
+                          S/
+                        </span>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          className="pl-10"
+                          value={variant.precio}
+                          onChange={(event) =>
+                            onVariantFieldChange(variant.key, "precio", event.target.value)
+                          }
+                        />
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       <Input

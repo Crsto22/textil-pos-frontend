@@ -11,9 +11,7 @@ import {
   type ReactNode,
 } from "react"
 
-import { useAuth } from "@/lib/auth/auth-context"
-import { authFetch } from "@/lib/auth/auth-fetch"
-import type { Empresa } from "@/lib/types/empresa"
+import type { Empresa, EmpresaPublica } from "@/lib/types/empresa"
 
 interface CompanyContextType {
   company: Empresa | null
@@ -33,8 +31,35 @@ async function parseJsonSafe(response: Response) {
   return response.json().catch(() => null)
 }
 
+function mapEmpresaPublicaToEmpresa(data: EmpresaPublica): Empresa {
+  const normalizedLogo =
+    typeof data.logoUrl === "string" ? data.logoUrl.trim() : ""
+
+  return {
+    idEmpresa: 0,
+    nombre: data.nombre.trim(),
+    ruc: "",
+    razonSocial: "",
+    correo: "",
+    fechaCreacion: "",
+    logoUrl: normalizedLogo ? normalizedLogo : undefined,
+  }
+}
+
+function parseEmpresaPublica(data: unknown): Empresa | null {
+  if (!data || typeof data !== "object") return null
+
+  const payload = data as Partial<EmpresaPublica>
+  const nombre =
+    typeof payload.nombre === "string" ? payload.nombre.trim() : ""
+  const logoUrl =
+    typeof payload.logoUrl === "string" ? payload.logoUrl : undefined
+  if (!nombre) return null
+
+  return mapEmpresaPublicaToEmpresa({ nombre, logoUrl })
+}
+
 export function CompanyProvider({ children }: { children: ReactNode }) {
-  const { isAuthenticated, isLoading: isAuthLoading } = useAuth()
   const [company, setCompany] = useState<Empresa | null>(null)
   const [isLoadingCompany, setIsLoadingCompany] = useState(false)
   const [companyError, setCompanyError] = useState<string | null>(null)
@@ -43,18 +68,11 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
 
   const loadCompany = useCallback(
     async (signal?: AbortSignal) => {
-      if (!isAuthenticated) {
-        setCompany(null)
-        setCompanyError(null)
-        setIsLoadingCompany(false)
-        return
-      }
-
       setIsLoadingCompany(true)
       setCompanyError(null)
 
       try {
-        const response = await authFetch("/api/empresa/listar", {
+        const response = await fetch("/api/empresa/publico", {
           signal,
           cache: "no-store",
         })
@@ -63,12 +81,13 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
 
         if (!response.ok) {
           setCompany(null)
-          setCompanyError(data?.message ?? "Error al obtener la empresa")
+          setCompanyError(
+            data?.message ?? "Error al obtener la informacion de la empresa"
+          )
           return
         }
 
-        const list = Array.isArray(data) ? (data as Empresa[]) : []
-        setCompany(list[0] ?? null)
+        setCompany(parseEmpresaPublica(data))
       } catch (requestError) {
         if (isAbortError(requestError)) return
         const message =
@@ -83,7 +102,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
         }
       }
     },
-    [isAuthenticated]
+    []
   )
 
   const refreshCompany = useCallback(async () => {
@@ -94,23 +113,14 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   }, [loadCompany])
 
   useEffect(() => {
-    if (isAuthLoading) return
-
     abortRef.current?.abort()
-
-    if (!isAuthenticated) {
-      setCompany(null)
-      setCompanyError(null)
-      setIsLoadingCompany(false)
-      return
-    }
 
     const controller = new AbortController()
     abortRef.current = controller
     void loadCompany(controller.signal)
 
     return () => controller.abort()
-  }, [isAuthLoading, isAuthenticated, loadCompany])
+  }, [loadCompany])
 
   useEffect(() => {
     return () => {

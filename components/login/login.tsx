@@ -15,6 +15,7 @@ import {
 import Autoplay from "embla-carousel-autoplay"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { useAuth } from "@/lib/auth/auth-context"
+import { useCompany } from "@/lib/company/company-context"
 import { toast } from "sonner"
 
 export function Login() {
@@ -23,7 +24,10 @@ export function Login() {
   const [isLoading, setIsLoading] = useState(false)
 
   const { login } = useAuth()
+  const { company, isLoadingCompany } = useCompany()
   const router = useRouter()
+  const companyName = company?.nombre?.trim() || "Sistema POS Textil"
+  const companyLogoUrl = company?.logoUrl?.trim()
 
   // Versión del sistema
   const systemVersion = "v1.0.0"
@@ -58,10 +62,23 @@ export function Login() {
         {/* Header with Logo and Theme Toggle */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="flex h-6 w-6 items-center justify-center rounded-md bg-primary text-primary-foreground">
-              <ViewColumnsIcon className="size-4" />
+            <div className="flex h-6 w-6 items-center justify-center rounded-md ">
+              {companyLogoUrl ? (
+                <Image
+                  src={companyLogoUrl}
+                  alt={`Logo ${companyName}`}
+                  width={20}
+                  height={20}
+                  className="h-5 w-5 rounded-sm object-contain"
+                  unoptimized
+                />
+              ) : (
+                <ViewColumnsIcon className="size-4" />
+              )}
             </div>
-            <h1 className="font-medium">Sistema POS Textil</h1>
+            <h1 className="font-medium">
+              {isLoadingCompany ? "Cargando empresa..." : companyName}
+            </h1>
           </div>
           <ThemeToggle />
         </div>
@@ -71,9 +88,25 @@ export function Login() {
           <div className="w-full max-w-xs">
             <form onSubmit={handleSubmit} className="flex flex-col gap-6">
               <div className="flex flex-col items-center gap-2 text-center">
+                <div className="mb-1 flex items-center justify-center rounded-2xl">
+                  {companyLogoUrl ? (
+                    <Image
+                      src={companyLogoUrl}
+                      alt={`Logo ${companyName}`}
+                      width={80}
+                      height={80}
+                      className="h-24 w-24 object-contain rounded-md"
+                      unoptimized
+                    />
+                  ) : (
+                    <ViewColumnsIcon className="size-8 text-primary" />
+                  )}
+                </div>
                 <h1 className="text-2xl font-bold">Inicia sesión en tu cuenta</h1>
                 <p className="text-balance text-sm text-muted-foreground">
-                  Ingresa tu email para acceder a tu cuenta
+                  {isLoadingCompany
+                    ? "Ingresa tu email para acceder a tu cuenta"
+                    : `Ingresa tu email para acceder a ${companyName}`}
                 </p>
               </div>
 
