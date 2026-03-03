@@ -317,7 +317,7 @@ export function ProductoMediaSidebar({
               Multimedia
             </SheetTitle>
             <SheetDescription>
-              Sube imagenes por cada color seleccionado (max. 5 por color).
+              Opcional: sube imagenes por cada color seleccionado (max. 5 por color).
             </SheetDescription>
           </SheetHeader>
 

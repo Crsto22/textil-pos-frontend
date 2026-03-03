@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
+import { AlertTriangle, Loader2 } from "lucide-react"
 
 import { ProductoColorsCard } from "@/components/producto-nuevo/ProductoColorsCard"
 import { ProductoGeneralInfoCard } from "@/components/producto-nuevo/ProductoGeneralInfoCard"
@@ -23,6 +24,9 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
   const {
     user,
     isAdmin,
+    isEditing,
+    loadingDetalle,
+    errorDetalle,
     form,
     isSaving,
     sucursalComboboxOptions,
@@ -67,9 +71,7 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
     setSearchSucursal,
     setSearchCategoria,
     handleNombreChange,
-    handleSkuChange,
     handleDescripcionChange,
-    handleCodigoExternoChange,
     toggleColorSelection,
     toggleTallaSelection,
     handleVariantFieldChange,
@@ -90,9 +92,7 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
   const hasUnsavedChanges = useMemo(() => {
     const hasTextInput =
       form.nombre.trim() !== "" ||
-      form.sku.trim() !== "" ||
-      form.descripcion.trim() !== "" ||
-      form.codigoExterno.trim() !== ""
+      form.descripcion.trim() !== ""
 
     const hasSelectInput =
       form.idCategoria !== null || (isAdmin && form.idSucursal !== null)
@@ -105,7 +105,11 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
     )
 
     const hasVariantValues = variantRows.some(
-      (variant) => variant.precio.trim() !== "" || variant.stock.trim() !== ""
+      (variant) =>
+        variant.sku.trim() !== "" ||
+        variant.codigoExterno.trim() !== "" ||
+        variant.precio.trim() !== "" ||
+        variant.stock.trim() !== ""
     )
 
     return (
@@ -116,12 +120,10 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
       hasVariantValues
     )
   }, [
-    form.codigoExterno,
     form.descripcion,
     form.idCategoria,
     form.idSucursal,
     form.nombre,
-    form.sku,
     isAdmin,
     mediaByColor,
     selectedColorIds.length,
@@ -141,6 +143,35 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
     router.push("/productos")
     router.refresh()
   }, [router, saveProducto])
+
+  if (loadingDetalle) {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <div className="flex items-center gap-2 text-sm text-slate-500">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Cargando detalle del producto...
+        </div>
+      </div>
+    )
+  }
+
+  if (errorDetalle) {
+    return (
+      <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-900/10 dark:text-red-300">
+        <div className="mb-3 flex items-start gap-2">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <p>{errorDetalle}</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => router.refresh()}
+          className="rounded-lg border border-red-300 px-3 py-1.5 text-xs font-semibold hover:bg-red-100 dark:border-red-800 dark:hover:bg-red-900/30"
+        >
+          Reintentar
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -176,8 +207,6 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
             onSearchSucursalChange={setSearchSucursal}
             onSearchCategoriaChange={setSearchCategoria}
             onNombreChange={handleNombreChange}
-            onSkuChange={handleSkuChange}
-            onCodigoExternoChange={handleCodigoExternoChange}
             onDescripcionChange={handleDescripcionChange}
           />
         </div>
@@ -238,7 +267,7 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
       />
 
       <ProductoUnsavedChangesToast
-        visible={hasUnsavedChanges}
+        visible={isEditing || hasUnsavedChanges}
         isSaving={isSaving}
         onDiscard={handleCancelProducto}
         onSave={() => {

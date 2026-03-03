@@ -1,83 +1,204 @@
 "use client"
 
+import { useMemo, useState } from "react"
 import Image from "next/image"
-import { Plus } from "lucide-react"
-import type { ProductoResumen } from "@/lib/types/producto"
+import { PhotoIcon } from "@heroicons/react/24/outline"
+
+import { formatRangoPrecioPen } from "@/components/productos/productos.utils"
+import type { ProductoResumen, ProductoResumenTalla } from "@/lib/types/producto"
+import { cn } from "@/lib/utils"
 
 interface ProductCardProps {
-    product: ProductoResumen
-    onAdd: (product: ProductoResumen) => void
+  product: ProductoResumen
+  onAdd: (product: ProductoResumen) => void
+}
+
+function normalizeHexColor(code: string | null | undefined): string {
+  const trimmed = String(code ?? "").trim()
+  if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(trimmed)) return trimmed
+  if (/^([0-9a-f]{3}|[0-9a-f]{6})$/i.test(trimmed)) return `#${trimmed}`
+  return "#94a3b8"
+}
+
+function getDefaultColorId(product: ProductoResumen): number | null {
+  const withImage = product.colores.find((color) => color.imagenPrincipal)
+  if (withImage) return withImage.colorId
+  return product.colores[0]?.colorId ?? null
+}
+
+function getSkuCount(product: ProductoResumen): number {
+  const skuSet = new Set<string>()
+  product.colores.forEach((color) => {
+    color.tallas.forEach((talla) => {
+      const sku = String(talla.sku ?? "").trim()
+      if (sku) skuSet.add(sku)
+    })
+  })
+  return skuSet.size
+}
+
+function isVariantInStock(talla: ProductoResumenTalla): boolean {
+  const estado = String(talla.estado ?? "ACTIVO").trim().toUpperCase()
+  if (estado !== "ACTIVO") return false
+
+  if (typeof talla.stock === "number") {
+    return talla.stock > 0
+  }
+
+  return true
 }
 
 export default function ProductCard({ product, onAdd }: ProductCardProps) {
-    /* Use first color's principal image, or picsum fallback */
-    const firstColor = product.colores?.[0]
-    const imgSrc = firstColor?.imagenPrincipal?.url
-        ?? `https://picsum.photos/seed/prod${product.idProducto}/300/300`
+  const [selectedColorId, setSelectedColorId] = useState<number | null>(() =>
+    getDefaultColorId(product)
+  )
 
-    const priceLabel = product.precioMin != null
-        ? product.precioMin === product.precioMax || product.precioMax == null
-            ? `S/ ${product.precioMin.toFixed(2)}`
-            : `S/ ${product.precioMin.toFixed(2)} – ${product.precioMax!.toFixed(2)}`
-        : "—"
+  const selectedColor = useMemo(
+    () => product.colores.find((color) => color.colorId === selectedColorId) ?? product.colores[0],
+    [product.colores, selectedColorId]
+  )
 
-    const totalTallas = [...new Set(product.colores.flatMap(c => c.tallas.map(t => t.nombre)))]
+  const imageUrl =
+    selectedColor?.imagenPrincipal?.url ||
+    product.colores.find((color) => color.imagenPrincipal)?.imagenPrincipal?.url ||
+    null
+  const estadoActivo = product.estado === "ACTIVO"
+  const allVariants = product.colores.flatMap((color) => color.tallas)
+  const inStockVariants = allVariants.filter((talla) => isVariantInStock(talla)).length
+  const outOfStockVariants = Math.max(0, allVariants.length - inStockVariants)
+  const allOutOfStock = allVariants.length > 0 && inStockVariants === 0
+  const hasPartialStock = inStockVariants > 0 && outOfStockVariants > 0
+  const canAdd = estadoActivo && !allOutOfStock
 
-    return (
-        <div
-            onClick={() => onAdd(product)}
-            className="group relative bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 cursor-pointer overflow-hidden"
-        >
-            {/* Image */}
-            <div className="relative w-full aspect-square bg-slate-100 dark:bg-slate-700 overflow-hidden">
-                <Image
-                    src={imgSrc}
-                    alt={product.nombre}
-                    fill
-                    className="object-cover group-hover:scale-105 transition-transform duration-300"
-                    unoptimized
-                />
-                {/* Color count badge */}
-                {product.colores.length > 0 && (
-                    <div className="absolute bottom-2 left-2 flex gap-1">
-                        {product.colores.slice(0, 4).map(c => (
-                            <span
-                                key={c.colorId}
-                                title={c.nombre}
-                                className="h-3.5 w-3.5 rounded-full border border-white/60 shadow-sm"
-                                style={{ backgroundColor: c.hex ?? "#888" }}
-                            />
-                        ))}
-                        {product.colores.length > 4 && (
-                            <span className="text-[9px] font-bold text-white bg-black/40 px-1 rounded-full">
-                                +{product.colores.length - 4}
-                            </span>
-                        )}
-                    </div>
-                )}
-                {/* Add overlay */}
-                <div className="absolute inset-0 bg-blue-600/0 group-hover:bg-blue-600/10 transition-colors duration-200 flex items-center justify-center">
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-blue-600 rounded-full p-2 shadow-lg">
-                        <Plus className="h-5 w-5 text-white" />
-                    </div>
-                </div>
-            </div>
+  const visibleTallas = (selectedColor?.tallas ?? []).slice(0, 4)
+  const hiddenTallas = Math.max(0, (selectedColor?.tallas?.length ?? 0) - visibleTallas.length)
+  const skuCount = getSkuCount(product)
 
-            {/* Info */}
-            <div className="p-3">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-0.5">
-                    {product.nombreCategoria}
-                </p>
-                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 leading-snug line-clamp-2">
-                    {product.nombre}
-                </h3>
-                <div className="mt-1.5 flex items-center justify-between">
-                    <p className="text-base font-bold text-blue-600 dark:text-blue-400">{priceLabel}</p>
-                    {totalTallas.length > 0 && (
-                        <p className="text-[10px] text-slate-400">{totalTallas.slice(0, 4).join(" · ")}</p>
-                    )}
-                </div>
-            </div>
+  return (
+    <article
+      onClick={() => {
+        if (canAdd) onAdd(product)
+      }}
+      className={cn(
+        "group overflow-hidden rounded-2xl border bg-card shadow-sm transition-all",
+        canAdd ? "cursor-pointer hover:bg-muted/20" : "cursor-not-allowed opacity-85"
+      )}
+    >
+      <div className="relative h-52 w-full overflow-hidden border-b bg-muted/40">
+        {imageUrl ? (
+          <Image
+            src={imageUrl}
+            alt={product.nombre}
+            fill
+            unoptimized
+            sizes="(max-width: 768px) 100vw, (max-width: 1700px) 33vw, 25vw"
+            className="object-cover"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+            <PhotoIcon className="h-10 w-10" />
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-3 p-4">
+        <div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-wide">
+          <span
+            className={cn(
+              "inline-flex rounded-full px-2 py-0.5",
+              !estadoActivo
+                ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                : allOutOfStock
+                  ? "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
+                  : hasPartialStock
+                    ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                    : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+            )}
+          >
+            {!estadoActivo
+              ? "Inactivo"
+              : allOutOfStock
+                ? "Agotado"
+                : hasPartialStock
+                  ? "Stock parcial"
+                  : "Activo"}
+          </span>
+          <span className="text-muted-foreground">SKUs: {skuCount}</span>
         </div>
-    )
+
+        <div>
+          <p className="mb-1 inline-flex rounded-md bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+            {product.nombreCategoria || "Sin categoria"}
+          </p>
+          <h3 className="line-clamp-2 text-base font-semibold text-foreground">{product.nombre}</h3>
+          <p className="mt-1 text-lg font-semibold text-blue-600 dark:text-blue-400">
+            {formatRangoPrecioPen(product.precioMin, product.precioMax)}
+          </p>
+          {estadoActivo && hasPartialStock && (
+            <p className="mt-1 text-[11px] font-medium text-amber-600 dark:text-amber-400">
+              {outOfStockVariants} variante{outOfStockVariants === 1 ? "" : "s"} sin stock
+            </p>
+          )}
+        </div>
+
+        <div className="flex items-center gap-1">
+          {product.colores.slice(0, 6).map((color, index) => (
+            <button
+              type="button"
+              key={`${product.idProducto}-${color.colorId}`}
+              onClick={(event) => {
+                event.stopPropagation()
+                setSelectedColorId(color.colorId)
+              }}
+              className={cn(
+                "h-5 w-5 rounded-full border border-background transition-transform",
+                selectedColorId === color.colorId
+                  ? "ring-2 ring-blue-500 ring-offset-1 ring-offset-background"
+                  : "opacity-85 hover:scale-105",
+                index > 0 && "-ml-1"
+              )}
+              style={{ backgroundColor: normalizeHexColor(color.hex) }}
+              aria-label={`Filtrar por color ${color.nombre}`}
+              title={color.nombre}
+            />
+          ))}
+        </div>
+
+        <div className="flex flex-wrap gap-1.5">
+          {selectedColor && (
+            <span className="rounded-md border px-2 py-0.5 text-[10px] text-muted-foreground">
+              {selectedColor.nombre}
+            </span>
+          )}
+          {visibleTallas.length === 0 ? (
+            <span className="rounded-md border px-2 py-0.5 text-[10px] text-muted-foreground">
+              Sin tallas
+            </span>
+          ) : (
+            <>
+              {visibleTallas.map((talla) => (
+                <span
+                  key={`${product.idProducto}-${selectedColorId}-${talla.tallaId}`}
+                  className={cn(
+                    "rounded-md border px-2 py-0.5 text-[10px] font-medium",
+                    isVariantInStock(talla)
+                      ? "bg-muted/50 text-foreground"
+                      : "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/40 dark:bg-rose-900/20 dark:text-rose-300"
+                  )}
+                >
+                  {talla.nombre}
+                  {!isVariantInStock(talla) && " - Agotado"}
+                </span>
+              ))}
+              {hiddenTallas > 0 && (
+                <span className="rounded-md border px-2 py-0.5 text-[10px] text-muted-foreground">
+                  +{hiddenTallas}
+                </span>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </article>
+  )
 }

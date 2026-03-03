@@ -4,7 +4,7 @@ const BACKEND_URL = process.env.BACKEND_URL
 
 /**
  * GET /api/config/metodos-pago/activos
- * Returns only active payment methods (for sales panel).
+ * Backwards-compatible alias for GET /api/config/metodos-pago.
  */
 export async function GET(request: NextRequest) {
     try {
@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
 
         let res: Response
         try {
-            res = await fetch(`${BACKEND_URL}/api/config/metodos-pago/activos`, {
+            res = await fetch(`${BACKEND_URL}/api/config/metodos-pago`, {
                 headers,
                 cache: "no-store",
             })
@@ -31,8 +31,13 @@ export async function GET(request: NextRequest) {
 
         if (!res.ok) {
             const text = await res.text()
-            let message = "Error al obtener métodos activos"
-            try { const j = JSON.parse(text); message = j.message ?? message } catch { if (text) message = text }
+            let message = "Error al listar metodos de pago"
+            try {
+                const j = JSON.parse(text)
+                message = j.message ?? message
+            } catch {
+                if (text) message = text
+            }
             return NextResponse.json({ message }, { status: res.status })
         }
 

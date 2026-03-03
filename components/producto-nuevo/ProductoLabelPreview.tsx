@@ -15,8 +15,8 @@ interface ProductoLabelPreviewProps {
   onActiveColorChange: (idColor: number) => void
 }
 
-function normalizeHexColor(code: string): string {
-  const trimmed = code.trim()
+function normalizeHexColor(code: string | null | undefined): string {
+  const trimmed = String(code ?? "").trim()
   if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(trimmed)) return trimmed
   if (/^([0-9a-f]{3}|[0-9a-f]{6})$/i.test(trimmed)) return `#${trimmed}`
   return "#94a3b8"
@@ -66,7 +66,7 @@ export function ProductoLabelPreview({
           <button
             type="button"
             onClick={onOpenImages}
-            className="inline-flex items-center gap-2 text-sm font-medium  transition-opacity hover:opacity-80"
+            className="inline-flex items-center gap-2 text-sm font-medium  transition-opacity hover:opacity-80 cursor-pointer"
           >
             <PhotoIcon className="h-5 w-5" />
             <span>Imagenes</span>

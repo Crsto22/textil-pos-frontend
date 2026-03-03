@@ -1,6 +1,12 @@
 "use client"
 
-import { Smartphone, ArrowLeftRight, Banknote, CreditCard } from "lucide-react"
+import Image from "next/image"
+import {
+    ArrowsRightLeftIcon,
+    BanknotesIcon,
+    CreditCardIcon,
+    DevicePhoneMobileIcon,
+} from "@heroicons/react/24/outline"
 import type { ReactNode } from "react"
 
 export type PaymentKey = string   // dynamic from backend: "EFECTIVO", "YAPE", etc.
@@ -27,6 +33,8 @@ interface MethodStyle {
     activeRing: string
     activeBg: string
     icon: ReactNode
+    logoSrc?: string
+    logoAlt?: string
 }
 
 const METHOD_STYLES: Record<string, MethodStyle> = {
@@ -35,35 +43,39 @@ const METHOD_STYLES: Record<string, MethodStyle> = {
         color: "text-emerald-600 dark:text-emerald-400",
         activeRing: "ring-2 ring-emerald-500",
         activeBg: "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-300 dark:border-emerald-600",
-        icon: <Banknote className="h-5 w-5" />,
+        icon: <BanknotesIcon className="h-5 w-5" />,
     },
     YAPE: {
         label: "Yape",
         color: "text-purple-600 dark:text-purple-400",
         activeRing: "ring-2 ring-purple-500",
         activeBg: "bg-purple-50 dark:bg-purple-900/20 border-purple-300 dark:border-purple-600",
-        icon: <Smartphone className="h-5 w-5" />,
+        icon: <DevicePhoneMobileIcon className="h-5 w-5" />,
+        logoSrc: "/img/yape-app-seeklogo.png",
+        logoAlt: "Logo de Yape",
     },
     PLIN: {
         label: "Plin",
         color: "text-teal-600 dark:text-teal-400",
         activeRing: "ring-2 ring-teal-500",
         activeBg: "bg-teal-50 dark:bg-teal-900/20 border-teal-300 dark:border-teal-600",
-        icon: <Smartphone className="h-5 w-5" />,
+        icon: <DevicePhoneMobileIcon className="h-5 w-5" />,
+        logoSrc: "/img/plin-seeklogo.png",
+        logoAlt: "Logo de Plin",
     },
     TRANSFERENCIA: {
         label: "Transfer",
         color: "text-blue-600 dark:text-blue-400",
         activeRing: "ring-2 ring-blue-500",
         activeBg: "bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-600",
-        icon: <ArrowLeftRight className="h-5 w-5" />,
+        icon: <ArrowsRightLeftIcon className="h-5 w-5" />,
     },
     TARJETA: {
         label: "Tarjeta",
         color: "text-amber-600 dark:text-amber-400",
         activeRing: "ring-2 ring-amber-500",
         activeBg: "bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-600",
-        icon: <CreditCard className="h-5 w-5" />,
+        icon: <CreditCardIcon className="h-5 w-5" />,
     },
 }
 
@@ -73,7 +85,7 @@ const DEFAULT_STYLE: MethodStyle = {
     color: "text-slate-600 dark:text-slate-400",
     activeRing: "ring-2 ring-slate-500",
     activeBg: "bg-slate-50 dark:bg-slate-900/20 border-slate-300 dark:border-slate-600",
-    icon: <CreditCard className="h-5 w-5" />,
+    icon: <CreditCardIcon className="h-5 w-5" />,
 }
 
 /* ── Backend method shape ────────────────────────────────── */
@@ -113,7 +125,8 @@ export default function PaymentMethod({ selected, onSelect, methods }: PaymentMe
     return (
         <div className={`grid ${cols} gap-2`}>
             {methods.map((m) => {
-                const style = METHOD_STYLES[m.nombre] ?? { ...DEFAULT_STYLE, label: m.nombre }
+                const methodKey = PAYMENT_BACKEND_MAP[m.nombre] ?? m.nombre.trim().toUpperCase()
+                const style = METHOD_STYLES[methodKey] ?? METHOD_STYLES[m.nombre] ?? { ...DEFAULT_STYLE, label: m.nombre }
                 const isActive = selected === m.nombre
                 return (
                     <button
@@ -127,8 +140,18 @@ export default function PaymentMethod({ selected, onSelect, methods }: PaymentMe
                                 : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700",
                         ].join(" ")}
                     >
-                        <span className={isActive ? style.color : "text-slate-400 dark:text-slate-500"}>
-                            {style.icon}
+                        <span className={["flex h-5 w-5 items-center justify-center", isActive ? style.color : "text-slate-400 dark:text-slate-500"].join(" ")}>
+                            {style.logoSrc ? (
+                                <Image
+                                    src={style.logoSrc}
+                                    alt={style.logoAlt ?? `Logo ${style.label}`}
+                                    width={20}
+                                    height={20}
+                                    className="h-5 w-5 object-contain"
+                                />
+                            ) : (
+                                style.icon
+                            )}
                         </span>
                         {style.label}
                     </button>

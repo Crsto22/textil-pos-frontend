@@ -24,8 +24,8 @@ interface ProductoColorsCardProps {
   onToggleColorSelection: (idColor: number) => void
 }
 
-function normalizeHexColor(code: string): string {
-  const trimmed = code.trim()
+function normalizeHexColor(code: string | null | undefined): string {
+  const trimmed = String(code ?? "").trim()
   if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(trimmed)) return trimmed
   if (/^([0-9a-f]{3}|[0-9a-f]{6})$/i.test(trimmed)) return `#${trimmed}`
   return "#94a3b8"

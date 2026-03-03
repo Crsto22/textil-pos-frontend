@@ -52,7 +52,7 @@ export function ProductoDeleteDialog({
         <DialogHeader>
           <DialogTitle>Eliminar Producto</DialogTitle>
           <DialogDescription>
-            {`Estas seguro de eliminar el producto "${target?.nombre ?? ""}"?`}
+            {`Estas seguro de eliminar el producto "${target?.nombre ?? ""}"? Esta accion es irreversible y eliminara tambien sus productos variantes.`}
           </DialogDescription>
         </DialogHeader>
 

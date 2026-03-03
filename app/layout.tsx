@@ -3,6 +3,7 @@ import localFont from "next/font/local";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/lib/auth/auth-context";
+import { CompanyProvider } from "@/lib/company/company-context";
 import { Toaster } from "sonner";
 
 const soraLight = localFont({
@@ -31,12 +32,14 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <AuthProvider>
-            {children}
-            <Toaster
-            richColors
-            expand={true}
-              position="top-center"
-            />
+            <CompanyProvider>
+              {children}
+              <Toaster
+              richColors
+              expand={true}
+                position="top-center"
+              />
+            </CompanyProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>

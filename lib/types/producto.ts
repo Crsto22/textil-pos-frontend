@@ -7,7 +7,7 @@ export interface Producto {
   descripcion: string
   estado: string
   fechaCreacion: string
-  codigoExterno: string
+  codigoExterno: string | null
   idCategoria: number | null
   nombreCategoria: string
   idSucursal: number | null
@@ -24,14 +24,20 @@ export interface ProductoResumenImagen {
 export interface ProductoResumenColor {
   colorId: number
   nombre: string
-  hex: string
+  hex: string | null
   imagenPrincipal: ProductoResumenImagen | null
   tallas: ProductoResumenTalla[]
 }
 
 export interface ProductoResumenTalla {
+  idProductoVariante?: number | null
   tallaId: number
   nombre: string
+  sku?: string | null
+  codigoExterno?: string | null
+  precio?: number | null
+  stock?: number | null
+  estado?: string | null
 }
 
 export interface ProductoResumen extends Producto {
@@ -43,15 +49,15 @@ export interface ProductoResumen extends Producto {
 export interface ProductoCreateRequest {
   idSucursal?: number | null
   idCategoria: number | null
-  sku: string
   nombre: string
   descripcion: string
-  codigoExterno: string
 }
 
 export interface ProductoVarianteCreateRequest {
   colorId: number
   tallaId: number
+  sku: string
+  codigoExterno?: string | null
   precio: number
   stock: number
 }
@@ -67,10 +73,8 @@ export interface ProductoImagenCreateRequest {
 export interface ProductoInsertarCompletoRequest {
   idSucursal: number
   idCategoria: number
-  sku: string
   nombre: string
   descripcion?: string
-  codigoExterno?: string
   variantes: ProductoVarianteCreateRequest[]
   imagenes: ProductoImagenCreateRequest[]
 }
@@ -86,7 +90,76 @@ export interface ProductoImagenesUploadResponse {
   imagenes: ProductoImagenUploadResponseItem[]
 }
 
+export interface ProductoImportResponse {
+  filasProcesadas: number
+  productosCreados: number
+  productosActualizados: number
+  variantesGuardadas: number
+  categoriasCreadas?: number
+  coloresCreados: number
+  tallasCreadas: number
+}
+
+export interface ProductoImportacionHistorial {
+  idImportacion: number
+  idUsuario: number | null
+  nombreUsuario: string
+  idSucursal: number | null
+  nombreSucursal: string
+  nombreArchivo: string
+  tamanoBytes: number
+  filasProcesadas: number
+  productosCreados: number
+  productosActualizados: number
+  variantesGuardadas: number
+  categoriasCreadas: number
+  coloresCreados: number
+  tallasCreadas: number
+  estado: string
+  mensajeError: string | null
+  duracionMs: number | null
+  createdAt: string
+}
+
 export interface ProductoInsertarCompletoResponse {
+  producto: Producto
+  variantes: number
+  imagenes: number
+}
+
+export interface ProductoDetalleVariante {
+  idProductoVariante: number
+  sku: string
+  codigoExterno: string | null
+  colorId: number
+  colorNombre: string
+  colorHex: string
+  tallaId: number
+  tallaNombre: string
+  precio: number
+  stock: number
+  estado: string
+}
+
+export interface ProductoDetalleImagen {
+  idColorImagen: number
+  colorId: number
+  colorNombre: string
+  colorHex: string
+  url: string
+  urlThumb: string
+  orden: number
+  esPrincipal: boolean
+  estado: string
+}
+
+export interface ProductoDetalleResponse {
+  producto: Producto
+  variantes: ProductoDetalleVariante[]
+  imagenes: ProductoDetalleImagen[]
+}
+
+export interface ProductoActualizarCompletoResponse {
   producto: Producto
   variantes: number
   imagenes: number
@@ -95,10 +168,8 @@ export interface ProductoInsertarCompletoResponse {
 export interface ProductoUpdateRequest {
   idSucursal?: number | null
   idCategoria: number | null
-  sku: string
   nombre: string
   descripcion: string
-  codigoExterno: string
 }
 
 export interface ProductoDeleteResponse {

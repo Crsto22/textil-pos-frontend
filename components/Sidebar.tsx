@@ -1,13 +1,13 @@
 "use client"
 
+import type { ComponentType } from "react"
 import { usePathname, useRouter } from "next/navigation"
-import { useAuth } from "@/lib/auth/auth-context"
+import { useCompany } from "@/lib/company/company-context"
 
 import {
     Squares2X2Icon,
     ChevronLeftIcon,
     CreditCardIcon,
-    ArrowRightStartOnRectangleIcon,
     CubeIcon,
     Cog6ToothIcon,
     ShoppingCartIcon,
@@ -17,9 +17,11 @@ import {
     XMarkIcon,
     HomeModernIcon,
     BuildingOffice2Icon,
+    ClipboardDocumentListIcon,
     SwatchIcon,
     TagIcon,
     RectangleStackIcon,
+    DocumentArrowUpIcon,
 } from "@heroicons/react/24/outline"
 import {
     Squares2X2Icon as Squares2X2IconSolid,
@@ -31,9 +33,11 @@ import {
     WrenchScrewdriverIcon as WrenchScrewdriverIconSolid,
     UsersIcon as UsersIconSolid,
     BuildingOffice2Icon as BuildingOffice2IconSolid,
+    ClipboardDocumentListIcon as ClipboardDocumentListIconSolid,
     SwatchIcon as SwatchIconSolid,
     TagIcon as TagIconSolid,
     RectangleStackIcon as RectangleStackIconSolid,
+    DocumentArrowUpIcon as DocumentArrowUpIconSolid,
 } from "@heroicons/react/24/solid"
 
 interface SidebarProps {
@@ -43,46 +47,72 @@ interface SidebarProps {
     onToggleCollapse: () => void
 }
 
-const navItems = [
-    { label: "Dashboard", href: "/dashboard", icon: Squares2X2Icon, iconActive: Squares2X2IconSolid },
-    { label: "Ventas", href: "/ventas", icon: ShoppingCartIcon, iconActive: ShoppingCartIconSolid },
-    { label: "Clientes", href: "/clientes", icon: UsersIcon, iconActive: UsersIconSolid },
-    { label: "Usuarios", href: "/usuarios", icon: WrenchScrewdriverIcon, iconActive: WrenchScrewdriverIconSolid },
-    { label: "Sucursales", href: "/sucursales", icon: BuildingOffice2Icon, iconActive: BuildingOffice2IconSolid },
-]
+interface SidebarItem {
+    label: string
+    href: string
+    icon: ComponentType<{ className?: string }>
+    iconActive: ComponentType<{ className?: string }>
+}
 
-const catalogItems = [
-    { label: "Productos", href: "/productos", icon: CubeIcon, iconActive: CubeIconSolid },
-    { label: "Categorias", href: "/productos/categorias", icon: RectangleStackIcon, iconActive: RectangleStackIconSolid },
-    { label: "Tallas", href: "/productos/tallas", icon: TagIcon, iconActive: TagIconSolid },
-    { label: "Colores", href: "/productos/colores", icon: SwatchIcon, iconActive: SwatchIconSolid },
-]
+interface SidebarSection {
+    subtitle: string
+    items: SidebarItem[]
+}
 
-const configItems = [
-    { label: "Empresa", href: "/configuracion/empresa", icon: Cog6ToothIcon, iconActive: Cog6ToothIconSolid },
-    { label: "Mi cuenta", href: "/configuracion/cuenta", icon: UserCircleIcon, iconActive: UserCircleIconSolid },
-    { label: "Metodos de pago", href: "/configuracion/metodos-pago", icon: CreditCardIcon, iconActive: CreditCardIconSolid },
+const navSections: SidebarSection[] = [
+    {
+        subtitle: "Principal",
+        items: [
+            { label: "Dashboard", href: "/dashboard", icon: Squares2X2Icon, iconActive: Squares2X2IconSolid },
+        ],
+    },
+    {
+        subtitle: "Ventas",
+        items: [
+            { label: "Ventas", href: "/ventas", icon: ShoppingCartIcon, iconActive: ShoppingCartIconSolid },
+            { label: "Historial ventas", href: "/ventas/historial", icon: ClipboardDocumentListIcon, iconActive: ClipboardDocumentListIconSolid },
+            { label: "Clientes", href: "/clientes", icon: UsersIcon, iconActive: UsersIconSolid },
+        ],
+    },
+    {
+        subtitle: "Catalogo",
+        items: [
+            { label: "Productos", href: "/productos", icon: CubeIcon, iconActive: CubeIconSolid },
+            { label: "Carga masiva", href: "/productos/carga-masiva", icon: DocumentArrowUpIcon, iconActive: DocumentArrowUpIconSolid },
+            { label: "Categorias", href: "/productos/categorias", icon: RectangleStackIcon, iconActive: RectangleStackIconSolid },
+            { label: "Tallas", href: "/productos/tallas", icon: TagIcon, iconActive: TagIconSolid },
+            { label: "Colores", href: "/productos/colores", icon: SwatchIcon, iconActive: SwatchIconSolid },
+        ],
+    },
+    {
+        subtitle: "Administracion",
+        items: [
+            { label: "Sucursales", href: "/sucursales", icon: BuildingOffice2Icon, iconActive: BuildingOffice2IconSolid },
+            { label: "Usuarios", href: "/usuarios", icon: WrenchScrewdriverIcon, iconActive: WrenchScrewdriverIconSolid },
+        ],
+    },
+    {
+        subtitle: "Configuracion",
+        items: [
+            { label: "Empresa", href: "/configuracion/empresa", icon: Cog6ToothIcon, iconActive: Cog6ToothIconSolid },
+            { label: "Mi cuenta", href: "/configuracion/cuenta", icon: UserCircleIcon, iconActive: UserCircleIconSolid },
+            { label: "Metodos de pago", href: "/configuracion/metodos-pago", icon: CreditCardIcon, iconActive: CreditCardIconSolid },
+        ],
+    },
 ]
 
 export function Sidebar({ isOpen, collapsed, onClose, onToggleCollapse }: SidebarProps) {
     const pathname = usePathname()
     const router = useRouter()
-    const { user, logout } = useAuth()
-
-    const handleLogout = async () => {
-        await logout()
-        router.replace("/")
-    }
+    const { company, isLoadingCompany } = useCompany()
 
     const handleNav = (href: string) => {
         router.push(href)
         onClose()
     }
 
-    const isActive = (href: string) => pathname === href
-    const initials = user
-        ? `${user.nombre?.[0] ?? ""}${user.apellido?.[0] ?? ""}`.toUpperCase() || "U"
-        : "U"
+    const isActive = (href: string) =>
+        pathname === href || (href !== "/dashboard" && pathname.startsWith(`${href}/`))
 
     const itemClass = (active: boolean) =>
         [
@@ -114,15 +144,27 @@ export function Sidebar({ isOpen, collapsed, onClose, onToggleCollapse }: Sideba
                 <div className="flex h-16 shrink-0 items-center justify-between border-b border-slate-700/50 px-4">
                     {!collapsed && (
                         <div className="flex min-w-0 items-center gap-3">
-                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-600/30">
-                                <HomeModernIcon className="h-5 w-5" />
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl  text-white shadow-lg ">
+                                {company?.logoUrl ? (
+                                    <img
+                                        src={company.logoUrl}
+                                        alt={`Logo ${company.nombre}`}
+                                        className="h-8 w-8 object-contain rounded-xl"
+                                    />
+                                ) : (
+                                    <HomeModernIcon className="h-5 w-5" />
+                                )}
                             </div>
                             <div className="min-w-0">
                                 <p className="truncate text-sm font-semibold tracking-tight text-white">
-                                    POS Textil
+                                    {company?.nombre ?? "POS Textil"}
                                 </p>
                                 <span className="truncate text-xs text-slate-400">
-                                    Panel Administrativo
+                                    {isLoadingCompany
+                                        ? "Cargando empresa..."
+                                        : company?.ruc
+                                            ? `RUC: ${company.ruc}`
+                                            : "Panel Administrativo"}
                                 </span>
                             </div>
                         </div>
@@ -147,107 +189,43 @@ export function Sidebar({ isOpen, collapsed, onClose, onToggleCollapse }: Sideba
                     </div>
                 </div>
 
-                <nav className="sidebar-scroll flex-1 space-y-1 overflow-y-auto px-3 py-4">
-                    {navItems.map((item) => {
-                        const active = isActive(item.href)
-                        const Icon = active ? item.iconActive : item.icon
-
-                        return (
-                            <button
-                                key={item.href}
-                                onClick={() => handleNav(item.href)}
-                                className={itemClass(active)}
-                                title={collapsed ? item.label : undefined}
-                            >
-                                <Icon className={`h-5 w-5 shrink-0 ${active ? "text-blue-600" : ""}`} />
+                <nav className="sidebar-scroll flex-1 overflow-y-auto px-3 py-4">
+                    <div className="space-y-4">
+                        {navSections.map((section, sectionIndex) => (
+                            <section key={section.subtitle} className="space-y-1.5">
                                 {!collapsed && (
-                                    <span className="truncate">{item.label}</span>
+                                    <p className="px-2 text-[11px] font-medium uppercase tracking-[0.14em] text-slate-500">
+                                        {section.subtitle}
+                                    </p>
                                 )}
-                            </button>
-                        )
-                    })}
 
-                    <div className="my-3 border-t border-slate-700/50" />
+                                {section.items.map((item) => {
+                                    const active = isActive(item.href)
+                                    const Icon = active ? item.iconActive : item.icon
+                                    return (
+                                        <button
+                                            key={item.href}
+                                            onClick={() => handleNav(item.href)}
+                                            className={itemClass(active)}
+                                            title={collapsed ? item.label : undefined}
+                                        >
+                                            <Icon className={`h-5 w-5 shrink-0 ${active ? "text-blue-600" : ""}`} />
+                                            {!collapsed && (
+                                                <span className="truncate">{item.label}</span>
+                                            )}
+                                        </button>
+                                    )
+                                })}
 
-                    {!collapsed && (
-                        <p className="px-2 text-[11px] font-medium uppercase tracking-[0.14em] text-slate-500">
-                            Catálogo
-                        </p>
-                    )}
-
-                    {catalogItems.map((item) => {
-                        const active = isActive(item.href)
-                        const Icon = active ? item.iconActive : item.icon
-                        return (
-                            <button
-                                key={item.href}
-                                onClick={() => handleNav(item.href)}
-                                className={itemClass(active)}
-                                title={collapsed ? item.label : undefined}
-                            >
-                                <Icon className={`h-5 w-5 shrink-0 ${active ? "text-blue-600" : ""}`} />
-                                {!collapsed && (
-                                    <span className="truncate">{item.label}</span>
+                                {sectionIndex < navSections.length - 1 && (
+                                    <div className="px-2 pt-2">
+                                        <div className="border-t border-slate-700/50" />
+                                    </div>
                                 )}
-                            </button>
-                        )
-                    })}
-
-                    <div className="my-3 border-t border-slate-700/50" />
-
-                    {!collapsed && (
-                        <p className="px-2 text-[11px] font-medium uppercase tracking-[0.14em] text-slate-500">
-                            Configuracion
-                        </p>
-                    )}
-
-                    {configItems.map((item) => {
-                        const active = isActive(item.href)
-                        const Icon = active ? item.iconActive : item.icon
-                        return (
-                            <button
-                                key={item.href}
-                                onClick={() => handleNav(item.href)}
-                                className={itemClass(active)}
-                                title={collapsed ? item.label : undefined}
-                            >
-                                <Icon className={`h-5 w-5 shrink-0 ${active ? "text-blue-600" : ""}`} />
-                                {!collapsed && (
-                                    <span className="truncate">{item.label}</span>
-                                )}
-                            </button>
-                        )
-                    })}
+                            </section>
+                        ))}
+                    </div>
                 </nav>
-
-                <div className="shrink-0 space-y-2 border-t border-slate-700/50 px-3 py-3">
-                    {!collapsed && user && (
-                        <div className="flex items-center gap-3 rounded-xl border border-slate-700/50 bg-white/[0.05] px-3 py-2">
-                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600 text-xs font-semibold text-white">
-                                {initials}
-                            </div>
-                            <div className="min-w-0">
-                                <p className="truncate text-sm font-medium text-white">
-                                    {user.nombre} {user.apellido}
-                                </p>
-                                <span className="truncate text-xs text-slate-400">{user.rol}</span>
-                            </div>
-                        </div>
-                    )}
-
-                    <button
-                        onClick={handleLogout}
-                        className={`
-              w-full rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200
-              ${collapsed ? "flex items-center justify-center" : "flex items-center gap-3"}
-              text-rose-400 hover:bg-rose-500/10
-            `}
-                        title="Cerrar sesion"
-                    >
-                        <ArrowRightStartOnRectangleIcon className="h-5 w-5 shrink-0" />
-                        {!collapsed && <span>Cerrar sesion</span>}
-                    </button>
-                </div>
             </aside>
         </>
     )

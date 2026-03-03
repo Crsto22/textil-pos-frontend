@@ -8,6 +8,7 @@ import {
 } from "lucide-react"
 import { authFetch } from "@/lib/auth/auth-fetch"
 import { useAuth } from "@/lib/auth/auth-context"
+import { useCompany } from "@/lib/company/company-context"
 import type { Empresa } from "@/lib/types/empresa"
 import { toast } from "sonner"
 
@@ -144,6 +145,7 @@ function Skeleton() {
 ══════════════════════════════════════════════════════ */
 export default function ConfigEmpresaPage() {
     const { isLoading: isAuthLoading } = useAuth()
+    const { setCompany: setGlobalCompany } = useCompany()
     const [empresa, setEmpresa] = useState<Empresa | null>(null)
     const [isLoading, setIsLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
@@ -168,7 +170,7 @@ export default function ConfigEmpresaPage() {
         setRuc(emp.ruc)
         setRazonSocial(emp.razonSocial)
         setCorreo(emp.correo)
-        if (emp.logoUrl) setLogoPreview(emp.logoUrl)
+        setLogoPreview(emp.logoUrl ?? null)
     }, [])
 
     const hasChanges =
@@ -188,6 +190,7 @@ export default function ConfigEmpresaPage() {
             const empresas = data as Empresa[]
             const emp = empresas.length > 0 ? empresas[0] : null
             setEmpresa(emp)
+            setGlobalCompany(emp)
             if (emp) syncForm(emp)
         } catch (err) {
             if (err instanceof DOMException && err.name === "AbortError") return
@@ -195,7 +198,7 @@ export default function ConfigEmpresaPage() {
         } finally {
             setIsLoading(false)
         }
-    }, [syncForm])
+    }, [setGlobalCompany, syncForm])
 
     useEffect(() => {
         if (isAuthLoading) return
@@ -240,8 +243,15 @@ export default function ConfigEmpresaPage() {
                 toast.error(data?.message ?? "Error al actualizar la empresa")
                 return
             }
-            const updated = data as Empresa
+            const updatedFromApi = data as Empresa
+            const updated: Empresa = {
+                ...updatedFromApi,
+                // El endpoint de actualizar a veces no devuelve logoUrl.
+                // Conservamos el logo actual para evitar que se borre en UI.
+                logoUrl: updatedFromApi.logoUrl?.trim() ? updatedFromApi.logoUrl : (empresa.logoUrl ?? undefined),
+            }
             setEmpresa(updated)
+            setGlobalCompany(updated)
             syncForm(updated)
             toast.success("Cambios guardados correctamente")
         } catch {
@@ -295,6 +305,7 @@ export default function ConfigEmpresaPage() {
 
             const updated = data as Empresa
             setEmpresa(updated)
+            setGlobalCompany(updated)
             // Keep the objectUrl as preview (faster than re-fetching the URL)
             if (updated.logoUrl) setLogoPreview(updated.logoUrl)
             toast.success("Logo actualizado correctamente")

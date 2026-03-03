@@ -25,6 +25,9 @@ import {
   type VariantValues,
 } from "@/lib/types/producto-create"
 import type {
+  ProductoActualizarCompletoResponse,
+  ProductoDetalleResponse,
+  ProductoDetalleImagen,
   ProductoImagenCreateRequest,
   ProductoImagenesUploadResponse,
   ProductoInsertarCompletoRequest,
@@ -43,6 +46,10 @@ function isActiveEntity(estado: string | undefined) {
 
 function parseJsonSafe(response: Response) {
   return response.json().catch(() => null)
+}
+
+function isAbortError(error: unknown) {
+  return error instanceof DOMException && error.name === "AbortError"
 }
 
 function getResponseMessage(payload: unknown, fallback: string): string {
@@ -82,8 +89,62 @@ function isProductoImagenesUploadResponse(
   )
 }
 
+function isProductoDetalleResponse(payload: unknown): payload is ProductoDetalleResponse {
+  if (!payload || typeof payload !== "object") return false
+  if (!("producto" in payload) || !("variantes" in payload) || !("imagenes" in payload)) {
+    return false
+  }
+
+  const { producto, variantes, imagenes } = payload
+
+  return Boolean(
+    producto &&
+      typeof producto === "object" &&
+      "idProducto" in producto &&
+      Array.isArray(variantes) &&
+      Array.isArray(imagenes)
+  )
+}
+
 function revokeMedia(media: MediaItem[]) {
-  media.forEach((item) => URL.revokeObjectURL(item.previewUrl))
+  media.forEach((item) => {
+    if (item.file) {
+      URL.revokeObjectURL(item.previewUrl)
+    }
+  })
+}
+
+function isLocalMedia(item: MediaItem): item is MediaItem & { file: File } {
+  return item.file instanceof File
+}
+
+function isRemoteMedia(item: MediaItem): item is MediaItem & {
+  url: string
+  urlThumb: string
+} {
+  return typeof item.url === "string" && item.url !== "" &&
+    typeof item.urlThumb === "string" && item.urlThumb !== ""
+}
+
+function toMediaItemFromDetalleImagen(image: ProductoDetalleImagen): MediaItem {
+  const fallbackFileName = (() => {
+    try {
+      const url = new URL(image.url)
+      return url.pathname.split("/").pop() || `imagen-${image.idColorImagen}.webp`
+    } catch {
+      return `imagen-${image.idColorImagen}.webp`
+    }
+  })()
+
+  return {
+    id: `persisted-${image.idColorImagen}`,
+    file: null,
+    fileName: fallbackFileName,
+    previewUrl: image.urlThumb || image.url,
+    url: image.url,
+    urlThumb: image.urlThumb,
+    idColorImagen: image.idColorImagen,
+  }
 }
 
 function parsePrecio(value: string): number | null {
@@ -98,28 +159,6 @@ function parseStock(value: string): number | null {
   const parsed = Number(value)
   if (!Number.isInteger(parsed) || parsed < 0) return null
   return parsed
-}
-
-function buildImagenesPayload(
-  uploadedByColor: ProductoImagenesUploadResponse[]
-): ProductoImagenCreateRequest[] {
-  return uploadedByColor.flatMap((group) => {
-    const ordered = [...group.imagenes]
-      .sort((a, b) => {
-        const aOrden = typeof a.ordenSugerido === "number" ? a.ordenSugerido : 999
-        const bOrden = typeof b.ordenSugerido === "number" ? b.ordenSugerido : 999
-        return aOrden - bOrden
-      })
-      .slice(0, MAX_MEDIA_PER_COLOR)
-
-    return ordered.map((image, index) => ({
-      colorId: group.colorId,
-      orden: index + 1,
-      esPrincipal: index === 0,
-      url: image.url,
-      urlThumb: image.urlThumb,
-    }))
-  })
 }
 
 function mergeCatalogById<T extends { [key: string]: unknown }>(
@@ -172,15 +211,16 @@ interface UseProductoCreateOptions {
 export function useProductoCreate({ productoId = null }: UseProductoCreateOptions = {}) {
   const { user } = useAuth()
   const isAdmin = user?.rol === "ADMINISTRADOR"
+  const isEditing = hasValidId(productoId)
 
   const [form, setForm] = useState<ProductoCreateFormState>({
     idSucursal: isAdmin ? null : user?.idSucursal ?? null,
     idCategoria: null,
     nombre: "",
-    sku: "",
     descripcion: "",
-    codigoExterno: "",
   })
+  const [loadingDetalle, setLoadingDetalle] = useState(isEditing)
+  const [errorDetalle, setErrorDetalle] = useState<string | null>(null)
 
   useEffect(() => {
     if (!isAdmin) {
@@ -395,7 +435,9 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
         Object.values(previous).forEach((media) => {
           media.forEach((item) => {
             if (!nextIds.has(item.id)) {
-              URL.revokeObjectURL(item.previewUrl)
+              if (item.file) {
+                URL.revokeObjectURL(item.previewUrl)
+              }
             }
           })
         })
@@ -408,6 +450,142 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
 
   const [variantValues, setVariantValues] = useState<Record<string, VariantValues>>({})
   const [excludedVariantKeys, setExcludedVariantKeys] = useState<string[]>([])
+
+  useEffect(() => {
+    if (!isEditing || !hasValidId(productoId)) {
+      setLoadingDetalle(false)
+      setErrorDetalle(null)
+      return
+    }
+
+    const controller = new AbortController()
+
+    const loadDetalle = async () => {
+      setLoadingDetalle(true)
+      setErrorDetalle(null)
+
+      try {
+        const response = await authFetch(`/api/producto/detalle/${productoId}`, {
+          signal: controller.signal,
+        })
+        const payload = await parseJsonSafe(response)
+        if (controller.signal.aborted) return
+
+        if (!response.ok) {
+          throw new Error(
+            getResponseMessage(payload, "No se pudo cargar el detalle del producto")
+          )
+        }
+
+        if (!isProductoDetalleResponse(payload)) {
+          throw new Error("La respuesta del detalle de producto no tiene el formato esperado")
+        }
+
+        const detailColorCatalog: Record<number, Color> = {}
+        const detailTallaCatalog: Record<number, Talla> = {}
+        const nextSelectedColorIds: number[] = []
+        const nextSelectedTallaIds: number[] = []
+        const nextVariantValues: Record<string, VariantValues> = {}
+        const nextMediaByColor: Record<number, MediaItem[]> = {}
+
+        const pushUniqueId = (list: number[], value: number) => {
+          if (hasValidId(value) && !list.includes(value)) {
+            list.push(value)
+          }
+        }
+
+        payload.variantes.forEach((variant) => {
+          pushUniqueId(nextSelectedColorIds, variant.colorId)
+          pushUniqueId(nextSelectedTallaIds, variant.tallaId)
+
+          detailColorCatalog[variant.colorId] = {
+            idColor: variant.colorId,
+            nombre: variant.colorNombre,
+            codigo: variant.colorHex,
+            estado: variant.estado ?? "ACTIVO",
+          }
+
+          detailTallaCatalog[variant.tallaId] = {
+            idTalla: variant.tallaId,
+            nombre: variant.tallaNombre,
+            estado: variant.estado ?? "ACTIVO",
+          }
+
+          nextVariantValues[buildVariantKey(variant.colorId, variant.tallaId)] = {
+            sku: variant.sku ?? "",
+            codigoExterno: variant.codigoExterno ?? "",
+            precio: String(variant.precio),
+            stock: String(variant.stock),
+          }
+        })
+
+        payload.imagenes
+          .slice()
+          .sort((a, b) => {
+            if (a.colorId !== b.colorId) return a.colorId - b.colorId
+            return a.orden - b.orden
+          })
+          .forEach((image) => {
+            pushUniqueId(nextSelectedColorIds, image.colorId)
+            if (!detailColorCatalog[image.colorId]) {
+              detailColorCatalog[image.colorId] = {
+                idColor: image.colorId,
+                nombre: image.colorNombre,
+                codigo: image.colorHex,
+                estado: image.estado ?? "ACTIVO",
+              }
+            }
+
+            const currentMedia = nextMediaByColor[image.colorId] ?? []
+            if (currentMedia.length >= MAX_MEDIA_PER_COLOR) return
+            nextMediaByColor[image.colorId] = [
+              ...currentMedia,
+              toMediaItemFromDetalleImagen(image),
+            ]
+          })
+
+        setForm((previous) => ({
+          ...previous,
+          idSucursal: isAdmin
+            ? payload.producto.idSucursal ?? null
+            : user?.idSucursal ?? payload.producto.idSucursal ?? null,
+          idCategoria: payload.producto.idCategoria ?? null,
+          nombre: payload.producto.nombre ?? "",
+          descripcion: payload.producto.descripcion ?? "",
+        }))
+        setSelectedColorCatalog((previous) => ({ ...previous, ...detailColorCatalog }))
+        setSelectedTallaCatalog((previous) => ({ ...previous, ...detailTallaCatalog }))
+        setSelectedColorIds(nextSelectedColorIds)
+        setSelectedTallaIds(nextSelectedTallaIds)
+        setVariantValues(nextVariantValues)
+        setExcludedVariantKeys([])
+        setMediaByColor((previous) => {
+          Object.values(previous).forEach((media) => revokeMedia(media))
+          return nextMediaByColor
+        })
+        setFocusedColorId(nextSelectedColorIds[0] ?? null)
+        setErrorDetalle(null)
+      } catch (requestError) {
+        if (isAbortError(requestError)) return
+        const message =
+          requestError instanceof Error
+            ? requestError.message
+            : "No se pudo cargar el detalle del producto"
+        setErrorDetalle(message)
+        toast.error(message)
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoadingDetalle(false)
+        }
+      }
+    }
+
+    void loadDetalle()
+
+    return () => {
+      controller.abort()
+    }
+  }, [isAdmin, isEditing, productoId, user?.idSucursal])
 
   useEffect(() => {
     const allowedKeys = new Set<string>()
@@ -446,12 +624,19 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
       selectedTallas.forEach((talla) => {
         const key = `${color.idColor}-${talla.idTalla}`
         if (excludedKeys.has(key)) return
-        const values = variantValues[key] ?? { precio: "", stock: "" }
+        const values = variantValues[key] ?? {
+          sku: "",
+          codigoExterno: "",
+          precio: "",
+          stock: "",
+        }
 
         rows.push({
           key,
           color,
           talla,
+          sku: values.sku,
+          codigoExterno: values.codigoExterno,
           precio: values.precio,
           stock: values.stock,
         })
@@ -466,6 +651,8 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
       setVariantValues((previous) => ({
         ...previous,
         [key]: {
+          sku: previous[key]?.sku ?? "",
+          codigoExterno: previous[key]?.codigoExterno ?? "",
           precio: previous[key]?.precio ?? "",
           stock: previous[key]?.stock ?? "",
           [field]: value,
@@ -483,8 +670,15 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
         const next = { ...previous }
 
         variantRows.forEach((variant) => {
-          const current = next[variant.key] ?? { precio: "", stock: "" }
+          const current = next[variant.key] ?? {
+            sku: "",
+            codigoExterno: "",
+            precio: "",
+            stock: "",
+          }
           next[variant.key] = {
+            sku: current.sku,
+            codigoExterno: current.codigoExterno,
             precio: current.precio,
             stock: current.stock,
             [field]: value,
@@ -582,16 +776,8 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
     setForm((previous) => ({ ...previous, nombre: value }))
   }, [])
 
-  const handleSkuChange = useCallback((value: string) => {
-    setForm((previous) => ({ ...previous, sku: value }))
-  }, [])
-
   const handleDescripcionChange = useCallback((value: string) => {
     setForm((previous) => ({ ...previous, descripcion: value }))
-  }, [])
-
-  const handleCodigoExternoChange = useCallback((value: string) => {
-    setForm((previous) => ({ ...previous, codigoExterno: value }))
   }, [])
 
   const [isSaving, setIsSaving] = useState(false)
@@ -612,17 +798,10 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
     }
 
     const nombre = form.nombre.trim()
-    const sku = form.sku.trim()
     const descripcion = form.descripcion.trim()
-    const codigoExterno = form.codigoExterno.trim()
 
     if (nombre === "") {
       toast.error("El nombre del producto es obligatorio")
-      return false
-    }
-
-    if (sku === "") {
-      toast.error("El SKU es obligatorio")
       return false
     }
 
@@ -641,16 +820,38 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
       return false
     }
 
-    const colorWithoutMedia = selectedColors.find(
-      (color) => (mediaByColor[color.idColor] ?? []).length === 0
-    )
-    if (colorWithoutMedia) {
-      toast.error(`Debe cargar al menos una imagen para el color ${colorWithoutMedia.nombre}`)
-      return false
-    }
-
     const variantes: ProductoVarianteCreateRequest[] = []
+    const seenSkus = new Set<string>()
+    const seenCodigosExternos = new Set<string>()
+
     for (const variant of variantRows) {
+      const sku = variant.sku.trim()
+      if (sku === "") {
+        toast.error(
+          `El SKU es obligatorio para la variante ${variant.color.nombre}/${variant.talla.nombre}`
+        )
+        return false
+      }
+
+      const normalizedSku = sku.toUpperCase()
+      if (seenSkus.has(normalizedSku)) {
+        toast.error(`No puede repetir SKU dentro del mismo producto (${sku})`)
+        return false
+      }
+      seenSkus.add(normalizedSku)
+
+      const codigoExterno = variant.codigoExterno.trim()
+      if (codigoExterno !== "") {
+        const normalizedCodigoExterno = codigoExterno.toUpperCase()
+        if (seenCodigosExternos.has(normalizedCodigoExterno)) {
+          toast.error(
+            `No puede repetir codigo externo dentro del mismo producto (${codigoExterno})`
+          )
+          return false
+        }
+        seenCodigosExternos.add(normalizedCodigoExterno)
+      }
+
       const precio = parsePrecio(variant.precio)
       if (precio === null) {
         toast.error(
@@ -670,6 +871,8 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
       variantes.push({
         colorId: variant.color.idColor,
         tallaId: variant.talla.idTalla,
+        sku,
+        codigoExterno: codigoExterno === "" ? null : codigoExterno,
         precio,
         stock,
       })
@@ -678,79 +881,137 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
     setIsSaving(true)
 
     try {
-      const uploadedByColor = await Promise.all(
-        selectedColors.map(async (color) => {
-          const media = mediaByColor[color.idColor] ?? []
-          const uploadFormData = new FormData()
-          uploadFormData.append("colorId", String(color.idColor))
-          if (hasValidId(productoId)) {
-            uploadFormData.append("productoId", String(productoId))
-          }
-          media.forEach((item) => {
-            uploadFormData.append("files", item.file, item.file.name)
-          })
+      const imagenesByColor = await Promise.all(
+        selectedColors.map(async (color): Promise<ProductoImagenCreateRequest[]> => {
+          const media = (mediaByColor[color.idColor] ?? []).slice(0, MAX_MEDIA_PER_COLOR)
+          const localMedia = media.filter(isLocalMedia)
 
-          const uploadResponse = await authFetch("/api/producto/imagenes", {
-            method: "POST",
-            body: uploadFormData,
-          })
-          const uploadPayload = await parseJsonSafe(uploadResponse)
+          let uploadedImages: ProductoImagenesUploadResponse["imagenes"] = []
+          if (localMedia.length > 0) {
+            const uploadFormData = new FormData()
+            uploadFormData.append("colorId", String(color.idColor))
+            if (hasValidId(productoId)) {
+              uploadFormData.append("productoId", String(productoId))
+            }
 
-          if (!uploadResponse.ok) {
-            throw new Error(
-              getResponseMessage(
-                uploadPayload,
-                `No se pudieron subir las imagenes para ${color.nombre}`
+            localMedia.forEach((item) => {
+              uploadFormData.append("files", item.file, item.file.name)
+            })
+
+            const uploadResponse = await authFetch("/api/producto/imagenes", {
+              method: "POST",
+              body: uploadFormData,
+            })
+            const uploadPayload = await parseJsonSafe(uploadResponse)
+
+            if (!uploadResponse.ok) {
+              throw new Error(
+                getResponseMessage(
+                  uploadPayload,
+                  `No se pudieron subir las imagenes para ${color.nombre}`
+                )
               )
-            )
+            }
+
+            if (!isProductoImagenesUploadResponse(uploadPayload)) {
+              throw new Error(
+                `La respuesta de imagenes para ${color.nombre} no tiene el formato esperado`
+              )
+            }
+
+            uploadedImages = [...uploadPayload.imagenes]
+              .sort((a, b) => {
+                const aOrden = typeof a.ordenSugerido === "number" ? a.ordenSugerido : 999
+                const bOrden = typeof b.ordenSugerido === "number" ? b.ordenSugerido : 999
+                return aOrden - bOrden
+              })
+              .slice(0, localMedia.length)
+
+            if (uploadedImages.length !== localMedia.length) {
+              throw new Error(
+                `No se recibieron todas las imagenes subidas para ${color.nombre}`
+              )
+            }
           }
 
-          if (!isProductoImagenesUploadResponse(uploadPayload)) {
-            throw new Error(
-              `La respuesta de imagenes para ${color.nombre} no tiene el formato esperado`
-            )
-          }
+          let uploadedIndex = 0
+          return media.map((item, index) => {
+            if (isLocalMedia(item)) {
+              const uploaded = uploadedImages[uploadedIndex]
+              uploadedIndex += 1
+              if (!uploaded) {
+                throw new Error(
+                  `No se pudo mapear la imagen subida para ${color.nombre}`
+                )
+              }
 
-          if (uploadPayload.imagenes.length === 0) {
-            throw new Error(`El backend no devolvio imagenes para ${color.nombre}`)
-          }
+              return {
+                colorId: color.idColor,
+                orden: index + 1,
+                esPrincipal: index === 0,
+                url: uploaded.url,
+                urlThumb: uploaded.urlThumb,
+              }
+            }
 
-          return uploadPayload
+            if (!isRemoteMedia(item)) {
+              throw new Error(
+                `Se detecto una imagen invalida para ${color.nombre}`
+              )
+            }
+
+            return {
+              colorId: color.idColor,
+              orden: index + 1,
+              esPrincipal: index === 0,
+              url: item.url,
+              urlThumb: item.urlThumb,
+            }
+          })
         })
       )
 
-      const imagenes = buildImagenesPayload(uploadedByColor)
-      if (imagenes.length === 0) {
-        throw new Error("No se pudo construir el detalle de imagenes del producto")
-      }
+      const imagenes = imagenesByColor.flat()
 
       const payload: ProductoInsertarCompletoRequest = {
         idSucursal,
         idCategoria,
-        sku,
         nombre,
         variantes,
         imagenes,
         ...(descripcion !== "" ? { descripcion } : {}),
-        ...(codigoExterno !== "" ? { codigoExterno } : {}),
       }
 
-      const createResponse = await authFetch("/api/producto/insertar-completo", {
-        method: "POST",
+      const endpoint =
+        isEditing && hasValidId(productoId)
+          ? `/api/producto/actualizar-completo/${productoId}`
+          : "/api/producto/insertar-completo"
+      const method = isEditing ? "PUT" : "POST"
+
+      const saveResponse = await authFetch(endpoint, {
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       })
-      const createPayload = (await parseJsonSafe(
-        createResponse
-      )) as ProductoInsertarCompletoResponse | null
+      const savePayload = (await parseJsonSafe(saveResponse)) as
+        | ProductoInsertarCompletoResponse
+        | ProductoActualizarCompletoResponse
+        | null
 
-      if (!createResponse.ok) {
+      if (!saveResponse.ok) {
         throw new Error(
-          getResponseMessage(createPayload, "No se pudo crear el producto completo")
+          getResponseMessage(
+            savePayload,
+            isEditing
+              ? "No se pudo actualizar el producto completo"
+              : "No se pudo crear el producto completo"
+          )
         )
       }
 
-      toast.success("Producto creado exitosamente")
+      toast.success(
+        isEditing ? "Producto actualizado exitosamente" : "Producto creado exitosamente"
+      )
       return true
     } catch (saveError) {
       const message =
@@ -761,11 +1022,10 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
       setIsSaving(false)
     }
   }, [
-    form.codigoExterno,
     form.descripcion,
     form.idCategoria,
     form.nombre,
-    form.sku,
+    isEditing,
     isSaving,
     mediaByColor,
     productoId,
@@ -776,6 +1036,7 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
   ])
 
   const isBusy =
+    loadingDetalle ||
     isSaving ||
     loadingAtributos ||
     loadingCategorias ||
@@ -824,6 +1085,9 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
   return {
     user,
     isAdmin,
+    isEditing,
+    loadingDetalle,
+    errorDetalle,
     form,
     isSaving,
     isBusy,
@@ -871,9 +1135,7 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
     handleSucursalChange,
     handleCategoriaChange,
     handleNombreChange,
-    handleSkuChange,
     handleDescripcionChange,
-    handleCodigoExternoChange,
     toggleColorSelection,
     toggleTallaSelection,
     handleVariantFieldChange,

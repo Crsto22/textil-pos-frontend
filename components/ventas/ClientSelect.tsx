@@ -1,7 +1,13 @@
 "use client"
 
 import { useState, useRef, useEffect, useCallback } from "react"
-import { ChevronDown, Search, Check, User2, Loader2 } from "lucide-react"
+import {
+    ArrowPathIcon,
+    CheckIcon,
+    ChevronDownIcon,
+    MagnifyingGlassIcon,
+    UserCircleIcon,
+} from "@heroicons/react/24/outline"
 import { authFetch } from "@/lib/auth/auth-fetch"
 import type { Cliente } from "@/lib/types/cliente"
 import type { PageResponse } from "@/lib/types/usuario"
@@ -115,11 +121,11 @@ export default function ClientSelect({ selected, onSelect }: Props) {
                         : "hover:bg-slate-50 dark:hover:bg-slate-800/60",
                 ].join(" ")}
             >
-                <User2 className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500 shrink-0" />
+                <UserCircleIcon className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500 shrink-0" />
                 <span className="flex-1 text-left truncate text-slate-500 dark:text-slate-400">
                     {selected.nombre}
                 </span>
-                <ChevronDown className={`h-3.5 w-3.5 text-slate-400 transition-transform duration-150 ${open ? "rotate-180" : ""}`} />
+                <ChevronDownIcon className={`h-3.5 w-3.5 text-slate-400 transition-transform duration-150 ${open ? "rotate-180" : ""}`} />
             </button>
 
             {/* Dropdown */}
@@ -127,11 +133,11 @@ export default function ClientSelect({ selected, onSelect }: Props) {
                 <div className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl shadow-black/10">
                     {/* Search bar */}
                     <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 px-3 py-2">
-                        <Search className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                        <MagnifyingGlassIcon className="h-3.5 w-3.5 shrink-0 text-slate-400" />
                         <input ref={inputRef} type="text" placeholder="Buscar por nombre o DNI..."
                             value={query} onChange={e => setQuery(e.target.value)}
                             className="flex-1 bg-transparent text-sm text-slate-700 dark:text-slate-200 placeholder:text-slate-400 outline-none" />
-                        {loading && <Loader2 className="h-3.5 w-3.5 text-slate-400 animate-spin shrink-0" />}
+                        {loading && <ArrowPathIcon className="h-3.5 w-3.5 text-slate-400 animate-spin shrink-0" />}
                     </div>
 
                     {/* Client list */}
@@ -154,7 +160,7 @@ export default function ClientSelect({ selected, onSelect }: Props) {
                                 <p className="truncate font-medium">Cliente Genérico</p>
                                 <p className="text-[10px] text-slate-400 dark:text-slate-500">Sin documento</p>
                             </div>
-                            {selected.idCliente === null && <Check className="h-3.5 w-3.5 shrink-0 text-blue-500" />}
+                            {selected.idCliente === null && <CheckIcon className="h-3.5 w-3.5 shrink-0 text-blue-500" />}
                         </button>
 
                         {/* Separator */}
@@ -163,7 +169,7 @@ export default function ClientSelect({ selected, onSelect }: Props) {
                         {/* Loading state */}
                         {loading && clientes.length === 0 && (
                             <div className="flex items-center justify-center gap-2 px-3 py-6">
-                                <Loader2 className="h-4 w-4 text-slate-400 animate-spin" />
+                                <ArrowPathIcon className="h-4 w-4 text-slate-400 animate-spin" />
                                 <span className="text-xs text-slate-400">Buscando clientes...</span>
                             </div>
                         )}
@@ -199,7 +205,7 @@ export default function ClientSelect({ selected, onSelect }: Props) {
                                         <p className="truncate font-medium">{c.nombres}</p>
                                         <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">{docLabel}</p>
                                     </div>
-                                    {active && <Check className="h-3.5 w-3.5 shrink-0 text-blue-500" />}
+                                    {active && <CheckIcon className="h-3.5 w-3.5 shrink-0 text-blue-500" />}
                                 </button>
                             )
                         })}
@@ -209,7 +215,7 @@ export default function ClientSelect({ selected, onSelect }: Props) {
                             <button type="button" onClick={handleLoadMore} disabled={loadingMore}
                                 className="flex w-full items-center justify-center gap-2 px-3 py-2.5 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors disabled:opacity-50">
                                 {loadingMore ? (
-                                    <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Cargando...</>
+                                    <><ArrowPathIcon className="h-3.5 w-3.5 animate-spin" /> Cargando...</>
                                 ) : (
                                     "Cargar más clientes"
                                 )}

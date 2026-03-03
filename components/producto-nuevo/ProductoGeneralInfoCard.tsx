@@ -36,8 +36,6 @@ interface ProductoGeneralInfoCardProps {
   onSearchSucursalChange: (value: string) => void
   onSearchCategoriaChange: (value: string) => void
   onNombreChange: (value: string) => void
-  onSkuChange: (value: string) => void
-  onCodigoExternoChange: (value: string) => void
   onDescripcionChange: (value: string) => void
 }
 
@@ -72,8 +70,6 @@ export function ProductoGeneralInfoCard({
   onSearchSucursalChange,
   onSearchCategoriaChange,
   onNombreChange,
-  onSkuChange,
-  onCodigoExternoChange,
   onDescripcionChange,
 }: ProductoGeneralInfoCardProps) {
   return (
@@ -144,28 +140,6 @@ export function ProductoGeneralInfoCard({
           />
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="producto-create-page-sku">SKU *</Label>
-            <Input
-              id="producto-create-page-sku"
-              placeholder="SKU-001"
-              value={form.sku}
-              onChange={(event) => onSkuChange(event.target.value)}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="producto-create-page-codigo-externo">Codigo Externo</Label>
-            <Input
-              id="producto-create-page-codigo-externo"
-              placeholder="EXT-123"
-              value={form.codigoExterno}
-              onChange={(event) => onCodigoExternoChange(event.target.value)}
-            />
-          </div>
-        </div>
-
         <div className="space-y-2">
           <Label htmlFor="producto-create-page-descripcion">Descripcion</Label>
           <Textarea
@@ -177,6 +151,11 @@ export function ProductoGeneralInfoCard({
             className="resize-none"
           />
         </div>
+
+        <p className="text-xs text-muted-foreground">
+          El SKU y el codigo externo se registran por variante (color/talla) en la
+          matriz.
+        </p>
 
         <div className="rounded-lg border border-dashed bg-muted/30 p-3 text-xs text-muted-foreground">
           Vista previa: {selectedCategoriaName || "Sin categoria seleccionada"} |{" "}

@@ -1,447 +1,821 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react"
+import { useRouter } from "next/navigation"
 import {
-    Search, CheckCircle, ShoppingBag, FileText,
-    Clock, Hash, Package, MessageCircle, AlertTriangle, Loader2
-} from "lucide-react"
-import { authFetch } from "@/lib/auth/auth-fetch"
-import type { ProductoResumen, PageResponse } from "@/lib/types/producto"
+  ArrowPathIcon,
+  CheckCircleIcon,
+  ClockIcon,
+  CubeIcon,
+  ExclamationTriangleIcon,
+  MagnifyingGlassIcon,
+  ShoppingBagIcon,
+} from "@heroicons/react/24/outline"
+import { toast } from "sonner"
+
+import { ProductosPagination } from "@/components/productos/ProductosPagination"
 import CategoryFilter from "@/components/ventas/CategoryFilter"
-import ProductCard from "@/components/ventas/ProductCard"
 import CartItem, { type CartItemData } from "@/components/ventas/CartItem"
-import PaymentMethod, { type PaymentKey, type MetodoPagoActivo, PAYMENT_BACKEND_MAP } from "@/components/ventas/PaymentMethod"
 import ClientSelect, { type ClientSelection } from "@/components/ventas/ClientSelect"
+import PaymentMethod, {
+  type MetodoPagoActivo,
+  type PaymentKey,
+} from "@/components/ventas/PaymentMethod"
+import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
+import { useAuth } from "@/lib/auth/auth-context"
+import ProductCard from "@/components/ventas/ProductCard"
 import ProductModal, { type SelectedVariant } from "@/components/ventas/ProductModal"
+import { authFetch } from "@/lib/auth/auth-fetch"
+import { useProductos } from "@/lib/hooks/useProductos"
+import { useSucursalOptions } from "@/lib/hooks/useSucursalOptions"
+import type { ProductoResumen } from "@/lib/types/producto"
 
-const DEFAULT_CLIENT: ClientSelection = { idCliente: null, nombre: "Cliente Genérico" }
+const DEFAULT_CLIENT: ClientSelection = { idCliente: null, nombre: "Cliente Generico" }
+const TIPO_COMPROBANTE_TICKET = "TICKET"
+const IGV_PORCENTAJE_SIN_APLICAR = 0
 
-/* ─── Live clock ─────────────────────────────────────────── */
 function LiveClock() {
-    const [time, setTime] = useState("")
-    useEffect(() => {
-        const tick = () =>
-            setTime(new Date().toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit", second: "2-digit" }))
-        tick()
-        const id = setInterval(tick, 1000)
-        return () => clearInterval(id)
-    }, [])
-    return (
-        <span className="flex items-center gap-1.5 text-xs font-semibold tabular-nums text-slate-500 dark:text-slate-400">
-            <Clock className="h-3.5 w-3.5" />{time}
-        </span>
-    )
+  const [time, setTime] = useState("")
+
+  useEffect(() => {
+    const tick = () =>
+      setTime(
+        new Date().toLocaleTimeString("es-PE", {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        })
+      )
+
+    tick()
+    const intervalId = setInterval(tick, 1000)
+    return () => clearInterval(intervalId)
+  }, [])
+
+  return (
+    <span className="flex items-center gap-1.5 text-xs font-semibold tabular-nums text-slate-500 dark:text-slate-400">
+      <ClockIcon className="h-3.5 w-3.5" />
+      {time}
+    </span>
+  )
 }
 
-function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-    return (
-        <div className={`bg-white dark:bg-slate-800/80 rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-sm ${className}`}>
-            {children}
-        </div>
-    )
+function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return (
+    <div
+      className={`rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-700/60 dark:bg-slate-800/80 ${className}`}
+    >
+      {children}
+    </div>
+  )
 }
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
-    return <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">{children}</p>
+function SectionLabel({ children }: { children: ReactNode }) {
+  return (
+    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+      {children}
+    </p>
+  )
 }
 
-/* ══════════════════════════════════════════════════════════
-   PAGE
-══════════════════════════════════════════════════════════ */
+function isEstadoActivo(value: unknown): boolean {
+  if (value === true) return true
+  if (value === false) return false
+  return typeof value === "string" ? value.trim().toUpperCase() === "ACTIVO" : false
+}
+
+function hasValidSucursalId(idSucursal?: number | null): idSucursal is number {
+  return typeof idSucursal === "number" && idSucursal > 0
+}
+
+interface ColorFilterOption {
+  name: string
+  hex: string | null | undefined
+}
+
+function buildColorFilters(productos: ProductoResumen[]): ColorFilterOption[] {
+  const colorMap = new Map<string, ColorFilterOption>()
+
+  productos.forEach((producto) => {
+    producto.colores.forEach((color) => {
+      const name = color.nombre?.trim() ?? ""
+      if (!name) return
+
+      const key = name.toLowerCase()
+      const previous = colorMap.get(key)
+      if (!previous) {
+        colorMap.set(key, { name, hex: color.hex })
+        return
+      }
+
+      if ((previous.hex === null || previous.hex === undefined || previous.hex === "") && color.hex) {
+        colorMap.set(key, { name: previous.name, hex: color.hex })
+      }
+    })
+  })
+
+  return Array.from(colorMap.values()).sort((a, b) => a.name.localeCompare(b.name))
+}
+
+function extractVentaId(payload: unknown): number | null {
+  if (!payload || typeof payload !== "object") return null
+
+  const source = payload as Record<string, unknown>
+  const nestedCandidates = [source.data, source.venta].filter(
+    (value): value is Record<string, unknown> => typeof value === "object" && value !== null
+  )
+
+  const candidates = [
+    source.idVenta,
+    source.id_venta,
+    source.id,
+    ...nestedCandidates.flatMap((candidate) => [
+      candidate.idVenta,
+      candidate.id_venta,
+      candidate.id,
+    ]),
+  ]
+
+  for (const candidate of candidates) {
+    const parsed = Number(candidate)
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed
+    }
+  }
+
+  return null
+}
+
 export default function VentasPage() {
-    /* ── catalog state ── */
-    const [productos, setProductos] = useState<ProductoResumen[]>([])
-    const [loadingProductos, setLoadingProductos] = useState(true)
-    const [errorProductos, setErrorProductos] = useState<string | null>(null)
-    const [search, setSearch] = useState("")
-    const [activeCategory, setActiveCategory] = useState("Todos")
-    const [activeColor, setActiveColor] = useState<string | null>(null)
+  const router = useRouter()
+  const { user } = useAuth()
+  const isAdmin = user?.rol === "ADMINISTRADOR"
+  const userHasSucursal = hasValidSucursalId(user?.idSucursal)
 
-    /* ── order state ── */
-    const [cart, setCart] = useState<CartItemData[]>([])
-    const [selectedPayment, setSelectedPayment] = useState<PaymentKey | null>(null)
-    const [showInvoice, setShowInvoice] = useState(false)
-    const [voucherNum, setVoucherNum] = useState("")
-    const [selectedClient, setSelectedClient] = useState<ClientSelection>(DEFAULT_CLIENT)
-    const [modalProduct, setModalProduct] = useState<ProductoResumen | null>(null)
-    const [submittingVenta, setSubmittingVenta] = useState(false)
-    const [ventaError, setVentaError] = useState<string | null>(null)
-    const [activeMetodosPago, setActiveMetodosPago] = useState<MetodoPagoActivo[] | undefined>(undefined)
+  const {
+    search,
+    setSearch,
+    displayedProductos,
+    displayedTotalElements,
+    displayedTotalPages,
+    displayedPage,
+    displayedLoading,
+    setDisplayedPage,
+    error: errorProductos,
+    refreshCurrentView,
+  } = useProductos()
 
-    /* ── fetch products from backend ── */
-    const loadProductos = useCallback(async () => {
-        setLoadingProductos(true)
-        setErrorProductos(null)
-        try {
-            const res = await authFetch("/api/producto/listar-resumen?page=0")
-            if (!res.ok) throw new Error("Error al cargar productos")
-            const data: PageResponse<ProductoResumen> = await res.json()
-            setProductos(Array.isArray(data.content) ? data.content : [])
-        } catch (e) {
-            setErrorProductos(e instanceof Error ? e.message : "Error inesperado")
-        } finally {
-            setLoadingProductos(false)
+  const [activeCategory, setActiveCategory] = useState("Todos")
+  const [activeColor, setActiveColor] = useState<string | null>(null)
+
+  const [cart, setCart] = useState<CartItemData[]>([])
+  const [selectedPayment, setSelectedPayment] = useState<PaymentKey | null>(null)
+  const [selectedClient, setSelectedClient] = useState<ClientSelection>(DEFAULT_CLIENT)
+  const [selectedSucursalId, setSelectedSucursalId] = useState<number | null>(null)
+  const [modalProduct, setModalProduct] = useState<ProductoResumen | null>(null)
+  const [submittingVenta, setSubmittingVenta] = useState(false)
+  const [ventaError, setVentaError] = useState<string | null>(null)
+  const [activeMetodosPago, setActiveMetodosPago] = useState<MetodoPagoActivo[] | undefined>(
+    undefined
+  )
+
+  const {
+    sucursalOptions,
+    loadingSucursales,
+    errorSucursales,
+    searchSucursal,
+    setSearchSucursal,
+  } = useSucursalOptions(isAdmin)
+
+  const categoriasDisponibles = useMemo(() => {
+    const values = new Set<string>()
+    displayedProductos.forEach((producto) => {
+      const categoria = producto.nombreCategoria?.trim()
+      if (categoria) values.add(categoria)
+    })
+    return Array.from(values).sort((a, b) => a.localeCompare(b))
+  }, [displayedProductos])
+
+  const coloresDisponibles = useMemo(
+    () => buildColorFilters(displayedProductos),
+    [displayedProductos]
+  )
+
+  useEffect(() => {
+    if (activeCategory === "Todos") return
+    if (categoriasDisponibles.includes(activeCategory)) return
+    setActiveCategory("Todos")
+  }, [activeCategory, categoriasDisponibles])
+
+  useEffect(() => {
+    if (activeColor === null) return
+    if (coloresDisponibles.some((color) => color.name.toLowerCase() === activeColor.toLowerCase())) {
+      return
+    }
+    setActiveColor(null)
+  }, [activeColor, coloresDisponibles])
+
+  useEffect(() => {
+    if (!isAdmin) {
+      setSelectedSucursalId(null)
+      return
+    }
+
+    if (hasValidSucursalId(selectedSucursalId)) return
+    if (hasValidSucursalId(user?.idSucursal)) {
+      setSelectedSucursalId(user.idSucursal)
+    }
+  }, [isAdmin, selectedSucursalId, user?.idSucursal])
+
+  const hasSelectedSucursal = hasValidSucursalId(selectedSucursalId)
+
+  const sucursalComboboxOptions = useMemo<ComboboxOption[]>(
+    () =>
+      hasSelectedSucursal &&
+      !sucursalOptions.some((option) => option.value === String(selectedSucursalId))
+        ? [
+            {
+              value: String(selectedSucursalId),
+              label: `Sucursal #${selectedSucursalId}`,
+            },
+            ...sucursalOptions,
+          ]
+        : sucursalOptions,
+    [hasSelectedSucursal, selectedSucursalId, sucursalOptions]
+  )
+
+  const resolvedSucursalId = isAdmin
+    ? hasSelectedSucursal
+      ? selectedSucursalId
+      : null
+    : userHasSucursal
+      ? user?.idSucursal ?? null
+      : null
+
+  const filteredProductos = useMemo(() => {
+    return displayedProductos.filter((producto) => {
+      const sameCategory =
+        activeCategory === "Todos" || producto.nombreCategoria === activeCategory
+      const hasColor =
+        activeColor === null ||
+        producto.colores.some(
+          (color) => color.nombre.trim().toLowerCase() === activeColor.toLowerCase()
+        )
+      return sameCategory && hasColor
+    })
+  }, [activeCategory, activeColor, displayedProductos])
+
+  const total = cart.reduce((sum, item) => sum + item.precio * item.cantidad, 0)
+  const totalItems = cart.reduce((sum, item) => sum + item.cantidad, 0)
+  const selectedMetodoPago = useMemo(() => {
+    if (!selectedPayment || !activeMetodosPago) return null
+    return activeMetodosPago.find((method) => method.nombre === selectedPayment) ?? null
+  }, [activeMetodosPago, selectedPayment])
+  const canConfirm =
+    cart.length > 0 &&
+    selectedPayment !== null &&
+    selectedMetodoPago !== null &&
+    resolvedSucursalId !== null
+
+  const confirmHint = useMemo(() => {
+    if (cart.length === 0) return "Agrega al menos un producto"
+    if (resolvedSucursalId === null) {
+      return isAdmin
+        ? "Selecciona una sucursal"
+        : "Tu usuario no tiene sucursal asignada"
+    }
+    if (selectedPayment === null) return "Selecciona un metodo de pago"
+    if (selectedMetodoPago === null) return "Selecciona un metodo de pago valido"
+    return ""
+  }, [cart.length, isAdmin, resolvedSucursalId, selectedMetodoPago, selectedPayment])
+
+  useEffect(() => {
+    const fetchMetodos = async () => {
+      try {
+        const response = await authFetch("/api/config/metodos-pago")
+        if (!response.ok) {
+          setActiveMetodosPago([])
+          return
         }
-    }, [])
 
-    useEffect(() => { loadProductos() }, [loadProductos])
+        const payload = await response.json()
+        const pageContent =
+          typeof payload === "object" && payload !== null && "content" in payload
+            ? (payload as { content?: unknown }).content
+            : undefined
 
-    /* ── fetch active payment methods ── */
-    useEffect(() => {
-        const fetchMetodos = async () => {
-            try {
-                /* Try /activos first, fall back to all methods */
-                let res = await authFetch("/api/config/metodos-pago/activos")
-                let filterActive = false
-                if (!res.ok) {
-                    res = await authFetch("/api/config/metodos-pago")
-                    filterActive = true
-                }
-                if (!res.ok) { setActiveMetodosPago([]); return }
+        const rawData =
+          Array.isArray(payload) ? payload : Array.isArray(pageContent) ? pageContent : []
 
-                const data = await res.json()
-                const raw = Array.isArray(data) ? data : Array.isArray(data?.content) ? data.content : []
+        const methods: MetodoPagoActivo[] = rawData
+          .map((value: unknown): MetodoPagoActivo | null => {
+            const item =
+              typeof value === "object" && value !== null
+                ? (value as Record<string, unknown>)
+                : {}
+            const idMetodoPago = Number(item.idMetodoPago ?? item.id_metodo_pago ?? item.id)
+            const nombre = typeof item.nombre === "string" ? item.nombre : ""
+            const estado = item.estado ?? item.activo
+            if (estado !== undefined && !isEstadoActivo(estado)) return null
+            if (!Number.isFinite(idMetodoPago) || idMetodoPago <= 0 || !nombre) return null
+            return { idMetodoPago, nombre }
+          })
+          .filter((item): item is MetodoPagoActivo => item !== null)
 
-                let methods: MetodoPagoActivo[] = raw.map((item: any) => ({
-                    idMetodoPago: item.idMetodoPago ?? item.id_metodo_pago ?? item.id ?? 0,
-                    nombre: item.nombre ?? "",
-                }))
+        setActiveMetodosPago(methods)
+      } catch {
+        setActiveMetodosPago([])
+      }
+    }
 
-                if (filterActive) {
-                    methods = methods.filter((_, i) => {
-                        const src = raw[i]
-                        return src.activo === "ACTIVO" || src.activo === true || src.estado === "ACTIVO"
-                    })
-                }
+    void fetchMetodos()
+  }, [])
 
-                setActiveMetodosPago(methods)
-            } catch {
-                setActiveMetodosPago([])
-            }
-        }
-        fetchMetodos()
-    }, [])
+  const openModal = useCallback((producto: ProductoResumen) => {
+    setModalProduct(producto)
+  }, [])
 
-    /* ── filter ── */
-    const filteredProductos = productos.filter(p => {
-        const matchSearch = p.nombre.toLowerCase().includes(search.toLowerCase())
-        const matchCategory = activeCategory === "Todos" || p.nombreCategoria === activeCategory
-        const matchColor = !activeColor || p.colores.some(c => c.nombre.toLowerCase() === activeColor.toLowerCase())
-        return matchSearch && matchCategory && matchColor
+  const handleEditItem = useCallback(
+    (item: CartItemData) => {
+      const producto = displayedProductos.find((candidate) => candidate.idProducto === item.id)
+      if (!producto) {
+        setVentaError("No se encontro el producto para editar la variante.")
+        return
+      }
+
+      setCart((previous) =>
+        previous.filter((current) => {
+          if (item.varianteId && current.varianteId) {
+            return current.varianteId !== item.varianteId
+          }
+
+          return !(
+            current.id === item.id &&
+            current.talla === item.talla &&
+            current.color === item.color
+          )
+        })
+      )
+
+      setModalProduct(producto)
+    },
+    [displayedProductos]
+  )
+
+  const addVariantToCart = useCallback((variant: SelectedVariant) => {
+    setCart((previous) => {
+      const index = previous.findIndex((item) => item.varianteId === variant.varianteId)
+
+      if (index >= 0) {
+        return previous.map((item, idx) =>
+          idx === index
+            ? {
+                ...item,
+                cantidad: item.cantidad + variant.cantidad,
+                precio: variant.precio,
+                imageUrl: variant.imageUrl ?? item.imageUrl ?? null,
+              }
+            : item
+        )
+      }
+
+      return [
+        ...previous,
+        {
+          id: variant.id,
+          varianteId: variant.varianteId,
+          nombre: variant.nombre,
+          precio: variant.precio,
+          cantidad: variant.cantidad,
+          talla: variant.talla,
+          color: variant.color,
+          imageUrl: variant.imageUrl ?? null,
+        },
+      ]
+    })
+  }, [])
+
+  const updateQty = useCallback(
+    (id: number, talla: string, color: string, delta: number, varianteId?: number) => {
+      setCart((previous) =>
+        previous.map((item) => {
+          const isSameItem =
+            varianteId && item.varianteId
+              ? item.varianteId === varianteId
+              : item.id === id && item.talla === talla && item.color === color
+
+          if (!isSameItem) return item
+          return { ...item, cantidad: Math.max(1, item.cantidad + delta) }
+        })
+      )
+    },
+    []
+  )
+
+  const removeFromCart = useCallback(
+    (id: number, talla: string, color: string, varianteId?: number) => {
+      setCart((previous) =>
+        previous.filter((item) => {
+          if (varianteId && item.varianteId) {
+            return item.varianteId !== varianteId
+          }
+
+          return !(item.id === id && item.talla === talla && item.color === color)
+        })
+      )
+    },
+    []
+  )
+
+  const resetVentaDraft = useCallback(() => {
+    setCart([])
+    setSelectedPayment(null)
+    setSelectedClient(DEFAULT_CLIENT)
+    setVentaError(null)
+  }, [])
+
+  const handleFinalizarVenta = useCallback(async () => {
+    if (!canConfirm || submittingVenta || !selectedPayment) return
+
+    const invalidItem = cart.find(
+      (item) => typeof item.varianteId !== "number" || item.varianteId <= 0
+    )
+
+    if (invalidItem) {
+      setVentaError(
+        `El item \"${invalidItem.nombre}\" no tiene idProductoVariante valido. Vuelve a seleccionarlo.`
+      )
+      return
+    }
+
+    if (!resolvedSucursalId) {
+      setVentaError("Debe seleccionar una sucursal para registrar la venta.")
+      return
+    }
+
+    if (!selectedMetodoPago) {
+      setVentaError("Debe seleccionar un metodo de pago valido.")
+      return
+    }
+
+    setSubmittingVenta(true)
+    setVentaError(null)
+    const ventaPromise = (async () => {
+      const body = {
+        idSucursal: resolvedSucursalId,
+        idCliente: selectedClient.idCliente,
+        tipoComprobante: TIPO_COMPROBANTE_TICKET,
+        igvPorcentaje: IGV_PORCENTAJE_SIN_APLICAR,
+        descuentoTotal: 0,
+        tipoDescuento: null,
+        detalles: cart.map((item) => ({
+          idProductoVariante: item.varianteId as number,
+          cantidad: item.cantidad,
+          precioUnitario: item.precio,
+          descuento: 0,
+        })),
+        pagos: [
+          {
+            idMetodoPago: selectedMetodoPago.idMetodoPago,
+            monto: total,
+            referencia: selectedMetodoPago.nombre,
+          },
+        ],
+      }
+
+      const response = await authFetch("/api/venta/insertar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      })
+
+      const data = await response.json().catch(() => null)
+      if (!response.ok) {
+        const message =
+          data && typeof data === "object" && "message" in data && typeof data.message === "string"
+            ? data.message
+            : data && typeof data === "object" && "error" in data && typeof data.error === "string"
+              ? data.error
+              : `Error ${response.status} al registrar la venta`
+        throw new Error(message)
+      }
+
+      return { ventaId: extractVentaId(data) }
+    })()
+
+    toast.promise(ventaPromise, {
+      loading: "Registrando venta...",
+      success: ({ ventaId }) => ({
+        message: "Venta completada",
+        action: {
+          label: "Ver recibo",
+          onClick: () => {
+            router.push(ventaId ? `/ventas/historial?ventaId=${ventaId}` : "/ventas/historial")
+          },
+        },
+      }),
+      error: (error) =>
+        error instanceof Error
+          ? error.message
+          : "No se pudo conectar con el servidor. Intente nuevamente.",
     })
 
-    const total = cart.reduce((sum, c) => sum + c.precio * c.cantidad, 0)
-    const totalItems = cart.reduce((s, c) => s + c.cantidad, 0)
-    const canConfirm = cart.length > 0 && selectedPayment !== null
+    void ventaPromise
+      .then(() => {
+        resetVentaDraft()
+        void refreshCurrentView()
+      })
+      .catch(() => {
+        // El feedback de error ya lo maneja toast.promise.
+      })
+      .finally(() => {
+        setSubmittingVenta(false)
+      })
+  }, [
+    canConfirm,
+    cart,
+    refreshCurrentView,
+    resolvedSucursalId,
+    resetVentaDraft,
+    router,
+    selectedClient.idCliente,
+    selectedMetodoPago,
+    selectedPayment,
+    submittingVenta,
+    total,
+  ])
 
-    /* ── handlers ── */
-    const openModal = useCallback((p: ProductoResumen) => setModalProduct(p), [])
+  return (
+    <>
+      <ProductModal
+        product={modalProduct}
+        onClose={() => setModalProduct(null)}
+        onConfirm={addVariantToCart}
+      />
 
-    const handleEditItem = useCallback((item: CartItemData) => {
-        const p = productos.find(x => x.idProducto === item.id)
-        if (!p) return
-        setCart(prev => prev.filter(c => !(c.id === item.id && c.talla === item.talla && c.color === item.color)))
-        setModalProduct(p)
-    }, [productos])
-
-    const addVariantToCart = useCallback((variant: SelectedVariant) => {
-        setCart(prev => {
-            const key = (c: CartItemData) => c.id === variant.id && c.color === variant.color && c.talla === variant.talla
-            return prev.find(key)
-                ? prev.map(c => key(c) ? { ...c, cantidad: c.cantidad + variant.cantidad } : c)
-                : [...prev, {
-                    id: variant.id,
-                    varianteId: variant.varianteId,
-                    nombre: variant.nombre,
-                    precio: variant.precio,
-                    cantidad: variant.cantidad,
-                    talla: variant.talla,
-                    color: variant.color,
-                }]
-        })
-    }, [])
-
-    const updateQty = useCallback((id: number, talla: string, color: string, delta: number) => {
-        setCart(prev => prev.map(c =>
-            c.id === id && c.talla === talla && c.color === color
-                ? { ...c, cantidad: Math.max(1, c.cantidad + delta) } : c
-        ))
-    }, [])
-
-    const removeFromCart = useCallback((id: number, talla: string, color: string) => {
-        setCart(prev => prev.filter(c => !(c.id === id && c.talla === talla && c.color === color)))
-    }, [])
-
-    const handleNewSale = () => {
-        setCart([]); setShowInvoice(false); setSelectedPayment(null); setVoucherNum(""); setSelectedClient(DEFAULT_CLIENT); setVentaError(null)
-    }
-
-    /* ── Finalize sale → POST /api/venta/crear ── */
-    const handleFinalizarVenta = async () => {
-        if (!canConfirm || submittingVenta || !selectedPayment) return
-        setSubmittingVenta(true)
-        setVentaError(null)
-
-        const body = {
-            idCliente: selectedClient.idCliente,
-            detalles: cart.map(item => ({
-                idProductoVariante: item.varianteId ?? 0,
-                cantidad: item.cantidad,
-                precioUnitario: item.precio,
-            })),
-            pagos: [{
-                metodoPago: PAYMENT_BACKEND_MAP[selectedPayment],
-                monto: total,
-            }],
-        }
-
-        try {
-            const res = await authFetch("/api/venta/crear", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(body),
-            })
-
-            if (res.ok) {
-                setShowInvoice(true)
-            } else {
-                const data = await res.json().catch(() => null)
-                const msg = data?.message ?? data?.error ?? `Error ${res.status} al registrar la venta`
-                setVentaError(msg)
-            }
-        } catch {
-            setVentaError("No se pudo conectar con el servidor. Intente nuevamente.")
-        } finally {
-            setSubmittingVenta(false)
-        }
-    }
-
-    const whatsappMsg = encodeURIComponent(
-        `✅ Venta Cordex\nCliente: ${selectedClient.nombre}\nTotal: S/ ${total.toFixed(2)}\nMétodo: ${selectedPayment ?? ""}${voucherNum ? `\nNro. Op.: ${voucherNum}` : ""}`
-    )
-
-    /* ══ INVOICE ══════════════════════════════════════════ */
-    if (showInvoice) {
-        const subtotal = total / 1.18; const igv = total - subtotal
-        return (
-            <div className="max-w-lg mx-auto mt-10">
-                <Card className="p-8 space-y-6">
-                    <div className="text-center space-y-2">
-                        <div className="h-16 w-16 rounded-full bg-green-100 dark:bg-green-500/15 flex items-center justify-center mx-auto">
-                            <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-400" />
-                        </div>
-                        <h2 className="text-xl font-bold text-slate-900 dark:text-white">¡Venta registrada!</h2>
-                        <p className="text-sm text-slate-500">{selectedClient.nombre}</p>
-                    </div>
-                    <div className="border-t border-slate-100 dark:border-slate-700 pt-4 space-y-2">
-                        {cart.map((item, i) => (
-                            <div key={i} className="flex justify-between text-sm">
-                                <span className="text-slate-600 dark:text-slate-300">{item.cantidad}× {item.nombre} <span className="text-xs text-slate-400">({item.talla}/{item.color})</span></span>
-                                <span className="font-semibold">S/ {(item.precio * item.cantidad).toFixed(2)}</span>
-                            </div>
-                        ))}
-                    </div>
-                    <div className="border-t border-slate-100 dark:border-slate-700 pt-3 space-y-1.5">
-                        <div className="flex justify-between text-sm text-slate-400"><span>Subtotal</span><span>S/ {subtotal.toFixed(2)}</span></div>
-                        <div className="flex justify-between text-sm text-slate-400"><span>IGV (18%)</span><span>S/ {igv.toFixed(2)}</span></div>
-                        <div className="flex justify-between items-baseline pt-1">
-                            <span className="text-sm font-bold text-slate-700 dark:text-slate-200">Total</span>
-                            <span className="text-2xl font-bold text-blue-600 tabular-nums">S/ {total.toFixed(2)}</span>
-                        </div>
-                    </div>
-                    <div className="space-y-3">
-                        <a href={`https://wa.me/?text=${whatsappMsg}`} target="_blank" rel="noopener noreferrer"
-                            className="flex w-full items-center justify-center gap-2 py-3.5 rounded-2xl bg-[#25D366] hover:bg-[#1ebe5a] text-white text-sm font-bold shadow-md transition-all active:scale-[0.98]">
-                            <MessageCircle className="h-5 w-5" /> Enviar Voucher por WhatsApp
-                        </a>
-                        <div className="flex gap-3">
-                            <button className="flex-1 py-3 rounded-xl border border-slate-200 dark:border-slate-600 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-2">
-                                <FileText className="h-4 w-4" /> PDF
-                            </button>
-                            <button onClick={handleNewSale} className="flex-1 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold transition-colors">
-                                Nueva Venta
-                            </button>
-                        </div>
-                    </div>
-                </Card>
+      <div className="flex h-[calc(100vh-7rem)] min-h-0 gap-5">
+        <div className="flex min-h-0 min-w-0 flex-[7] flex-col gap-3">
+          <div className="flex shrink-0 flex-col gap-3">
+            <div className="relative">
+              <MagnifyingGlassIcon className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Buscar por nombre, SKU o categoria..."
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-sm shadow-sm transition-all placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800"
+              />
             </div>
-        )
-    }
 
-    /* ══ MAIN POS ══════════════════════════════════════════ */
-    return (
-        <>
-            <ProductModal
-                product={modalProduct}
-                onClose={() => setModalProduct(null)}
-                onConfirm={addVariantToCart}
-            />
-
-            <div className="flex gap-5 h-[calc(100vh-7rem)] min-h-0">
-
-                {/* ═══ LEFT – Catalog ════════════════════════════ */}
-                <div className="flex-[7] min-w-0 flex flex-col gap-3 min-h-0">
-                    <div className="flex-shrink-0 flex flex-col gap-3">
-                        <div className="relative">
-                            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
-                            <input type="text" placeholder="Buscar producto..." value={search}
-                                onChange={e => setSearch(e.target.value)}
-                                className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm" />
-                        </div>
-                        <div className="bg-white dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-700/60 px-3.5 py-3 shadow-sm">
-                            <CategoryFilter activeCategory={activeCategory} onCategoryChange={setActiveCategory}
-                                activeColor={activeColor} onColorChange={setActiveColor} />
-                        </div>
-                    </div>
-
-                    <div className="flex-1 min-h-0 overflow-y-auto pb-4">
-                        {loadingProductos ? (
-                            <div className="flex flex-col items-center justify-center h-full gap-3">
-                                <Loader2 className="h-8 w-8 text-blue-500 animate-spin" />
-                                <p className="text-sm text-slate-400">Cargando catálogo...</p>
-                            </div>
-                        ) : errorProductos ? (
-                            <div className="flex flex-col items-center justify-center h-full gap-3 text-center">
-                                <Package className="h-12 w-12 text-rose-200 dark:text-rose-800" />
-                                <p className="text-sm font-semibold text-slate-500">{errorProductos}</p>
-                                <button onClick={loadProductos} className="text-xs text-blue-500 hover:underline">Reintentar</button>
-                            </div>
-                        ) : filteredProductos.length > 0 ? (
-                            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
-                                {filteredProductos.map(p => <ProductCard key={p.idProducto} product={p} onAdd={openModal} />)}
-                            </div>
-                        ) : (
-                            <div className="flex flex-col items-center justify-center h-full py-24 text-center">
-                                <Package className="h-12 w-12 text-slate-200 dark:text-slate-700 mb-3" />
-                                <p className="text-sm font-semibold text-slate-400">Sin resultados</p>
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                {/* ═══ RIGHT – Panel ═════════════════════════════ */}
-                <div className="flex-[3] min-w-[300px] max-w-[360px] flex flex-col min-h-0 gap-2">
-
-                    {/* Header */}
-                    <div className="flex-shrink-0 flex items-center justify-between py-1">
-                        <h2 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Panel de Venta</h2>
-                        <LiveClock />
-                    </div>
-
-                    {/* Cliente — ghost row */}
-                    <div className="flex-shrink-0 flex items-center gap-2 px-1">
-                        <SectionLabel>Cliente</SectionLabel>
-                        <div className="flex-1"><ClientSelect selected={selectedClient} onSelect={setSelectedClient} /></div>
-                    </div>
-
-                    {/* Pedido Actual — flex-1, fills height */}
-                    <Card className="flex flex-col flex-1 min-h-0">
-                        <div className="flex items-center justify-between px-4 pt-3.5 pb-3 border-b border-slate-100 dark:border-slate-700/60 flex-shrink-0">
-                            <SectionLabel>Pedido Actual</SectionLabel>
-                            <span className={[
-                                "text-[10px] font-bold px-2 py-0.5 rounded-full",
-                                totalItems > 0 ? "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400" : "bg-slate-100 dark:bg-slate-700 text-slate-400",
-                            ].join(" ")}>
-                                {totalItems} {totalItems === 1 ? "item" : "items"}
-                            </span>
-                        </div>
-                        <div className="flex-1 min-h-0 overflow-y-auto px-4" style={{ scrollbarWidth: "none" }}>
-                            {cart.length === 0 ? (
-                                <div className="flex flex-col items-center justify-center h-full gap-2 text-center py-8">
-                                    <ShoppingBag className="h-9 w-9 text-slate-200 dark:text-slate-700" />
-                                    <p className="text-xs font-medium text-slate-400 dark:text-slate-600 max-w-[150px] leading-snug">
-                                        Haz click en un producto para agregar
-                                    </p>
-                                </div>
-                            ) : (
-                                cart.map((item, i) => (
-                                    <CartItem
-                                        key={`${item.id}-${item.talla}-${item.color}-${i}`}
-                                        item={item}
-                                        onIncrease={id => updateQty(id, item.talla, item.color, 1)}
-                                        onDecrease={id => updateQty(id, item.talla, item.color, -1)}
-                                        onRemove={id => removeFromCart(id, item.talla, item.color)}
-                                        onEdit={handleEditItem}
-                                    />
-                                ))
-                            )}
-                        </div>
-                        {cart.length > 0 && (
-                            <div className="px-4 py-2.5 border-t border-slate-100 dark:border-slate-700/60 flex-shrink-0 flex justify-between text-xs text-slate-400">
-                                <span>{totalItems} artículo{totalItems !== 1 ? "s" : ""}</span>
-                                <span className="font-semibold text-slate-600 dark:text-slate-300 tabular-nums">S/ {total.toFixed(2)}</span>
-                            </div>
-                        )}
-                    </Card>
-
-                    {/* Bottom zone — always visible */}
-                    <div className="flex-shrink-0 flex flex-col gap-2">
-                        <Card className="p-3.5">
-                            <SectionLabel>Método de Pago</SectionLabel>
-                            <div className="mt-2.5">
-                                <PaymentMethod selected={selectedPayment} onSelect={setSelectedPayment} methods={activeMetodosPago} />
-                            </div>
-                        </Card>
-
-                        {/* Voucher + Total */}
-                        <div className="flex items-center gap-2">
-                            <div className="flex items-center gap-1.5 flex-1 rounded-lg border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800 px-2.5 py-1.5">
-                                <Hash className="h-3 w-3 text-slate-300 dark:text-slate-600 shrink-0" />
-                                <input type="text" placeholder="Nro. Op." value={voucherNum}
-                                    onChange={e => setVoucherNum(e.target.value)}
-                                    className="flex-1 bg-transparent text-[11px] text-slate-500 dark:text-slate-400 placeholder:text-slate-300 dark:placeholder:text-slate-600 outline-none min-w-0" />
-                            </div>
-                            <div className="flex flex-col items-end shrink-0">
-                                <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Total</span>
-                                <span className="text-2xl font-extrabold text-blue-600 dark:text-blue-400 tabular-nums leading-tight">
-                                    S/ {total.toFixed(2)}
-                                </span>
-                            </div>
-                        </div>
-
-                        {/* Warning banner */}
-                        <div className={`overflow-hidden transition-all duration-300 ${selectedPayment ? "max-h-14 opacity-100" : "max-h-0 opacity-0"}`}>
-                            <div className="flex items-center gap-2 rounded-lg bg-amber-400/10 dark:bg-amber-400/5 border border-amber-300/50 dark:border-amber-500/20 px-3 py-2">
-                                <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-                                <p className="text-[11px] font-medium text-amber-700 dark:text-amber-400 leading-tight">
-                                    Verifica el pago antes de registrar la venta
-                                </p>
-                            </div>
-                        </div>
-
-                        {/* Error banner */}
-                        {ventaError && (
-                            <div className="flex items-start gap-2 rounded-lg bg-red-50 dark:bg-red-900/15 border border-red-200 dark:border-red-800/40 px-3 py-2.5">
-                                <AlertTriangle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-[11px] font-semibold text-red-700 dark:text-red-400 leading-snug">{ventaError}</p>
-                                    <button onClick={() => setVentaError(null)} className="text-[10px] text-red-400 hover:text-red-600 mt-0.5">Cerrar</button>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Register button */}
-                        <button onClick={handleFinalizarVenta} disabled={!canConfirm || submittingVenta}
-                            className={[
-                                "w-full py-4 rounded-2xl text-base font-bold flex items-center justify-center gap-2 transition-all duration-200",
-                                canConfirm && !submittingVenta
-                                    ? "bg-gradient-to-r from-[#3266E4] to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg shadow-blue-500/25 hover:shadow-xl active:scale-[0.98]"
-                                    : "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed",
-                            ].join(" ")}>
-                            {submittingVenta ? (
-                                <><Loader2 className="h-5 w-5 animate-spin" /> Registrando...</>
-                            ) : (
-                                <><CheckCircle className="h-5 w-5" /> Registrar Venta</>
-                            )}
-                        </button>
-                        {!canConfirm && (
-                            <p className="text-center text-[11px] text-slate-400 dark:text-slate-600 -mt-1">
-                                {cart.length === 0 ? "Agrega al menos un producto" : "Selecciona un método de pago"}
-                            </p>
-                        )}
-                    </div>
-                </div>
+            <div className="rounded-xl border border-slate-100 bg-white px-3.5 py-3 shadow-sm dark:border-slate-700/60 dark:bg-slate-800/60">
+              <CategoryFilter
+                categories={categoriasDisponibles}
+                colors={coloresDisponibles}
+                activeCategory={activeCategory}
+                onCategoryChange={setActiveCategory}
+                activeColor={activeColor}
+                onColorChange={setActiveColor}
+              />
             </div>
-        </>
-    )
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Mostrando {filteredProductos.length} producto(s) de {displayedProductos.length} en esta
+              pagina.
+            </p>
+          </div>
+
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pb-4">
+            {displayedLoading ? (
+              <div className="flex h-full flex-col items-center justify-center gap-3">
+                <ArrowPathIcon className="h-8 w-8 animate-spin text-blue-500" />
+                <p className="text-sm text-slate-400">Cargando catalogo...</p>
+              </div>
+            ) : errorProductos ? (
+              <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+                <CubeIcon className="h-12 w-12 text-rose-200 dark:text-rose-800" />
+                <p className="text-sm font-semibold text-slate-500">{errorProductos}</p>
+                <button
+                  onClick={() => {
+                    void refreshCurrentView()
+                  }}
+                  className="text-xs text-blue-500 hover:underline"
+                >
+                  Reintentar
+                </button>
+              </div>
+            ) : filteredProductos.length > 0 ? (
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
+                {filteredProductos.map((producto) => (
+                  <ProductCard key={producto.idProducto} product={producto} onAdd={openModal} />
+                ))}
+              </div>
+            ) : (
+              <div className="flex h-full flex-col items-center justify-center py-24 text-center">
+                <CubeIcon className="mb-3 h-12 w-12 text-slate-200 dark:text-slate-700" />
+                <p className="text-sm font-semibold text-slate-400">Sin resultados</p>
+              </div>
+            )}
+
+            {!displayedLoading && !errorProductos && (
+              <ProductosPagination
+                totalElements={displayedTotalElements}
+                totalPages={displayedTotalPages}
+                page={displayedPage}
+                onPageChange={setDisplayedPage}
+              />
+            )}
+          </div>
+        </div>
+
+        <div className="flex min-h-0 min-w-[300px] max-w-[360px] flex-[3] flex-col gap-2">
+          <div className="flex shrink-0 items-center justify-between py-1">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+              Panel de Venta
+            </h2>
+            <LiveClock />
+          </div>
+
+          <div className="flex shrink-0 flex-col gap-2 px-1">
+            <div className="flex items-center gap-2">
+              <SectionLabel>Sucursal</SectionLabel>
+              <div className="flex-1">
+                {isAdmin ? (
+                  <Combobox
+                    id="venta-sucursal"
+                    value={hasSelectedSucursal ? String(selectedSucursalId) : ""}
+                    options={sucursalComboboxOptions}
+                    searchValue={searchSucursal}
+                    onSearchValueChange={setSearchSucursal}
+                    onValueChange={(value) => {
+                      const nextValue = Number(value)
+                      setSelectedSucursalId(Number.isFinite(nextValue) ? nextValue : null)
+                    }}
+                    placeholder="Selecciona sucursal"
+                    searchPlaceholder="Buscar sucursal..."
+                    emptyMessage="No se encontraron sucursales"
+                    loading={loadingSucursales}
+                  />
+                ) : (
+                  <div className="flex h-9 items-center rounded-md border border-slate-200 bg-slate-50 px-3 dark:border-slate-700 dark:bg-slate-800">
+                    <span className="truncate text-xs font-medium text-slate-500 dark:text-slate-300">
+                      {userHasSucursal
+                        ? user?.nombreSucursal || `Sucursal #${user?.idSucursal}`
+                        : "Sin sucursal asignada"}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+            {isAdmin && errorSucursales && (
+              <p className="text-[11px] text-red-500">{errorSucursales}</p>
+            )}
+
+            <div className="flex items-center gap-2">
+              <SectionLabel>Cliente</SectionLabel>
+              <div className="flex-1">
+                <ClientSelect selected={selectedClient} onSelect={setSelectedClient} />
+              </div>
+            </div>
+          </div>
+
+          <Card className="flex min-h-0 flex-1 flex-col">
+            <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-4 pb-3 pt-3.5 dark:border-slate-700/60">
+              <SectionLabel>Pedido Actual</SectionLabel>
+              <span
+                className={[
+                  "rounded-full px-2 py-0.5 text-[10px] font-bold",
+                  totalItems > 0
+                    ? "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
+                    : "bg-slate-100 text-slate-400 dark:bg-slate-700",
+                ].join(" ")}
+              >
+                {totalItems} {totalItems === 1 ? "item" : "items"}
+              </span>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto px-4" style={{ scrollbarWidth: "none" }}>
+              {cart.length === 0 ? (
+                <div className="flex h-full flex-col items-center justify-center gap-2 py-8 text-center">
+                  <ShoppingBagIcon className="h-9 w-9 text-slate-200 dark:text-slate-700" />
+                  <p className="max-w-[150px] text-xs font-medium leading-snug text-slate-400 dark:text-slate-600">
+                    Haz click en un producto para agregar
+                  </p>
+                </div>
+              ) : (
+                cart.map((item, index) => (
+                  <CartItem
+                    key={`${item.id}-${item.varianteId}-${index}`}
+                    item={item}
+                    onIncrease={(id) =>
+                      updateQty(id, item.talla, item.color, 1, item.varianteId)
+                    }
+                    onDecrease={(id) =>
+                      updateQty(id, item.talla, item.color, -1, item.varianteId)
+                    }
+                    onRemove={(id) =>
+                      removeFromCart(id, item.talla, item.color, item.varianteId)
+                    }
+                    onEdit={handleEditItem}
+                  />
+                ))
+              )}
+            </div>
+
+            {cart.length > 0 && (
+              <div className="flex shrink-0 justify-between border-t border-slate-100 px-4 py-2.5 text-xs text-slate-400 dark:border-slate-700/60">
+                <span>
+                  {totalItems} articulo{totalItems !== 1 ? "s" : ""}
+                </span>
+                <span className="tabular-nums font-semibold text-slate-600 dark:text-slate-300">
+                  S/ {total.toFixed(2)}
+                </span>
+              </div>
+            )}
+          </Card>
+
+          <div className="flex shrink-0 flex-col gap-2">
+            <Card className="p-3.5">
+              <SectionLabel>Metodo de Pago</SectionLabel>
+              <div className="mt-2.5">
+                <PaymentMethod
+                  selected={selectedPayment}
+                  onSelect={setSelectedPayment}
+                  methods={activeMetodosPago}
+                />
+              </div>
+            </Card>
+
+            <div className="flex items-center justify-end">
+              <div className="shrink-0 text-right">
+                <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">
+                  Total
+                </span>
+                <p className="text-2xl font-extrabold leading-tight tabular-nums text-blue-600 dark:text-blue-400">
+                  S/ {total.toFixed(2)}
+                </p>
+              </div>
+            </div>
+
+            <div
+              className={`overflow-hidden transition-all duration-300 ${
+                selectedPayment ? "max-h-14 opacity-100" : "max-h-0 opacity-0"
+              }`}
+            >
+              <div className="flex items-center gap-2 rounded-lg border border-amber-300/50 bg-amber-400/10 px-3 py-2 dark:border-amber-500/20 dark:bg-amber-400/5">
+                <ExclamationTriangleIcon className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+                <p className="text-[11px] font-medium leading-tight text-amber-700 dark:text-amber-400">
+                  Verifica el pago antes de registrar la venta
+                </p>
+              </div>
+            </div>
+
+            {ventaError && (
+              <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 dark:border-red-800/40 dark:bg-red-900/15">
+                <ExclamationTriangleIcon className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] font-semibold leading-snug text-red-700 dark:text-red-400">
+                    {ventaError}
+                  </p>
+                  <button
+                    onClick={() => setVentaError(null)}
+                    className="mt-0.5 text-[10px] text-red-400 hover:text-red-600"
+                  >
+                    Cerrar
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <button
+              onClick={() => {
+                void handleFinalizarVenta()
+              }}
+              disabled={!canConfirm || submittingVenta}
+              className={[
+                "flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-base font-bold transition-all duration-200",
+                canConfirm && !submittingVenta
+                  ? "bg-gradient-to-r from-[#3266E4] to-indigo-600 text-white shadow-lg shadow-blue-500/25 hover:from-blue-700 hover:to-indigo-700 hover:shadow-xl active:scale-[0.98]"
+                  : "cursor-not-allowed bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-600",
+              ].join(" ")}
+            >
+              {submittingVenta ? (
+                <>
+                  <ArrowPathIcon className="h-5 w-5 animate-spin" /> Registrando...
+                </>
+              ) : (
+                <>
+                  <CheckCircleIcon className="h-5 w-5" /> Registrar Venta
+                </>
+              )}
+            </button>
+
+            {!canConfirm && (
+              <p className="-mt-1 text-center text-[11px] text-slate-400 dark:text-slate-600">
+                {confirmHint}
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    </>
+  )
 }

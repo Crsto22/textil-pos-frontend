@@ -4,7 +4,7 @@ const BACKEND_URL = process.env.BACKEND_URL
 
 /**
  * GET /api/config/metodos-pago
- * Returns all payment methods (for admin panel).
+ * Proxies to backend config endpoint.
  */
 export async function GET(request: NextRequest) {
     try {
@@ -31,8 +31,13 @@ export async function GET(request: NextRequest) {
 
         if (!res.ok) {
             const text = await res.text()
-            let message = "Error al obtener métodos de pago"
-            try { const j = JSON.parse(text); message = j.message ?? message } catch { if (text) message = text }
+            let message = "Error al listar metodos de pago"
+            try {
+                const j = JSON.parse(text)
+                message = j.message ?? message
+            } catch {
+                if (text) message = text
+            }
             return NextResponse.json({ message }, { status: res.status })
         }
 

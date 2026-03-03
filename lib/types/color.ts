@@ -3,7 +3,7 @@
 export interface Color {
   idColor: number
   nombre: string
-  codigo: string
+  codigo: string | null
   estado: string
 }
 

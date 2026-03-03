@@ -8,9 +8,7 @@ export interface ProductoCreateFormState {
   idSucursal: number | null
   idCategoria: number | null
   nombre: string
-  sku: string
   descripcion: string
-  codigoExterno: string
 }
 
 export interface ListResponse<T> {
@@ -21,12 +19,17 @@ export interface ListResponse<T> {
 
 export interface MediaItem {
   id: string
-  file: File
+  file: File | null
   fileName: string
   previewUrl: string
+  url?: string
+  urlThumb?: string
+  idColorImagen?: number
 }
 
 export interface VariantValues {
+  sku: string
+  codigoExterno: string
   precio: string
   stock: string
 }
@@ -35,6 +38,8 @@ export interface VariantRow {
   key: string
   color: Color
   talla: Talla
+  sku: string
+  codigoExterno: string
   precio: string
   stock: string
 }

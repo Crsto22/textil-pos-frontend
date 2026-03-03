@@ -33,10 +33,26 @@ interface SearchTotals {
 
 function getErrorMessage(status: number, backendMsg?: string): string {
   if (backendMsg) return backendMsg
+  if (status === 400) return "Solicitud invalida"
   if (status === 401) return "Sesion expirada, vuelve a iniciar sesion"
   if (status === 403) return "No tienes permisos"
+  if (status === 404) return "Recurso no encontrado"
+  if (status === 503) return "No se pudo conectar al servidor"
   if (status === 500) return "Error interno del servidor"
   return "Error inesperado"
+}
+
+function getDeleteProductoFallbackMessage(status: number, id: number): string {
+  if (status === 400) {
+    return "No se puede eliminar el producto porque esta asociado a variantes. Te sugiero desactivarlo."
+  }
+  if (status === 403) {
+    return "El usuario autenticado no tiene permisos para gestionar productos"
+  }
+  if (status === 404) {
+    return `Producto con ID ${id} no encontrado`
+  }
+  return getErrorMessage(status)
 }
 
 async function parseJsonSafe(response: Response) {
@@ -69,8 +85,20 @@ function normalizeProductoResumen(producto: Producto | ProductoResumen): Product
             : null,
         tallas: Array.isArray(color.tallas)
           ? color.tallas.map((talla) => ({
+              idProductoVariante:
+                typeof talla.idProductoVariante === "number"
+                  ? talla.idProductoVariante
+                  : null,
               tallaId: talla.tallaId,
               nombre: talla.nombre,
+              sku: typeof talla.sku === "string" ? talla.sku : null,
+              codigoExterno:
+                typeof talla.codigoExterno === "string"
+                  ? talla.codigoExterno
+                  : null,
+              precio: typeof talla.precio === "number" ? talla.precio : null,
+              stock: typeof talla.stock === "number" ? talla.stock : null,
+              estado: typeof talla.estado === "string" ? talla.estado : null,
             }))
           : [],
       }))
@@ -271,20 +299,15 @@ export function useProductos() {
 
       const normalizedPayload: ProductoCreateRequest = isAdmin
         ? {
-            ...payload,
             idSucursal: payload.idSucursal,
             idCategoria: payload.idCategoria,
-            sku: payload.sku.trim(),
             nombre: payload.nombre.trim(),
             descripcion: payload.descripcion.trim(),
-            codigoExterno: payload.codigoExterno.trim(),
           }
         : {
             idCategoria: payload.idCategoria,
-            sku: payload.sku.trim(),
             nombre: payload.nombre.trim(),
             descripcion: payload.descripcion.trim(),
-            codigoExterno: payload.codigoExterno.trim(),
           }
 
       if (isAdmin && !hasValidSucursalId(normalizedPayload.idSucursal)) {
@@ -335,22 +358,17 @@ export function useProductos() {
 
       const normalizedPayload: ProductoUpdateRequest = isAdmin
         ? {
-            ...payload,
             ...(hasValidSucursalId(payload.idSucursal)
               ? { idSucursal: payload.idSucursal }
               : {}),
             idCategoria: payload.idCategoria,
-            sku: payload.sku.trim(),
             nombre: payload.nombre.trim(),
             descripcion: payload.descripcion.trim(),
-            codigoExterno: payload.codigoExterno.trim(),
           }
         : {
             idCategoria: payload.idCategoria,
-            sku: payload.sku.trim(),
             nombre: payload.nombre.trim(),
             descripcion: payload.descripcion.trim(),
-            codigoExterno: payload.codigoExterno.trim(),
           }
 
       try {
@@ -393,7 +411,8 @@ export function useProductos() {
         const data = (await parseJsonSafe(response)) as ProductoDeleteResponse | null
 
         if (!response.ok) {
-          const message = getErrorMessage(response.status, data?.message)
+          const message =
+            data?.message ?? getDeleteProductoFallbackMessage(response.status, id)
           setError(message)
           toast.error(message)
           return false

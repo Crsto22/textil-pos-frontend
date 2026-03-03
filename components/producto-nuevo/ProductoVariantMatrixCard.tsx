@@ -101,11 +101,17 @@ export function ProductoVariantMatrixCard({
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-sm">
+            <table className="w-full min-w-[980px] text-sm">
               <thead>
                 <tr className="border-b bg-muted/30">
                   <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">
                     Combinacion
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    SKU *
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    Codigo Externo
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">
                     Precio ($)
@@ -125,6 +131,32 @@ export function ProductoVariantMatrixCard({
                       <span className="font-semibold">{variant.color.nombre}</span>
                       <span className="px-2 text-muted-foreground">/</span>
                       <span className="text-muted-foreground">{variant.talla.nombre}</span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Input
+                        type="text"
+                        className="max-w-[180px]"
+                        value={variant.sku}
+                        placeholder={`${variant.color.nombre}-${variant.talla.nombre}`}
+                        onChange={(event) =>
+                          onVariantFieldChange(variant.key, "sku", event.target.value)
+                        }
+                      />
+                    </td>
+                    <td className="px-4 py-3">
+                      <Input
+                        type="text"
+                        className="max-w-[180px]"
+                        value={variant.codigoExterno}
+                        placeholder="Opcional"
+                        onChange={(event) =>
+                          onVariantFieldChange(
+                            variant.key,
+                            "codigoExterno",
+                            event.target.value
+                          )
+                        }
+                      />
                     </td>
                     <td className="px-4 py-3">
                       <Input

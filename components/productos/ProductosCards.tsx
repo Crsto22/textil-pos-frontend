@@ -1,33 +1,27 @@
-import { memo, useState } from "react"
+import { memo, useState, type KeyboardEvent, type MouseEvent } from "react"
 import Image from "next/image"
 import {
-  BuildingStorefrontIcon,
-  CalendarDaysIcon,
-  EllipsisHorizontalIcon,
+  PencilSquareIcon,
   PhotoIcon,
-  TagIcon,
+  TrashIcon,
 } from "@heroicons/react/24/outline"
 
 import { ProductosCardsSkeleton } from "@/components/productos/ProductosCardsSkeleton"
-import { formatFechaCreacion } from "@/components/productos/productos.utils"
+import { formatRangoPrecioPen } from "@/components/productos/productos.utils"
 import type { ProductoResumen } from "@/lib/types/producto"
 import { cn } from "@/lib/utils"
 
 interface ProductosCardsProps {
   productos: ProductoResumen[]
   loading: boolean
+  selectedProductoId?: number | null
+  onSelectProducto?: (producto: ProductoResumen) => void
+  onEditProducto: (producto: ProductoResumen) => void
   onDeleteProducto: (producto: ProductoResumen) => void
 }
 
-const PEN_CURRENCY_FORMATTER = new Intl.NumberFormat("es-PE", {
-  style: "currency",
-  currency: "PEN",
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-})
-
-function normalizeHexColor(code: string): string {
-  const trimmed = code.trim()
+function normalizeHexColor(code: string | null | undefined): string {
+  const trimmed = String(code ?? "").trim()
   if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(trimmed)) return trimmed
   if (/^([0-9a-f]{3}|[0-9a-f]{6})$/i.test(trimmed)) return `#${trimmed}`
   return "#94a3b8"
@@ -36,7 +30,6 @@ function normalizeHexColor(code: string): string {
 function getImageUrl(producto: ProductoResumen) {
   const colorWithImage = producto.colores.find((color) => color.imagenPrincipal)
   if (!colorWithImage?.imagenPrincipal) return null
-
   return colorWithImage.imagenPrincipal.url || null
 }
 
@@ -46,32 +39,37 @@ function getDefaultColorId(producto: ProductoResumen): number | null {
   return producto.colores[0]?.colorId ?? null
 }
 
-function formatPrice(value: number | null | undefined): string {
-  if (typeof value !== "number" || Number.isNaN(value)) return "Sin precio"
-  return PEN_CURRENCY_FORMATTER.format(value)
+function stopCardClick(event: MouseEvent<HTMLButtonElement>) {
+  event.stopPropagation()
 }
 
-function formatPriceRange(
-  minPrice: number | null | undefined,
-  maxPrice: number | null | undefined
-): string {
-  const hasMin = typeof minPrice === "number" && !Number.isNaN(minPrice)
-  const hasMax = typeof maxPrice === "number" && !Number.isNaN(maxPrice)
+function getVariantSkuStats(producto: ProductoResumen, selectedColorId: number | null) {
+  const allSkuSet = new Set<string>()
+  const selectedColorSkuSet = new Set<string>()
 
-  if (hasMin && hasMax) {
-    if (Math.abs((minPrice ?? 0) - (maxPrice ?? 0)) < 0.0001) {
-      return formatPrice(minPrice)
-    }
-    return `${formatPrice(minPrice)} - ${formatPrice(maxPrice)}`
+  producto.colores.forEach((color) => {
+    color.tallas.forEach((talla) => {
+      const sku = String(talla.sku ?? "").trim()
+      if (!sku) return
+      allSkuSet.add(sku)
+      if (selectedColorId !== null && color.colorId === selectedColorId) {
+        selectedColorSkuSet.add(sku)
+      }
+    })
+  })
+
+  return {
+    totalSkus: allSkuSet.size,
+    selectedColorSkus: selectedColorSkuSet.size,
   }
-  if (hasMin) return `Desde ${formatPrice(minPrice)}`
-  if (hasMax) return `Hasta ${formatPrice(maxPrice)}`
-  return "Sin precio"
 }
 
 function ProductosCardsComponent({
   productos,
   loading,
+  selectedProductoId,
+  onSelectProducto,
+  onEditProducto,
   onDeleteProducto,
 }: ProductosCardsProps) {
   const [selectedColorByProduct, setSelectedColorByProduct] = useState<
@@ -89,7 +87,7 @@ function ProductosCardsComponent({
   }
 
   return (
-    <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-5">
       {productos.map((producto) => {
         const selectedColorId =
           selectedColorByProduct[producto.idProducto] ?? getDefaultColorId(producto)
@@ -99,148 +97,158 @@ function ProductosCardsComponent({
         const selectedColorTallas = selectedColor?.tallas ?? []
         const imageUrl = selectedColor?.imagenPrincipal?.url || getImageUrl(producto)
         const estadoActivo = producto.estado === "ACTIVO"
-        const visibleColors = producto.colores.slice(0, 5)
-        const hiddenColors = Math.max(0, producto.colores.length - visibleColors.length)
+        const isSelected = selectedProductoId === producto.idProducto
+        const visibleTallas = selectedColorTallas.slice(0, 4)
+        const hiddenTallas = Math.max(0, selectedColorTallas.length - visibleTallas.length)
+        const skuStats = getVariantSkuStats(producto, selectedColorId)
+
+        const handleCardKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+          if (event.key !== "Enter" && event.key !== " ") return
+          event.preventDefault()
+          onSelectProducto?.(producto)
+        }
 
         return (
           <article
             key={producto.idProducto}
-            className="group overflow-hidden rounded-2xl border bg-card shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+            className={cn(
+              "group overflow-hidden rounded-2xl border bg-card shadow-sm transition-all",
+              isSelected
+                ? "border-blue-300 bg-blue-50/70 dark:border-blue-500/40 dark:bg-blue-500/10"
+                : "hover:bg-muted/20"
+            )}
+            onClick={() => onSelectProducto?.(producto)}
+            onKeyDown={handleCardKeyDown}
+            tabIndex={0}
+            role="button"
+            aria-pressed={isSelected}
           >
-            <div className="relative h-64 w-full overflow-hidden border-b bg-muted/40">
+            <div className="relative h-56 w-full overflow-hidden border-b bg-muted/40">
               {imageUrl ? (
                 <Image
                   src={imageUrl}
                   alt={producto.nombre}
                   fill
                   unoptimized
-                  sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw"
-                  className="object-contain p-2"
+                  sizes="(max-width: 768px) 100vw, (max-width: 1700px) 50vw, 33vw"
+                  className="object-cover"
                 />
               ) : (
                 <div className="flex h-full w-full items-center justify-center text-muted-foreground">
                   <PhotoIcon className="h-10 w-10" />
                 </div>
               )}
-
-              <div className="absolute left-3 top-3">
-                <span
-                  className={cn(
-                    "inline-flex rounded-full px-3 py-1 text-xs font-semibold",
-                    estadoActivo
-                      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
-                      : "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
-                  )}
-                >
-                  {estadoActivo ? "ACTIVO" : "INACTIVO"}
-                </span>
-              </div>
-
-              <div className="absolute right-3 top-3">
-                <span className="inline-flex rounded-lg border bg-white/90 px-2.5 py-1 text-xs text-slate-700 dark:bg-slate-900/80 dark:text-slate-200">
-                  {producto.nombreCategoria || "Sin categoria"}
-                </span>
-              </div>
-
             </div>
 
             <div className="space-y-3 p-4">
-              <div className="space-y-2">
-                <h3 className="line-clamp-1 text-3xl font-semibold leading-tight text-slate-900 dark:text-slate-100">
+              <div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-wide">
+                <span
+                  className={cn(
+                    "inline-flex rounded-full px-2 py-0.5",
+                    estadoActivo
+                      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                      : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                  )}
+                >
+                  {estadoActivo ? "Activo" : "Inactivo"}
+                </span>
+                <span className="text-muted-foreground">
+                  SKUs: {skuStats.totalSkus || 0}
+                </span>
+              </div>
+
+              <div>
+                <p className="mb-1 inline-flex rounded-md bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                  {producto.nombreCategoria || "Sin categoria"}
+                </p>
+                <h3 className="line-clamp-2 text-base font-semibold text-foreground">
                   {producto.nombre}
                 </h3>
-                <p className="line-clamp-2 text-lg text-slate-600 dark:text-slate-300">
-                  {producto.descripcion?.trim() || "Sin descripcion registrada."}
-                </p>
-                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
-                  {formatPriceRange(producto.precioMin, producto.precioMax)}
+                <p className="mt-1 text-lg font-semibold text-blue-600 dark:text-blue-400">
+                  {formatRangoPrecioPen(producto.precioMin, producto.precioMax)}
                 </p>
               </div>
 
-              <div className="h-px w-full bg-border" />
-
-              <div className="grid grid-cols-2 gap-3 text-xs text-slate-500 dark:text-slate-400">
-                <p className="flex items-center gap-1.5 truncate">
-                  <TagIcon className="h-3.5 w-3.5 shrink-0" />
-                  {producto.sku}
-                </p>
-                <p className="flex items-center justify-end gap-1.5 truncate">
-                  <CalendarDaysIcon className="h-3.5 w-3.5 shrink-0" />
-                  {formatFechaCreacion(producto.fechaCreacion)}
-                </p>
-                <p className="col-span-2 flex items-center gap-1.5 truncate">
-                  <BuildingStorefrontIcon className="h-3.5 w-3.5 shrink-0" />
-                  {producto.nombreSucursal || "Sin sucursal"}
-                </p>
-              </div>
-
-              <div className="flex items-center justify-between pt-1">
-                <div className="flex min-w-0 items-center gap-2">
-                  <span className="shrink-0 text-sm text-slate-600 dark:text-slate-300">
-                    {producto.colores.length} Colores:
-                  </span>
-                  <div className="flex items-center">
-                    {visibleColors.map((color, index) => (
-                      <button
-                        type="button"
-                        key={`${producto.idProducto}-${color.colorId}`}
-                        onClick={() =>
-                          setSelectedColorByProduct((previous) => ({
-                            ...previous,
-                            [producto.idProducto]: color.colorId,
-                          }))
-                        }
-                        className={cn(
-                          "h-7 w-7 rounded-full border-2 border-white transition-transform hover:scale-105 dark:border-slate-900",
-                          selectedColorId === color.colorId
-                            ? "ring-2 ring-blue-500 ring-offset-1 ring-offset-white dark:ring-offset-slate-900"
-                            : "opacity-90",
-                          index > 0 && "-ml-1"
-                        )}
-                        style={{ backgroundColor: normalizeHexColor(color.hex) }}
-                        title={`${color.nombre} (${normalizeHexColor(color.hex)})`}
-                        aria-label={`Mostrar ${color.nombre}`}
-                        aria-pressed={selectedColorId === color.colorId}
-                      />
-                    ))}
-                    {hiddenColors > 0 && (
-                      <span className="-ml-1 inline-flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-slate-200 text-[10px] font-semibold text-slate-700 dark:border-slate-900 dark:bg-slate-700 dark:text-slate-100">
-                        +{hiddenColors}
-                      </span>
-                    )}
-                  </div>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center">
+                  {producto.colores.slice(0, 5).map((color, index) => (
+                    <button
+                      type="button"
+                      key={`${producto.idProducto}-${color.colorId}`}
+                      onClick={(event) => {
+                        stopCardClick(event)
+                        setSelectedColorByProduct((previous) => ({
+                          ...previous,
+                          [producto.idProducto]: color.colorId,
+                        }))
+                      }}
+                      className={cn(
+                        "h-5 w-5 rounded-full border border-background transition-transform",
+                        selectedColorId === color.colorId
+                          ? "ring-2 ring-blue-500 ring-offset-1 ring-offset-background"
+                          : "opacity-85 hover:scale-105",
+                        index > 0 && "-ml-1.5"
+                      )}
+                      style={{ backgroundColor: normalizeHexColor(color.hex) }}
+                      title={color.nombre}
+                      aria-label={`Mostrar color ${color.nombre}`}
+                      aria-pressed={selectedColorId === color.colorId}
+                    />
+                  ))}
                 </div>
 
-                <button
-                  type="button"
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30"
-                  title="Eliminar producto"
-                  onClick={() => onDeleteProducto(producto)}
-                >
-                  <EllipsisHorizontalIcon className="h-5 w-5" />
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-500/10 dark:hover:text-blue-400"
+                    title="Editar producto"
+                    onClick={(event) => {
+                      stopCardClick(event)
+                      onEditProducto(producto)
+                    }}
+                  >
+                    <PencilSquareIcon className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400"
+                    title="Eliminar producto"
+                    onClick={(event) => {
+                      stopCardClick(event)
+                      onDeleteProducto(producto)
+                    }}
+                  >
+                    <TrashIcon className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
 
-              <div className="space-y-1.5">
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Tallas
-                  {selectedColor ? ` (${selectedColor.nombre})` : ""}:
-                </p>
-                {selectedColorTallas.length === 0 ? (
-                  <p className="text-xs text-slate-400 dark:text-slate-500">
-                    Sin tallas registradas para este color.
-                  </p>
+              <div className="flex flex-wrap gap-1.5">
+                {selectedColor && (
+                  <span className="rounded-md border px-2 py-0.5 text-[10px] text-muted-foreground">
+                    {selectedColor.nombre}: {skuStats.selectedColorSkus} SKU
+                  </span>
+                )}
+                {visibleTallas.length === 0 ? (
+                  <span className="rounded-md border px-2 py-0.5 text-[10px] text-muted-foreground">
+                    Sin tallas
+                  </span>
                 ) : (
-                  <div className="flex flex-wrap gap-1.5">
-                    {selectedColorTallas.map((talla) => (
+                  <>
+                    {visibleTallas.map((talla) => (
                       <span
                         key={`${producto.idProducto}-${selectedColorId}-${talla.tallaId}`}
-                        className="inline-flex rounded-md border bg-muted/40 px-2 py-1 text-[11px] font-medium text-slate-700 dark:text-slate-200"
+                        className="rounded-md border bg-muted/50 px-2 py-0.5 text-[10px] font-medium text-foreground"
                       >
                         {talla.nombre}
                       </span>
                     ))}
-                  </div>
+                    {hiddenTallas > 0 && (
+                      <span className="rounded-md border px-2 py-0.5 text-[10px] text-muted-foreground">
+                        +{hiddenTallas}
+                      </span>
+                    )}
+                  </>
                 )}
               </div>
             </div>

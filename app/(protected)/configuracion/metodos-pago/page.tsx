@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import Image from "next/image"
 import {
     BanknotesIcon,
     DevicePhoneMobileIcon,
@@ -11,7 +12,6 @@ import { Loader2, CheckCircle, AlertTriangle } from "lucide-react"
 import { authFetch } from "@/lib/auth/auth-fetch"
 import type { ComponentType, SVGProps } from "react"
 
-/* ── Icon lookup ─────────────────────────────────────────── */
 const ICON_MAP: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
     EFECTIVO: BanknotesIcon,
     YAPE: DevicePhoneMobileIcon,
@@ -20,19 +20,42 @@ const ICON_MAP: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
     TARJETA: CreditCardIcon,
 }
 
-/* ── Backend shape — exact fields from Spring Boot ───────── */
+const PAYMENT_LOGOS: Record<string, { src: string; alt: string }> = {
+    YAPE: {
+        src: "/img/yape-app-seeklogo.png",
+        alt: "Logo de Yape",
+    },
+    PLIN: {
+        src: "/img/plin-seeklogo.png",
+        alt: "Logo de Plin",
+    },
+}
+
 interface MetodoPago {
     idMetodoPago: number
     nombre: string
     descripcion?: string
-    activo: "ACTIVO" | "INACTIVO"
+    estado: "ACTIVO" | "INACTIVO"
 }
 
-/* ── Friendly labels ─────────────────────────────────────── */
-const LABELS: Record<string, string> = {
-    EFECTIVO: "Efectivo", YAPE: "Yape", PLIN: "Plin",
-    TRANSFERENCIA: "Transferencia", TARJETA: "Tarjeta",
+interface MetodoPagoRaw {
+    idMetodoPago?: number | string | null
+    id_metodo_pago?: number | string | null
+    id?: number | string | null
+    nombre?: unknown
+    descripcion?: unknown
+    estado?: unknown
+    activo?: unknown
 }
+
+const LABELS: Record<string, string> = {
+    EFECTIVO: "Efectivo",
+    YAPE: "Yape",
+    PLIN: "Plin",
+    TRANSFERENCIA: "Transferencia",
+    TARJETA: "Tarjeta",
+}
+
 const DESCRIPTIONS: Record<string, string> = {
     EFECTIVO: "Pago en efectivo directo",
     YAPE: "Pago con Yape (BCP)",
@@ -41,9 +64,43 @@ const DESCRIPTIONS: Record<string, string> = {
     TARJETA: "Visa, Mastercard u otras tarjetas",
 }
 
-/* ── Toast ────────────────────────────────────────────────── */
+function normalizeEstado(value: unknown): "ACTIVO" | "INACTIVO" {
+    if (value === true) return "ACTIVO"
+    if (value === false) return "INACTIVO"
+    if (typeof value !== "string") return "INACTIVO"
+    return value.trim().toUpperCase() === "ACTIVO" ? "ACTIVO" : "INACTIVO"
+}
+
+function normalizeMethods(data: unknown): MetodoPago[] {
+    const pageContent =
+        typeof data === "object" && data !== null && "content" in data
+            ? (data as { content?: unknown }).content
+            : undefined
+    const raw = Array.isArray(data) ? data : Array.isArray(pageContent) ? pageContent : []
+
+    return raw
+        .map((value): MetodoPago | null => {
+            const item = (typeof value === "object" && value !== null ? value : {}) as MetodoPagoRaw
+            const idMetodoPago = Number(item.idMetodoPago ?? item.id_metodo_pago ?? item.id)
+            const nombre = typeof item.nombre === "string" ? item.nombre : ""
+            if (!Number.isFinite(idMetodoPago) || idMetodoPago <= 0 || !nombre) return null
+            return {
+                idMetodoPago,
+                nombre,
+                descripcion: typeof item.descripcion === "string" ? item.descripcion : undefined,
+                estado: normalizeEstado(item.estado ?? item.activo),
+            }
+        })
+        .filter((item): item is MetodoPago => item !== null)
+        .sort((a, b) => a.nombre.localeCompare(b.nombre))
+}
+
 function Toast({ message, type, onClose }: { message: string; type: "success" | "error"; onClose: () => void }) {
-    useEffect(() => { const t = setTimeout(onClose, 3000); return () => clearTimeout(t) }, [onClose])
+    useEffect(() => {
+        const t = setTimeout(onClose, 3000)
+        return () => clearTimeout(t)
+    }, [onClose])
+
     return (
         <div className={`fixed bottom-6 right-6 z-50 flex items-center gap-2.5 rounded-xl px-4 py-3 shadow-lg text-sm font-semibold animate-in slide-in-from-bottom-4 ${type === "success" ? "bg-green-600 text-white" : "bg-red-600 text-white"}`}>
             {type === "success" ? <CheckCircle className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
@@ -52,9 +109,6 @@ function Toast({ message, type, onClose }: { message: string; type: "success" | 
     )
 }
 
-/* ══════════════════════════════════════════════════════════
-   PAGE
-══════════════════════════════════════════════════════════ */
 export default function MetodosPagoPage() {
     const [methods, setMethods] = useState<MetodoPago[]>([])
     const [loading, setLoading] = useState(true)
@@ -62,18 +116,17 @@ export default function MetodosPagoPage() {
     const [toggling, setToggling] = useState<number | null>(null)
     const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null)
 
-    /* ── Fetch all methods ── */
     const loadMethods = useCallback(async () => {
         setLoading(true)
         setError(null)
         try {
             const res = await authFetch("/api/config/metodos-pago")
-            if (!res.ok) throw new Error("Error al cargar métodos de pago")
+            if (!res.ok) {
+                const data = await res.json().catch(() => null)
+                throw new Error(data?.message ?? "Error al cargar metodos de pago")
+            }
             const data = await res.json()
-
-            /* Extract array — handle plain array or Spring Page wrapper */
-            const raw = Array.isArray(data) ? data : Array.isArray(data?.content) ? data.content : []
-            setMethods(raw as MetodoPago[])
+            setMethods(normalizeMethods(data))
         } catch (e) {
             setError(e instanceof Error ? e.message : "Error inesperado")
         } finally {
@@ -81,48 +134,54 @@ export default function MetodosPagoPage() {
         }
     }, [])
 
-    useEffect(() => { loadMethods() }, [loadMethods])
+    useEffect(() => {
+        loadMethods()
+    }, [loadMethods])
 
-    /* ── Toggle method activo ── */
     const toggleMethod = async (metodo: MetodoPago) => {
-        const nuevoEstado = metodo.activo === "ACTIVO" ? "INACTIVO" : "ACTIVO"
+        const nuevoEstado: MetodoPago["estado"] = metodo.estado === "ACTIVO" ? "INACTIVO" : "ACTIVO"
         setToggling(metodo.idMetodoPago)
 
-        // Optimistic update
-        setMethods(prev =>
-            prev.map(m => m.idMetodoPago === metodo.idMetodoPago ? { ...m, activo: nuevoEstado } : m)
+        setMethods((prev) =>
+            prev.map((m) => (m.idMetodoPago === metodo.idMetodoPago ? { ...m, estado: nuevoEstado } : m))
         )
 
         try {
             const res = await authFetch(`/api/config/metodos-pago/${metodo.idMetodoPago}/estado`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ activo: nuevoEstado }),
+                body: JSON.stringify({ estado: nuevoEstado }),
             })
 
             if (!res.ok) {
-                // Rollback
-                setMethods(prev =>
-                    prev.map(m => m.idMetodoPago === metodo.idMetodoPago ? { ...m, activo: metodo.activo } : m)
+                setMethods((prev) =>
+                    prev.map((m) => (m.idMetodoPago === metodo.idMetodoPago ? { ...m, estado: metodo.estado } : m))
                 )
                 const data = await res.json().catch(() => null)
-                const msg = res.status === 403
-                    ? "No tienes permisos para realizar esta acción"
-                    : (data?.message ?? `Error ${res.status} al actualizar`)
+                const msg =
+                    res.status === 403
+                        ? "No tienes permisos para realizar esta accion"
+                        : data?.message ?? `Error ${res.status} al actualizar`
                 setToast({ message: msg, type: "error" })
-            } else {
-                const label = LABELS[metodo.nombre] ?? metodo.nombre
-                setToast({
-                    message: `${label} ${nuevoEstado === "ACTIVO" ? "activado" : "desactivado"}`,
-                    type: "success",
-                })
+                return
             }
-        } catch {
-            // Rollback
-            setMethods(prev =>
-                prev.map(m => m.idMetodoPago === metodo.idMetodoPago ? { ...m, activo: metodo.activo } : m)
+
+            const responseData = await res.json().catch(() => null)
+            const backendEstado = normalizeEstado(responseData?.estado ?? responseData?.activo ?? nuevoEstado)
+            setMethods((prev) =>
+                prev.map((m) => (m.idMetodoPago === metodo.idMetodoPago ? { ...m, estado: backendEstado } : m))
             )
-            setToast({ message: "Error de conexión", type: "error" })
+
+            const label = LABELS[metodo.nombre] ?? metodo.nombre
+            setToast({
+                message: `${label} ${backendEstado === "ACTIVO" ? "activado" : "desactivado"}`,
+                type: "success",
+            })
+        } catch {
+            setMethods((prev) =>
+                prev.map((m) => (m.idMetodoPago === metodo.idMetodoPago ? { ...m, estado: metodo.estado } : m))
+            )
+            setToast({ message: "Error de conexion", type: "error" })
         } finally {
             setToggling(null)
         }
@@ -131,13 +190,13 @@ export default function MetodosPagoPage() {
     return (
         <div className="max-w-2xl space-y-6">
             <p className="text-sm text-gray-500 dark:text-gray-400">
-                Activa o desactiva los métodos de pago disponibles para tus ventas.
+                Activa o desactiva los metodos de pago disponibles para tus ventas.
             </p>
 
             {loading && (
                 <div className="flex items-center justify-center gap-2 py-12">
                     <Loader2 className="h-5 w-5 text-slate-400 animate-spin" />
-                    <span className="text-sm text-slate-400">Cargando métodos...</span>
+                    <span className="text-sm text-slate-400">Cargando metodos...</span>
                 </div>
             )}
 
@@ -151,10 +210,12 @@ export default function MetodosPagoPage() {
             {!loading && !error && (
                 <div className="space-y-3">
                     {methods.map((m) => {
-                        const isActive = m.activo === "ACTIVO"
-                        const Icon = ICON_MAP[m.nombre] ?? CreditCardIcon
-                        const label = LABELS[m.nombre] ?? m.nombre
-                        const desc = m.descripcion ?? DESCRIPTIONS[m.nombre] ?? ""
+                        const isActive = m.estado === "ACTIVO"
+                        const methodKey = m.nombre.trim().toUpperCase()
+                        const Icon = ICON_MAP[methodKey] ?? ICON_MAP[m.nombre] ?? CreditCardIcon
+                        const label = LABELS[methodKey] ?? LABELS[m.nombre] ?? m.nombre
+                        const desc = m.descripcion ?? DESCRIPTIONS[methodKey] ?? DESCRIPTIONS[m.nombre] ?? ""
+                        const logo = PAYMENT_LOGOS[methodKey]
                         const isToggling = toggling === m.idMetodoPago
 
                         return (
@@ -170,7 +231,17 @@ export default function MetodosPagoPage() {
                                         ? "bg-[#3266E4]/10 text-[#3266E4]"
                                         : "bg-gray-100 dark:bg-white/5 text-gray-400"
                                         }`}>
-                                        <Icon className="h-5 w-5" />
+                                        {logo ? (
+                                            <Image
+                                                src={logo.src}
+                                                alt={logo.alt}
+                                                width={26}
+                                                height={26}
+                                                className="h-6 w-6 object-contain"
+                                            />
+                                        ) : (
+                                            <Icon className="h-5 w-5" />
+                                        )}
                                     </div>
                                     <div>
                                         <p className="text-sm font-bold text-gray-900 dark:text-white">{label}</p>
@@ -190,7 +261,7 @@ export default function MetodosPagoPage() {
                     })}
 
                     {methods.length === 0 && (
-                        <p className="text-center text-sm text-slate-400 py-8">No se encontraron métodos de pago configurados</p>
+                        <p className="text-center text-sm text-slate-400 py-8">No se encontraron metodos de pago configurados</p>
                     )}
                 </div>
             )}

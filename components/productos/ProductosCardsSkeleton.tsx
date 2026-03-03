@@ -4,11 +4,11 @@ interface ProductosCardsSkeletonProps {
   cards?: number
 }
 
-function ProductosCardsSkeletonComponent({ cards = 6 }: ProductosCardsSkeletonProps) {
+function ProductosCardsSkeletonComponent({ cards = 10 }: ProductosCardsSkeletonProps) {
   const indexes = useMemo(() => Array.from({ length: cards }, (_, index) => index), [cards])
 
   return (
-    <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-5">
       {indexes.map((index) => (
         <article key={index} className="overflow-hidden rounded-2xl border bg-card">
           <div className="aspect-[16/10] w-full animate-pulse bg-muted" />
