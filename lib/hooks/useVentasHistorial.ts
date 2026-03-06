@@ -5,12 +5,23 @@ import { toast } from "sonner"
 
 import { useAuth } from "@/lib/auth/auth-context"
 import { authFetch } from "@/lib/auth/auth-fetch"
-import type { VentaHistorial, VentaHistorialPageResponse } from "@/lib/types/venta"
+import {
+  SEARCH_DEBOUNCE_MS,
+  useDebouncedValue,
+} from "@/lib/hooks/useDebouncedValue"
+import type {
+  VentaHistorial,
+  VentaHistorialFilters,
+  VentaHistorialPageResponse,
+  VentaListadoPeriodo,
+} from "@/lib/types/venta"
 
 function getErrorMessage(status: number, backendMsg?: string): string {
   if (backendMsg) return backendMsg
+  if (status === 400) return "Filtros invalidos para listar ventas"
   if (status === 401) return "Sesion expirada, vuelve a iniciar sesion"
   if (status === 403) return "No tienes permisos para listar ventas"
+  if (status === 404) return "No se encontraron datos con esos filtros"
   if (status === 500) return "Error interno del servidor"
   return "Error inesperado al cargar el historial"
 }
@@ -50,7 +61,69 @@ function normalizeVenta(value: unknown): VentaHistorial | null {
   }
 }
 
-export function useVentasHistorial() {
+function resolvePeriodo(filters: VentaHistorialFilters): VentaListadoPeriodo {
+  return filters.usarRangoFechas ? "RANGO" : filters.periodo
+}
+
+function validateFilters(filters: VentaHistorialFilters): string | null {
+  const periodo = resolvePeriodo(filters)
+
+  if (periodo === "FECHA" && !filters.fecha) {
+    return "Selecciona una fecha para filtrar"
+  }
+
+  if (periodo === "RANGO") {
+    if (!filters.fechaDesde || !filters.fechaHasta) {
+      return "Selecciona fecha desde y hasta para filtrar por rango"
+    }
+    if (filters.fechaDesde > filters.fechaHasta) {
+      return "La fecha desde no puede ser mayor a la fecha hasta"
+    }
+  }
+
+  return null
+}
+
+function buildQueryParams(
+  pageNumber: number,
+  filters: VentaHistorialFilters,
+  debouncedSearch: string
+): URLSearchParams {
+  const params = new URLSearchParams({
+    page: String(pageNumber),
+    periodo: resolvePeriodo(filters),
+  })
+
+  const normalizedSearch = debouncedSearch.trim()
+  if (normalizedSearch.length > 0) {
+    params.set("q", normalizedSearch)
+  }
+
+  if (filters.comprobante !== "TODOS") {
+    params.set("tipoComprobante", filters.comprobante)
+  }
+
+  if (typeof filters.idUsuario === "number" && filters.idUsuario > 0) {
+    params.set("idUsuario", String(filters.idUsuario))
+  }
+
+  if (typeof filters.idSucursal === "number" && filters.idSucursal > 0) {
+    params.set("idSucursal", String(filters.idSucursal))
+  }
+
+  if (!filters.usarRangoFechas && filters.periodo === "FECHA") {
+    params.set("fecha", filters.fecha)
+  }
+
+  if (filters.usarRangoFechas) {
+    params.set("desde", filters.fechaDesde)
+    params.set("hasta", filters.fechaHasta)
+  }
+
+  return params
+}
+
+export function useVentasHistorial(filters: VentaHistorialFilters) {
   const { isLoading: isAuthLoading } = useAuth()
 
   const [ventas, setVentas] = useState<VentaHistorial[]>([])
@@ -64,6 +137,29 @@ export function useVentasHistorial() {
 
   const listAbortRef = useRef<AbortController | null>(null)
 
+  const resetPageForDebouncedSearch = useCallback(() => {
+    setPage(0)
+  }, [])
+
+  const debouncedSearch = useDebouncedValue(
+    filters.search,
+    SEARCH_DEBOUNCE_MS,
+    resetPageForDebouncedSearch
+  )
+
+  useEffect(() => {
+    setPage(0)
+  }, [
+    filters.comprobante,
+    filters.fecha,
+    filters.fechaDesde,
+    filters.fechaHasta,
+    filters.idUsuario,
+    filters.idSucursal,
+    filters.periodo,
+    filters.usarRangoFechas,
+  ])
+
   const fetchVentas = useCallback(async (pageNumber: number) => {
     listAbortRef.current?.abort()
     const controller = new AbortController()
@@ -72,8 +168,20 @@ export function useVentasHistorial() {
     setLoading(true)
     setError(null)
 
+    const validationError = validateFilters(filters)
+    if (validationError) {
+      setLoading(false)
+      setError(validationError)
+      setVentas([])
+      setTotalPages(0)
+      setTotalElements(0)
+      setNumberOfElements(0)
+      return
+    }
+
     try {
-      const response = await authFetch(`/api/venta/listar?page=${pageNumber}`, {
+      const queryParams = buildQueryParams(pageNumber, filters, debouncedSearch)
+      const response = await authFetch(`/api/venta/listar?${queryParams.toString()}`, {
         signal: controller.signal,
       })
       const data = await parseJsonSafe(response)
@@ -121,7 +229,10 @@ export function useVentasHistorial() {
         setLoading(false)
       }
     }
-  }, [])
+  }, [
+    debouncedSearch,
+    filters,
+  ])
 
   useEffect(() => {
     if (isAuthLoading) return

@@ -135,6 +135,27 @@ function getStockLevelClass(stock: number): string {
   return "bg-rose-500"
 }
 
+function hasValidPrecioOferta(
+  precio: number | null | undefined,
+  precioOferta: number | null | undefined
+): precioOferta is number {
+  return (
+    typeof precio === "number" &&
+    typeof precioOferta === "number" &&
+    precioOferta > 0 &&
+    precioOferta < precio
+  )
+}
+
+function getPrecioAplicado(
+  precio: number | null | undefined,
+  precioOferta: number | null | undefined
+): number {
+  if (hasValidPrecioOferta(precio, precioOferta)) return precioOferta
+  if (typeof precio === "number") return precio
+  return 0
+}
+
 export interface SelectedVariant {
   id: number
   varianteId: number
@@ -146,7 +167,6 @@ export interface SelectedVariant {
   colorId: number
   cantidad: number
   sku: string
-  codigoExterno?: string | null
   imageUrl?: string | null
 }
 
@@ -365,7 +385,10 @@ export default function ProductModal({ product, onClose, onConfirm }: ProductMod
     cantidad > 0 &&
     cantidad <= selectedVariante.stock
 
-  const displayPrice = selectedVariante?.precio ?? product.precioMin ?? 0
+  const displayPrice =
+    selectedVariante !== null
+      ? getPrecioAplicado(selectedVariante.precio, selectedVariante.precioOferta)
+      : (product.precioMin ?? 0)
   const subtotal = displayPrice * cantidad
 
   const handleConfirm = () => {
@@ -377,14 +400,13 @@ export default function ProductModal({ product, onClose, onConfirm }: ProductMod
       id: product.idProducto,
       varianteId: selectedVariante.idProductoVariante,
       nombre: detalle?.producto.nombre ?? product.nombre,
-      precio: selectedVariante.precio,
       talla: selectedVariante.tallaNombre,
       tallaId: selectedVariante.tallaId,
       color: selectedColor.nombre,
       colorId: selectedColor.colorId,
       cantidad,
       sku: selectedVariante.sku,
-      codigoExterno: selectedVariante.codigoExterno,
+      precio: displayPrice,
       imageUrl: selectedImageUrl,
     })
     onClose()
@@ -542,14 +564,18 @@ export default function ProductModal({ product, onClose, onConfirm }: ProductMod
                       SKU por variante
                     </span>
                   )}
-                  {selectedVariante?.codigoExterno && (
-                    <span className="rounded-md border border-slate-200 px-2 py-0.5 font-mono dark:border-slate-700">
-                      EXT: {selectedVariante.codigoExterno}
-                    </span>
-                  )}
                 </div>
 
-                <p className="pt-1 text-2xl font-extrabold text-blue-600 dark:text-blue-400">
+                {selectedVariante &&
+                  hasValidPrecioOferta(
+                    selectedVariante.precio,
+                    selectedVariante.precioOferta
+                  ) && (
+                    <p className="pt-1 text-sm font-semibold text-slate-500 line-through dark:text-slate-400">
+                      {formatMonedaPen(selectedVariante.precio)}
+                    </p>
+                  )}
+                <p className="text-2xl font-extrabold text-blue-600 dark:text-blue-400">
                   {formatMonedaPen(displayPrice)}
                 </p>
               </div>
@@ -645,9 +671,20 @@ export default function ProductModal({ product, onClose, onConfirm }: ProductMod
                               </div>
 
                               <div className="mt-2">
-                                <p className="text-xl font-extrabold leading-none text-blue-700 dark:text-blue-300">
-                                  {formatMonedaPen(variante.precio)}
-                                </p>
+                                {hasValidPrecioOferta(variante.precio, variante.precioOferta) ? (
+                                  <div className="space-y-1">
+                                    <p className="text-xs font-medium leading-none text-slate-500 line-through dark:text-slate-400">
+                                      {formatMonedaPen(variante.precio)}
+                                    </p>
+                                    <p className="text-xl font-extrabold leading-none text-emerald-700 dark:text-emerald-300">
+                                      {formatMonedaPen(variante.precioOferta)}
+                                    </p>
+                                  </div>
+                                ) : (
+                                  <p className="text-xl font-extrabold leading-none text-blue-700 dark:text-blue-300">
+                                    {formatMonedaPen(variante.precio)}
+                                  </p>
+                                )}
                               </div>
                             </button>
                           )

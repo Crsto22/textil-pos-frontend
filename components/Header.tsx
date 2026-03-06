@@ -1,6 +1,6 @@
 "use client"
 
-import { ArrowRightStartOnRectangleIcon, Bars3Icon, UserCircleIcon } from "@heroicons/react/24/outline"
+import { ArrowRightStartOnRectangleIcon, Bars3Icon } from "@heroicons/react/24/outline"
 import { usePathname, useRouter } from "next/navigation"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { useAuth } from "@/lib/auth/auth-context"
@@ -40,12 +40,14 @@ export function Header({ onMenuToggle }: HeaderProps) {
     const pathname = usePathname()
     const router = useRouter()
     const { user, logout } = useAuth()
+    const getInitial = (value?: string) => value?.trim().charAt(0) ?? ""
 
     const title =
         pageTitles[pathname] ??
         (/^\/productos\/\d+\/editar$/.test(pathname) ? "Editar Producto" : "Panel")
 
     const sectionLabel = getSectionLabel(pathname)
+    const userInitials = user ? `${getInitial(user.nombre)}${getInitial(user.apellido)}`.toUpperCase() : ""
 
     const handleLogout = async () => {
         await logout()
@@ -53,54 +55,64 @@ export function Header({ onMenuToggle }: HeaderProps) {
     }
 
     return (
-        <header className="sticky top-0 z-30 border-b border-slate-200/75 bg-white/80 backdrop-blur-xl dark:border-white/10 dark:bg-[oklch(0.14_0_0/.88)]">
-            <div className="flex h-[70px] items-center justify-between gap-3 px-4 sm:px-6">
+        <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/80 backdrop-blur-xl dark:border-white/[0.06] dark:bg-[oklch(0.13_0_0/.80)]">
+            <div className="flex h-16 items-center justify-between gap-4 px-4 sm:px-6">
+                {/* Left: menu + title */}
                 <div className="flex min-w-0 items-center gap-3">
                     <button
                         onClick={onMenuToggle}
-                        className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200/80 bg-white/70 text-slate-700 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_10px_18px_-16px_rgba(15,23,42,0.8)] dark:border-white/15 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10 lg:hidden"
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-700 hover:bg-blue-50 hover:text-blue-600 dark:text-slate-200 dark:hover:bg-blue-500/10 dark:hover:text-blue-400 lg:hidden"
                         aria-label="Abrir menu"
                     >
                         <Bars3Icon className="h-5 w-5" />
                     </button>
 
-                    <div className="min-w-0">
-                        <p className="truncate text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+                    <div className="flex min-w-0 items-center gap-2.5">
+                        <span className="hidden shrink-0 rounded-md bg-blue-50 px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-widest text-blue-600 sm:inline-flex dark:bg-blue-500/10 dark:text-blue-400">
                             {sectionLabel}
-                        </p>
-                        <h1 className="truncate text-lg font-semibold tracking-tight text-slate-900 sm:text-xl dark:text-white">
+                        </span>
+                        <span className="hidden h-4 w-px bg-slate-300 sm:block dark:bg-white/15" />
+                        <h1 className="truncate text-[15px] font-semibold text-slate-900 sm:text-base dark:text-white">
                             {title}
                         </h1>
                     </div>
                 </div>
 
-                <div className="flex items-center gap-2 sm:gap-3">
+                {/* Right: actions */}
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                    <ThemeToggle
+                        variant="ghost"
+                        size="icon-sm"
+                        className="h-9 w-9 rounded-lg text-slate-700 hover:bg-amber-50 hover:text-amber-600 dark:text-slate-200 dark:hover:bg-amber-500/10 dark:hover:text-amber-400"
+                    />
+
+                    <span className="hidden h-5 w-px bg-slate-300 sm:block dark:bg-white/15" />
+
                     {user && (
-                        <div className="hidden items-center gap-3 rounded-2xl border border-slate-200/80 bg-white/70 px-3.5 py-1.5 shadow-[0_12px_22px_-20px_rgba(15,23,42,0.9)] md:flex dark:border-white/10 dark:bg-white/[0.04] dark:shadow-none">
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-100 via-indigo-50 to-cyan-100 text-blue-700 shadow-inner dark:from-blue-400/35 dark:via-indigo-400/20 dark:to-cyan-400/20 dark:text-blue-100">
-                                <UserCircleIcon className="h-5 w-5" />
+                        <div className="hidden items-center gap-2.5 pl-1 sm:flex">
+                            <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-xs font-bold text-white ring-2 ring-white dark:from-blue-400 dark:to-indigo-500 dark:ring-white/10">
+                                {userInitials || "US"}
+                                <span className="absolute -bottom-px -right-px h-2 w-2 rounded-full border-[1.5px] border-white bg-emerald-500 dark:border-[oklch(0.13_0_0)]" />
                             </div>
-                            <div className="min-w-0 max-w-[210px] leading-tight">
-                                <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">
+                            <div className="min-w-0 max-w-[180px] leading-none">
+                                <p className="truncate text-[13px] font-semibold text-slate-900 dark:text-white">
                                     {user.nombre} {user.apellido}
                                 </p>
-                                <span className="mt-1 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:bg-white/10 dark:text-slate-200">
+                                <p className="mt-0.5 truncate text-[11px] font-medium text-blue-600 dark:text-blue-400">
                                     {user.rol}
-                                </span>
+                                </p>
                             </div>
                         </div>
                     )}
 
-                    <ThemeToggle />
-
                     <button
                         onClick={handleLogout}
-                        className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200/80 bg-slate-50 px-3.5 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white hover:shadow-[0_10px_20px_-16px_rgba(15,23,42,0.8)] dark:border-white/15 dark:bg-white/10 dark:text-slate-100 dark:hover:bg-white/15"
+                        className="ml-1 inline-flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-[13px] font-medium text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:text-rose-400 dark:hover:bg-rose-500/10 dark:hover:text-rose-300"
                         title="Cerrar sesion"
                         aria-label="Cerrar sesion"
                     >
-                        <ArrowRightStartOnRectangleIcon className="h-5 w-5" />
-                        <span className="hidden md:inline">Cerrar sesion</span>
+                        <ArrowRightStartOnRectangleIcon className="h-[18px] w-[18px]" />
+                        <span className="hidden sm:inline">Salir</span>
                     </button>
                 </div>
             </div>

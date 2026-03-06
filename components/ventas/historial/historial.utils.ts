@@ -1,5 +1,3 @@
-import type { VentaHistorial } from "@/lib/types/venta"
-
 const ESTADO_CLASSES: Record<string, string> = {
   EMITIDA: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
   COMPLETADA:
@@ -37,7 +35,12 @@ export function formatFechaHora(isoDate: string): string {
   })
 }
 
-export function formatComprobante(venta: VentaHistorial): string {
+interface ComprobanteLike {
+  serie: string
+  correlativo: number
+}
+
+export function formatComprobante(venta: ComprobanteLike): string {
   const serie = venta.serie?.trim() || "-"
   const correlativo = Number.isFinite(venta.correlativo) ? venta.correlativo : 0
   return `${serie}-${String(correlativo).padStart(6, "0")}`

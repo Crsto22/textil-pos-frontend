@@ -4,7 +4,7 @@ import { useMemo, useState } from "react"
 import Image from "next/image"
 import { PhotoIcon } from "@heroicons/react/24/outline"
 
-import { formatRangoPrecioPen } from "@/components/productos/productos.utils"
+import { formatMonedaPen, formatRangoPrecioPen } from "@/components/productos/productos.utils"
 import type { ProductoResumen, ProductoResumenTalla } from "@/lib/types/producto"
 import { cn } from "@/lib/utils"
 
@@ -48,6 +48,20 @@ function isVariantInStock(talla: ProductoResumenTalla): boolean {
   return true
 }
 
+function hasValidPrecioOferta(talla: ProductoResumenTalla): boolean {
+  return (
+    typeof talla.precio === "number" &&
+    typeof talla.precioOferta === "number" &&
+    talla.precioOferta > 0 &&
+    talla.precioOferta < talla.precio
+  )
+}
+
+function getPrecioAplicado(talla: ProductoResumenTalla): number | null {
+  if (hasValidPrecioOferta(talla)) return talla.precioOferta as number
+  return typeof talla.precio === "number" ? talla.precio : null
+}
+
 export default function ProductCard({ product, onAdd }: ProductCardProps) {
   const [selectedColorId, setSelectedColorId] = useState<number | null>(() =>
     getDefaultColorId(product)
@@ -73,6 +87,25 @@ export default function ProductCard({ product, onAdd }: ProductCardProps) {
   const visibleTallas = (selectedColor?.tallas ?? []).slice(0, 4)
   const hiddenTallas = Math.max(0, (selectedColor?.tallas?.length ?? 0) - visibleTallas.length)
   const skuCount = getSkuCount(product)
+
+  const selectedColorTallas = selectedColor?.tallas ?? []
+  const selectedColorDiscountedRegularPrices = selectedColorTallas
+    .filter((talla) => hasValidPrecioOferta(talla))
+    .map((talla) => talla.precio as number)
+  const selectedColorAppliedPrices = selectedColorTallas
+    .map((talla) => getPrecioAplicado(talla))
+    .filter((price): price is number => typeof price === "number")
+
+  const selectedColorRegularMin =
+    selectedColorDiscountedRegularPrices.length > 0
+      ? Math.min(...selectedColorDiscountedRegularPrices)
+      : null
+  const selectedColorAppliedMin =
+    selectedColorAppliedPrices.length > 0 ? Math.min(...selectedColorAppliedPrices) : null
+  const showSelectedColorDiscount =
+    selectedColorRegularMin !== null &&
+    selectedColorAppliedMin !== null &&
+    selectedColorAppliedMin < selectedColorRegularMin
 
   return (
     <article
@@ -131,9 +164,20 @@ export default function ProductCard({ product, onAdd }: ProductCardProps) {
             {product.nombreCategoria || "Sin categoria"}
           </p>
           <h3 className="line-clamp-2 text-base font-semibold text-foreground">{product.nombre}</h3>
-          <p className="mt-1 text-lg font-semibold text-blue-600 dark:text-blue-400">
-            {formatRangoPrecioPen(product.precioMin, product.precioMax)}
-          </p>
+          {showSelectedColorDiscount ? (
+            <>
+              <p className="mt-1 text-xs font-semibold text-muted-foreground line-through">
+                {formatMonedaPen(selectedColorRegularMin)}
+              </p>
+              <p className="text-lg font-semibold text-emerald-600 dark:text-emerald-400">
+                {formatMonedaPen(selectedColorAppliedMin)}
+              </p>
+            </>
+          ) : (
+            <p className="mt-1 text-lg font-semibold text-blue-600 dark:text-blue-400">
+              {formatRangoPrecioPen(product.precioMin, product.precioMax)}
+            </p>
+          )}
           {estadoActivo && hasPartialStock && (
             <p className="mt-1 text-[11px] font-medium text-amber-600 dark:text-amber-400">
               {outOfStockVariants} variante{outOfStockVariants === 1 ? "" : "s"} sin stock

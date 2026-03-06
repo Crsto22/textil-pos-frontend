@@ -39,7 +39,8 @@ function parseDetalleItems(value: unknown): VentaDetalleItem[] {
         idProducto: numberOr(data.idProducto),
         nombreProducto: stringOr(data.nombreProducto, "Producto"),
         sku: typeof data.sku === "string" ? data.sku : null,
-        codigoExterno: typeof data.codigoExterno === "string" ? data.codigoExterno : null,
+        precioOferta:
+          typeof data.precioOferta === "number" ? data.precioOferta : null,
         idColor: nullableNumber(data.idColor),
         color: typeof data.color === "string" ? data.color : null,
         idTalla: nullableNumber(data.idTalla),
@@ -65,7 +66,7 @@ function parseDetallePagos(value: unknown): VentaDetallePago[] {
         metodoPago: stringOr(data.metodoPago, "DESCONOCIDO"),
         monto: numberOr(data.monto),
         referencia: typeof data.referencia === "string" ? data.referencia : null,
-        fecha: stringOr(data.fecha),
+        fecha: typeof data.fecha === "string" ? data.fecha : null,
       }
     })
     .filter((item): item is VentaDetallePago => item !== null)

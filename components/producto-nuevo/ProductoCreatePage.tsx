@@ -64,6 +64,7 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
     mediaByColor,
     replaceMediaByColor,
     variantRows,
+    deletingVariantKeys,
     totalSelectedMedia,
     setFocusedColorId,
     handleSucursalChange,
@@ -76,6 +77,8 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
     toggleTallaSelection,
     handleVariantFieldChange,
     handleApplyVariantFieldToAll,
+    handleVariantOfferToggle,
+    handleToggleOfferForAll,
     handleRemoveVariant,
     saveProducto,
   } = useProductoCreate({ productoId })
@@ -106,9 +109,10 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
 
     const hasVariantValues = variantRows.some(
       (variant) =>
+        variant.ofertaActiva ||
         variant.sku.trim() !== "" ||
-        variant.codigoExterno.trim() !== "" ||
         variant.precio.trim() !== "" ||
+        variant.precioOferta.trim() !== "" ||
         variant.stock.trim() !== ""
     )
 
@@ -218,6 +222,9 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
             variantRows={variantRows}
             onVariantFieldChange={handleVariantFieldChange}
             onApplyVariantFieldToAll={handleApplyVariantFieldToAll}
+            onVariantOfferToggle={handleVariantOfferToggle}
+            onToggleOfferForAll={handleToggleOfferForAll}
+            deletingVariantKeys={deletingVariantKeys}
             onRemoveVariant={handleRemoveVariant}
           />
         </div>

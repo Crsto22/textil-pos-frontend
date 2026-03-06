@@ -71,6 +71,15 @@ function hasValidCategoriaId(idCategoria?: number | null): idCategoria is number
   return typeof idCategoria === "number" && idCategoria > 0
 }
 
+function appendOptionalPositiveInt(
+  params: URLSearchParams,
+  key: string,
+  value?: number | null
+) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return
+  params.set(key, String(Math.trunc(value)))
+}
+
 function normalizeProductoResumen(producto: Producto | ProductoResumen): ProductoResumen {
   const resumen = producto as ProductoResumen
   const normalizedColores = Array.isArray(resumen.colores)
@@ -92,11 +101,9 @@ function normalizeProductoResumen(producto: Producto | ProductoResumen): Product
               tallaId: talla.tallaId,
               nombre: talla.nombre,
               sku: typeof talla.sku === "string" ? talla.sku : null,
-              codigoExterno:
-                typeof talla.codigoExterno === "string"
-                  ? talla.codigoExterno
-                  : null,
               precio: typeof talla.precio === "number" ? talla.precio : null,
+              precioOferta:
+                typeof talla.precioOferta === "number" ? talla.precioOferta : null,
               stock: typeof talla.stock === "number" ? talla.stock : null,
               estado: typeof talla.estado === "string" ? talla.estado : null,
             }))
@@ -123,6 +130,8 @@ export function useProductos() {
   const [error, setError] = useState<string | null>(null)
 
   const [search, setSearch] = useState("")
+  const [idCategoriaFilter, setIdCategoriaFilter] = useState<number | null>(null)
+  const [idColorFilter, setIdColorFilter] = useState<number | null>(null)
   const [searchPage, setSearchPage] = useState(0)
   const resetSearchPage = useCallback(() => {
     setSearchPage(0)
@@ -154,12 +163,15 @@ export function useProductos() {
     setError(null)
 
     try {
-      const response = await authFetch(
-        `/api/producto/listar-resumen?page=${pageNumber}`,
-        {
-          signal: controller.signal,
-        }
-      )
+      const params = new URLSearchParams({
+        page: String(pageNumber),
+      })
+      appendOptionalPositiveInt(params, "idCategoria", idCategoriaFilter)
+      appendOptionalPositiveInt(params, "idColor", idColorFilter)
+
+      const response = await authFetch(`/api/producto/listar-resumen?${params.toString()}`, {
+        signal: controller.signal,
+      })
       const data = await parseJsonSafe(response)
       if (controller.signal.aborted) return
 
@@ -197,7 +209,7 @@ export function useProductos() {
         setLoading(false)
       }
     }
-  }, [])
+  }, [idCategoriaFilter, idColorFilter])
 
   const fetchBuscar = useCallback(async (query: string, pageNumber: number) => {
     searchAbortRef.current?.abort()
@@ -212,6 +224,8 @@ export function useProductos() {
         q: query.trim(),
         page: String(pageNumber),
       })
+      appendOptionalPositiveInt(params, "idCategoria", idCategoriaFilter)
+      appendOptionalPositiveInt(params, "idColor", idColorFilter)
 
       const response = await authFetch(`/api/producto/buscar?${params.toString()}`, {
         signal: controller.signal,
@@ -253,7 +267,12 @@ export function useProductos() {
         setSearching(false)
       }
     }
-  }, [])
+  }, [idCategoriaFilter, idColorFilter])
+
+  useEffect(() => {
+    setPage(0)
+    setSearchPage(0)
+  }, [idCategoriaFilter, idColorFilter])
 
   useEffect(() => {
     if (isAuthLoading || isSearchMode) return
@@ -477,6 +496,8 @@ export function useProductos() {
     error,
     isAdmin,
     search,
+    idCategoriaFilter,
+    idColorFilter,
     debouncedSearch,
     isSearchMode,
     searchResults,
@@ -490,6 +511,8 @@ export function useProductos() {
     displayedLoading,
     setDisplayedPage,
     setSearch,
+    setIdCategoriaFilter,
+    setIdColorFilter,
     setPage,
     setSearchPage,
     fetchProductos,

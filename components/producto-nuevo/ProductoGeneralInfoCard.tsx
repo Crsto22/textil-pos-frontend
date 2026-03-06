@@ -153,8 +153,7 @@ export function ProductoGeneralInfoCard({
         </div>
 
         <p className="text-xs text-muted-foreground">
-          El SKU y el codigo externo se registran por variante (color/talla) en la
-          matriz.
+          El SKU y el precio oferta opcional se registran por variante (color/talla) en la matriz.
         </p>
 
         <div className="rounded-lg border border-dashed bg-muted/30 p-3 text-xs text-muted-foreground">

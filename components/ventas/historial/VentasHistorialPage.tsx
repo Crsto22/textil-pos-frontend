@@ -2,36 +2,35 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { toast } from "sonner"
 
 import { VentaDetalleModal } from "@/components/ventas/historial/VentaDetalleModal"
 import { VentasHistorialFilters } from "@/components/ventas/historial/VentasHistorialFilters"
-import { VentasHistorialStats } from "@/components/ventas/historial/VentasHistorialStats"
 import { VentasHistorialTable } from "@/components/ventas/historial/VentasHistorialTable"
-import { formatComprobante } from "@/components/ventas/historial/historial.utils"
+import { useVentaReporteExcel } from "@/lib/hooks/useVentaReporteExcel"
 import { useVentaDetalle } from "@/lib/hooks/useVentaDetalle"
 import { useVentasHistorial } from "@/lib/hooks/useVentasHistorial"
 import type { VentaHistorialFilters } from "@/lib/types/venta"
+
+function getTodayDateValue(): string {
+  const now = new Date()
+  const timezoneOffsetMs = now.getTimezoneOffset() * 60_000
+  return new Date(now.getTime() - timezoneOffsetMs).toISOString().slice(0, 10)
+}
+
+const TODAY_DATE = getTodayDateValue()
 
 const DEFAULT_FILTERS: VentaHistorialFilters = {
   search: "",
   estado: "TODOS",
   comprobante: "TODOS",
-  fechaDesde: "",
-  fechaHasta: "",
-}
-
-function normalizeDateFromInput(value: string): Date | null {
-  if (!value) return null
-  const parsed = new Date(`${value}T00:00:00`)
-  if (Number.isNaN(parsed.getTime())) return null
-  return parsed
-}
-
-function normalizeDateToInput(value: string): Date | null {
-  if (!value) return null
-  const parsed = new Date(`${value}T23:59:59`)
-  if (Number.isNaN(parsed.getTime())) return null
-  return parsed
+  idUsuario: null,
+  idSucursal: null,
+  periodo: "HOY",
+  usarRangoFechas: false,
+  fecha: TODAY_DATE,
+  fechaDesde: TODAY_DATE,
+  fechaHasta: TODAY_DATE,
 }
 
 export function VentasHistorialPage() {
@@ -49,7 +48,7 @@ export function VentasHistorialPage() {
     error,
     setDisplayedPage,
     refreshVentas,
-  } = useVentasHistorial()
+  } = useVentasHistorial(filters)
   const {
     open: detailOpen,
     detalle,
@@ -59,6 +58,7 @@ export function VentasHistorialPage() {
     retryVentaDetalle,
     closeVentaDetalle,
   } = useVentaDetalle()
+  const { isExporting, exportReporteExcel } = useVentaReporteExcel()
 
   useEffect(() => {
     const ventaIdParam = searchParams.get("ventaId")
@@ -80,59 +80,11 @@ export function VentasHistorialPage() {
   }, [ventas])
 
   const filteredVentas = useMemo(() => {
-    const searchTerm = filters.search.trim().toLowerCase()
-    const from = normalizeDateFromInput(filters.fechaDesde)
-    const to = normalizeDateToInput(filters.fechaHasta)
-
-    return ventas.filter((venta) => {
-      const estadoNormalizado = venta.estado.trim().toUpperCase()
-      const comprobanteNormalizado = venta.tipoComprobante.trim().toUpperCase()
-
-      if (filters.estado !== "TODOS" && estadoNormalizado !== filters.estado) {
-        return false
-      }
-
-      if (
-        filters.comprobante !== "TODOS" &&
-        comprobanteNormalizado !== filters.comprobante
-      ) {
-        return false
-      }
-
-      const fechaVenta = new Date(venta.fecha)
-      if (from && fechaVenta < from) return false
-      if (to && fechaVenta > to) return false
-
-      if (!searchTerm) return true
-
-      const hayTexto = [
-        String(venta.idVenta),
-        venta.nombreCliente,
-        venta.nombreUsuario,
-        venta.nombreSucursal,
-        comprobanteNormalizado,
-        estadoNormalizado,
-        formatComprobante(venta),
-      ]
-        .join(" ")
-        .toLowerCase()
-
-      return hayTexto.includes(searchTerm)
-    })
-  }, [filters, ventas])
-
-  const totalMontoPagina = useMemo(
-    () => filteredVentas.reduce((sum, venta) => sum + venta.total, 0),
-    [filteredVentas]
-  )
-  const totalEmitidas = useMemo(
-    () => filteredVentas.filter((venta) => venta.estado.toUpperCase() === "EMITIDA").length,
-    [filteredVentas]
-  )
-  const totalAnuladas = useMemo(
-    () => filteredVentas.filter((venta) => venta.estado.toUpperCase() === "ANULADA").length,
-    [filteredVentas]
-  )
+    if (filters.estado === "TODOS") return ventas
+    return ventas.filter(
+      (venta) => venta.estado.trim().toUpperCase() === filters.estado.trim().toUpperCase()
+    )
+  }, [filters.estado, ventas])
 
   const handleFiltersChange = (next: VentaHistorialFilters) => {
     setFilters(next)
@@ -140,6 +92,41 @@ export function VentasHistorialPage() {
 
   const handleClearFilters = () => {
     setFilters(DEFAULT_FILTERS)
+  }
+
+  const handleDownloadReport = async () => {
+    if (filters.usarRangoFechas) {
+      if (!filters.fechaDesde || !filters.fechaHasta) {
+        toast.error("Selecciona fecha desde y hasta")
+        return
+      }
+      if (filters.fechaDesde > filters.fechaHasta) {
+        toast.error("La fecha desde no puede ser mayor a la fecha hasta")
+        return
+      }
+
+      await exportReporteExcel({
+        periodo: "RANGO",
+        desde: filters.fechaDesde,
+        hasta: filters.fechaHasta,
+      })
+      return
+    }
+
+    if (filters.periodo === "FECHA") {
+      if (!filters.fecha) {
+        toast.error("Selecciona una fecha")
+        return
+      }
+
+      await exportReporteExcel({
+        periodo: "RANGO",
+        desde: filters.fecha,
+      })
+      return
+    }
+
+    await exportReporteExcel({ periodo: filters.periodo })
   }
 
   return (
@@ -150,16 +137,12 @@ export function VentasHistorialPage() {
         totalShown={filteredVentas.length}
         pageElements={numberOfElements}
         totalElements={totalElements}
+        reportLoading={isExporting}
         onChange={handleFiltersChange}
+        onDownloadReport={() => {
+          void handleDownloadReport()
+        }}
         onClear={handleClearFilters}
-      />
-
-      <VentasHistorialStats
-        ventasPaginaCount={filteredVentas.length}
-        totalElements={totalElements}
-        emitidasCount={totalEmitidas}
-        anuladasCount={totalAnuladas}
-        totalMontoPagina={totalMontoPagina}
       />
 
       <VentasHistorialTable

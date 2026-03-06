@@ -28,18 +28,22 @@ export interface MediaItem {
 }
 
 export interface VariantValues {
+  idProductoVariante?: number | null
   sku: string
-  codigoExterno: string
   precio: string
+  ofertaActiva: boolean
+  precioOferta: string
   stock: string
 }
 
 export interface VariantRow {
   key: string
+  idProductoVariante?: number | null
   color: Color
   talla: Talla
   sku: string
-  codigoExterno: string
   precio: string
+  ofertaActiva: boolean
+  precioOferta: string
   stock: string
 }

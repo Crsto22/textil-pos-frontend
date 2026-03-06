@@ -54,6 +54,18 @@ function getValorInventarioTotal(variantes: ProductoDetalleVariante[]): number {
   )
 }
 
+function hasValidPrecioOferta(
+  precio: number | null | undefined,
+  precioOferta: number | null | undefined
+): precioOferta is number {
+  return (
+    typeof precio === "number" &&
+    typeof precioOferta === "number" &&
+    precioOferta > 0 &&
+    precioOferta < precio
+  )
+}
+
 function getPrincipalImage(
   detalle: ProductoDetalleResponse | null,
   colorId: number | null
@@ -73,18 +85,6 @@ function getPrincipalImage(
   const candidate = principal ?? detalle.imagenes[0]
   if (!candidate) return null
   return candidate.urlThumb || candidate.url || null
-}
-
-function getCodigoExterno(detalle: ProductoDetalleResponse | null): string {
-  const fromProducto = detalle?.producto.codigoExterno?.trim()
-  if (fromProducto) return fromProducto
-
-  const fromVariante = detalle?.variantes.find(
-    (variante) => typeof variante.codigoExterno === "string" && variante.codigoExterno !== ""
-  )?.codigoExterno
-  if (fromVariante) return fromVariante
-
-  return "Sin codigo externo"
 }
 
 function getUniqueSkuCount(
@@ -167,8 +167,8 @@ interface ColorTallaItem {
   tallaId: number
   nombre: string
   sku: string | null
-  codigoExterno: string | null
   precio: number | null
+  precioOferta: number | null
   stock: number | null
   estado: string | null
 }
@@ -188,8 +188,9 @@ function buildTallasPorColor(
         tallaId: variante.tallaId,
         nombre: variante.tallaNombre?.trim() || "Sin talla",
         sku: variante.sku ?? null,
-        codigoExterno: variante.codigoExterno ?? null,
         precio: typeof variante.precio === "number" ? variante.precio : null,
+        precioOferta:
+          typeof variante.precioOferta === "number" ? variante.precioOferta : null,
         stock: typeof variante.stock === "number" ? variante.stock : null,
         estado: variante.estado ?? null,
       }))
@@ -204,8 +205,9 @@ function buildTallasPorColor(
     tallaId: talla.tallaId,
     nombre: talla.nombre,
     sku: talla.sku ?? null,
-    codigoExterno: talla.codigoExterno ?? null,
     precio: typeof talla.precio === "number" ? talla.precio : null,
+    precioOferta:
+      typeof talla.precioOferta === "number" ? talla.precioOferta : null,
     stock: typeof talla.stock === "number" ? talla.stock : null,
     estado: talla.estado ?? null,
   }))
@@ -499,15 +501,21 @@ function ProductoDetallePanelComponent({
                           SKU: {talla.sku}
                         </span>
                       )}
-                      {talla.codigoExterno && (
-                        <span className="rounded border px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
-                          EXT: {talla.codigoExterno}
-                        </span>
-                      )}
-                      {typeof talla.precio === "number" && (
-                        <span className="rounded border px-1.5 py-0.5 text-[10px] text-blue-700 dark:text-blue-300">
-                          {formatMonedaPen(talla.precio)}
-                        </span>
+                      {hasValidPrecioOferta(talla.precio, talla.precioOferta) ? (
+                        <>
+                          <span className="rounded border px-1.5 py-0.5 text-[10px] text-muted-foreground line-through">
+                            {formatMonedaPen(talla.precio)}
+                          </span>
+                          <span className="rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] text-emerald-700 dark:border-emerald-800/40 dark:bg-emerald-900/20 dark:text-emerald-300">
+                            Oferta: {formatMonedaPen(talla.precioOferta)}
+                          </span>
+                        </>
+                      ) : (
+                        typeof talla.precio === "number" && (
+                          <span className="rounded border px-1.5 py-0.5 text-[10px] text-blue-700 dark:text-blue-300">
+                            {formatMonedaPen(talla.precio)}
+                          </span>
+                        )
                       )}
                       {talla.estado && (
                         <span
@@ -533,10 +541,6 @@ function ProductoDetallePanelComponent({
       <div className="space-y-2 rounded-xl border bg-muted/30 p-3">
         <p className="text-xs font-semibold text-foreground">Detalles Tecnicos</p>
         <dl className="space-y-1 text-xs">
-          <div className="flex justify-between gap-2 text-foreground">
-            <dt className="text-muted-foreground">ID Externo</dt>
-            <dd className="text-right">{getCodigoExterno(detalle)}</dd>
-          </div>
           <div className="flex justify-between gap-2 text-foreground">
             <dt className="text-muted-foreground">Fecha Creacion</dt>
             <dd className="text-right">{formatFechaCreacion(producto.fechaCreacion)}</dd>

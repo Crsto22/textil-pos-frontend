@@ -40,11 +40,21 @@ export async function POST(request: NextRequest) {
     }
 
     const text = await backendRes.text()
-    let data: Record<string, unknown>
+    let data: Record<string, unknown> = {}
     try {
       data = JSON.parse(text)
     } catch {
       data = { message: text || "Error desconocido" }
+    }
+
+    if (!backendRes.ok) {
+      const message =
+        typeof data.message === "string"
+          ? data.message
+          : typeof data.error === "string"
+            ? data.error
+            : "Error al registrar venta"
+      return NextResponse.json({ message }, { status: backendRes.status })
     }
 
     return NextResponse.json(data, { status: backendRes.status })

@@ -7,7 +7,6 @@ export interface Producto {
   descripcion: string
   estado: string
   fechaCreacion: string
-  codigoExterno: string | null
   idCategoria: number | null
   nombreCategoria: string
   idSucursal: number | null
@@ -34,8 +33,8 @@ export interface ProductoResumenTalla {
   tallaId: number
   nombre: string
   sku?: string | null
-  codigoExterno?: string | null
   precio?: number | null
+  precioOferta?: number | null
   stock?: number | null
   estado?: string | null
 }
@@ -57,8 +56,8 @@ export interface ProductoVarianteCreateRequest {
   colorId: number
   tallaId: number
   sku: string
-  codigoExterno?: string | null
   precio: number
+  precioOferta?: number | null
   stock: number
 }
 
@@ -130,13 +129,13 @@ export interface ProductoInsertarCompletoResponse {
 export interface ProductoDetalleVariante {
   idProductoVariante: number
   sku: string
-  codigoExterno: string | null
   colorId: number
   colorNombre: string
   colorHex: string
   tallaId: number
   tallaNombre: string
   precio: number
+  precioOferta: number | null
   stock: number
   estado: string
 }

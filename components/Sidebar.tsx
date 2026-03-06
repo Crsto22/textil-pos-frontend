@@ -94,6 +94,12 @@ const navSections: SidebarSection[] = [
         ],
     },
     {
+        subtitle: "Reportes",
+        items: [
+            { label: "Reportes", href: "/reportes", icon: ClipboardDocumentListIcon, iconActive: ClipboardDocumentListIconSolid },
+        ],
+    },
+    {
         subtitle: "Configuracion",
         items: [
             { label: "Empresa", href: "/configuracion/empresa", icon: Cog6ToothIcon, iconActive: Cog6ToothIconSolid },

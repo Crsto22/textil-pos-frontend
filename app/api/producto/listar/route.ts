@@ -14,6 +14,8 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const page = searchParams.get("page") ?? "0"
+    const idCategoria = searchParams.get("idCategoria")
+    const idColor = searchParams.get("idColor")
 
     const authHeader = request.headers.get("authorization")
     const headers: HeadersInit = {}
@@ -23,8 +25,20 @@ export async function GET(request: NextRequest) {
 
     let backendRes: Response
     try {
+      const backendParams = new URLSearchParams({
+        page,
+      })
+
+      if (idCategoria?.trim()) {
+        backendParams.set("idCategoria", idCategoria)
+      }
+
+      if (idColor?.trim()) {
+        backendParams.set("idColor", idColor)
+      }
+
       backendRes = await fetch(
-        `${BACKEND_URL}/api/producto/listar?page=${encodeURIComponent(page)}`,
+        `${BACKEND_URL}/api/producto/listar?${backendParams.toString()}`,
         { headers }
       )
     } catch {

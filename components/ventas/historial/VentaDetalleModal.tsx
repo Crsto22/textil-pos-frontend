@@ -14,9 +14,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { authFetch } from "@/lib/auth/auth-fetch"
 import { formatComprobante, formatFechaHora, formatMonto } from "@/components/ventas/historial/historial.utils"
-import { downloadVentaTicketPdf } from "@/components/ventas/historial/venta-ticket-pdf"
-import { useCompany } from "@/lib/company/company-context"
 import type { VentaDetalleResponse } from "@/lib/types/venta"
 
 interface VentaDetalleModalProps {
@@ -33,6 +32,22 @@ function renderDescuentoLabel(tipoDescuento: string | null): string {
   return tipoDescuento
 }
 
+function resolveComprobanteFilename(contentDisposition: string | null, idVenta: number): string {
+  if (typeof contentDisposition === "string" && contentDisposition.trim() !== "") {
+    const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i)
+    if (utf8Match?.[1]) {
+      return decodeURIComponent(utf8Match[1].trim())
+    }
+
+    const plainMatch = contentDisposition.match(/filename="?([^";]+)"?/i)
+    if (plainMatch?.[1]) {
+      return plainMatch[1].trim()
+    }
+  }
+
+  return `comprobante_venta_${idVenta}.pdf`
+}
+
 export function VentaDetalleModal({
   open,
   detalle,
@@ -41,26 +56,54 @@ export function VentaDetalleModal({
   onOpenChange,
   onRetry,
 }: VentaDetalleModalProps) {
-  const { company } = useCompany()
-  const [downloadingPdf, setDownloadingPdf] = useState(false)
+  const [downloadingComprobante, setDownloadingComprobante] = useState(false)
 
-  const handleDownloadPdf = async () => {
-    if (!detalle || downloadingPdf) return
-    setDownloadingPdf(true)
+  const handleDownloadComprobante = async () => {
+    if (!detalle || downloadingComprobante) return
 
-    const downloaded = await downloadVentaTicketPdf({
-      detalle,
-      company,
-    })
+    setDownloadingComprobante(true)
+    try {
+      const response = await authFetch(`/api/venta/${detalle.idVenta}/comprobante/pdf`, {
+        method: "GET",
+        cache: "no-store",
+      })
 
-    if (!downloaded) {
-      toast.error("No se pudo generar el PDF de la venta.")
-      setDownloadingPdf(false)
-      return
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null)
+        const message =
+          payload &&
+          typeof payload === "object" &&
+          "message" in payload &&
+          typeof payload.message === "string"
+            ? payload.message
+            : `Error ${response.status} al descargar comprobante`
+        toast.error(message)
+        return
+      }
+
+      const blob = await response.blob()
+      const contentDisposition = response.headers.get("content-disposition")
+      const fileName = resolveComprobanteFilename(contentDisposition, detalle.idVenta)
+
+      const downloadUrl = URL.createObjectURL(blob)
+      const anchor = document.createElement("a")
+      anchor.href = downloadUrl
+      anchor.download = fileName
+      document.body.appendChild(anchor)
+      anchor.click()
+      document.body.removeChild(anchor)
+      URL.revokeObjectURL(downloadUrl)
+
+      toast.success("Comprobante descargado correctamente.")
+    } catch (requestError) {
+      const message =
+        requestError instanceof Error
+          ? requestError.message
+          : "No se pudo descargar el comprobante"
+      toast.error(message)
+    } finally {
+      setDownloadingComprobante(false)
     }
-
-    toast.success("PDF descargado correctamente.")
-    setDownloadingPdf(false)
   }
 
   return (
@@ -110,18 +153,19 @@ export function VentaDetalleModal({
                     <button
                       type="button"
                       onClick={() => {
-                        void handleDownloadPdf()
+                        void handleDownloadComprobante()
                       }}
-                      disabled={downloadingPdf}
+                      disabled={downloadingComprobante}
                       className="inline-flex items-center gap-2 rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-blue-700/50 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/35"
                     >
-                      {downloadingPdf ? (
+                      {downloadingComprobante ? (
                         <ArrowPathIcon className="h-4 w-4 animate-spin" />
                       ) : (
                         <ArrowDownTrayIcon className="h-4 w-4" />
                       )}
-                      {downloadingPdf ? "Descargando..." : "Descargar PDF"}
+                      {downloadingComprobante ? "Descargando..." : "Descargar comprobante"}
                     </button>
+
                     <span className="rounded-full border px-3 py-1 text-xs font-semibold">
                       {detalle.estado}
                     </span>
@@ -156,6 +200,7 @@ export function VentaDetalleModal({
                         <th className="px-3 py-2 text-left">SKU</th>
                         <th className="px-3 py-2 text-left">Variante</th>
                         <th className="px-3 py-2 text-center">Cant.</th>
+                        <th className="px-3 py-2 text-right">P. Oferta</th>
                         <th className="px-3 py-2 text-right">P. Unit</th>
                         <th className="px-3 py-2 text-right">Desc.</th>
                         <th className="px-3 py-2 text-right">Subtotal</th>
@@ -170,6 +215,11 @@ export function VentaDetalleModal({
                             {item.color || "-"} / {item.talla || "-"}
                           </td>
                           <td className="px-3 py-2 text-center font-semibold">{item.cantidad}</td>
+                          <td className="px-3 py-2 text-right">
+                            {typeof item.precioOferta === "number"
+                              ? formatMonto(item.precioOferta)
+                              : "-"}
+                          </td>
                           <td className="px-3 py-2 text-right">{formatMonto(item.precioUnitario)}</td>
                           <td className="px-3 py-2 text-right">{formatMonto(item.descuento)}</td>
                           <td className="px-3 py-2 text-right font-semibold">{formatMonto(item.subtotal)}</td>
@@ -196,7 +246,7 @@ export function VentaDetalleModal({
                           Ref: {pago.referencia || "-"}
                         </span>
                         <span className="text-xs text-muted-foreground">
-                          {formatFechaHora(pago.fecha)}
+                          {pago.fecha ? formatFechaHora(pago.fecha) : "-"}
                         </span>
                       </div>
                       <span className="font-semibold">{formatMonto(pago.monto)}</span>

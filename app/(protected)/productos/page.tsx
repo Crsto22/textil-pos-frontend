@@ -6,13 +6,18 @@ import { MagnifyingGlassIcon } from "@heroicons/react/24/outline"
 
 import { ProductoDetallePanel } from "@/components/productos/ProductoDetallePanel"
 import { ProductosCards } from "@/components/productos/ProductosCards"
-import { ProductosHeader } from "@/components/productos/ProductosHeader"
+import {
+  ProductosHeader,
+  type ProductosViewMode,
+} from "@/components/productos/ProductosHeader"
 import { ProductosPagination } from "@/components/productos/ProductosPagination"
+import { ProductosTable } from "@/components/productos/ProductosTable"
 import { ProductoDeleteDialog } from "@/components/productos/modals/ProductoDeleteDialog"
-import { Input } from "@/components/ui/input"
-import { Switch } from "@/components/ui/switch"
+import CategoryFilter from "@/components/ventas/CategoryFilter"
 import { authFetch } from "@/lib/auth/auth-fetch"
 import { useProductos } from "@/lib/hooks/useProductos"
+import type { Categoria, PageResponse as CategoriaPageResponse } from "@/lib/types/categoria"
+import type { Color, PageResponse as ColorPageResponse } from "@/lib/types/color"
 import type { ProductoDetalleResponse, ProductoResumen } from "@/lib/types/producto"
 
 function parseJsonSafe(response: Response) {
@@ -33,6 +38,58 @@ interface FetchDetalleOptions {
   preserveData?: boolean
 }
 
+interface CategoryFilterOption {
+  id: number
+  name: string
+}
+
+interface ColorFilterOption {
+  id: number
+  name: string
+  hex: string | null | undefined
+}
+
+function mapCategoryFilters(payload: unknown): CategoryFilterOption[] {
+  const pageData = payload as CategoriaPageResponse<Categoria> | null
+  const content = Array.isArray(pageData?.content) ? pageData.content : []
+
+  return content
+    .filter((categoria) => {
+      if (typeof categoria?.idCategoria !== "number" || categoria.idCategoria <= 0) {
+        return false
+      }
+      const estado = String(categoria?.estado ?? "").trim().toUpperCase()
+      return !estado || estado === "ACTIVO"
+    })
+    .map((categoria) => {
+      const name = categoria.nombreCategoria?.trim()
+      return {
+        id: categoria.idCategoria,
+        name: name && name.length > 0 ? name : `Categoria #${categoria.idCategoria}`,
+      }
+    })
+}
+
+function mapColorFilters(payload: unknown): ColorFilterOption[] {
+  const pageData = payload as ColorPageResponse<Color> | null
+  const content = Array.isArray(pageData?.content) ? pageData.content : []
+
+  return content
+    .filter((color) => {
+      if (typeof color?.idColor !== "number" || color.idColor <= 0) return false
+      const estado = String(color?.estado ?? "").trim().toUpperCase()
+      return !estado || estado === "ACTIVO"
+    })
+    .map((color) => {
+      const name = color.nombre?.trim()
+      return {
+        id: color.idColor,
+        name: name && name.length > 0 ? name : `Color #${color.idColor}`,
+        hex: color.codigo,
+      }
+    })
+}
+
 export default function ProductosPage() {
   const router = useRouter()
   const [deleteTarget, setDeleteTarget] = useState<ProductoResumen | null>(null)
@@ -43,14 +100,23 @@ export default function ProductosPage() {
   const [detalleLoading, setDetalleLoading] = useState(false)
   const [detalleError, setDetalleError] = useState<string | null>(null)
   const detalleAbortRef = useRef<AbortController | null>(null)
-
-  const [categoriaFilter, setCategoriaFilter] = useState("TODAS")
-  const [colorFilter, setColorFilter] = useState("TODOS")
-  const [onlyActive, setOnlyActive] = useState(false)
+  const [viewMode, setViewMode] = useState<ProductosViewMode>("cards")
+  const [categoriasDisponibles, setCategoriasDisponibles] = useState<CategoryFilterOption[]>(
+    []
+  )
+  const [categoryPage, setCategoryPage] = useState(0)
+  const [categoryTotalPages, setCategoryTotalPages] = useState(1)
+  const [coloresDisponibles, setColoresDisponibles] = useState<ColorFilterOption[]>([])
+  const [colorPage, setColorPage] = useState(0)
+  const [colorTotalPages, setColorTotalPages] = useState(1)
 
   const {
     search,
     setSearch,
+    idCategoriaFilter,
+    idColorFilter,
+    setIdCategoriaFilter,
+    setIdColorFilter,
     displayedProductos,
     displayedLoading,
     displayedTotalElements,
@@ -60,49 +126,106 @@ export default function ProductosPage() {
     deleteProducto,
   } = useProductos()
 
-  const categoriasDisponibles = useMemo(() => {
-    const values = new Set<string>()
-    displayedProductos.forEach((producto) => {
-      const categoria = producto.nombreCategoria?.trim()
-      if (categoria) values.add(categoria)
-    })
-    return Array.from(values).sort((a, b) => a.localeCompare(b))
-  }, [displayedProductos])
+  useEffect(() => {
+    const fetchCategorias = async () => {
+      try {
+        const response = await authFetch(`/api/categoria/listar?page=${categoryPage}`)
+        const data = await parseJsonSafe(response)
 
-  const coloresDisponibles = useMemo(() => {
-    const values = new Set<string>()
-    displayedProductos.forEach((producto) => {
-      producto.colores.forEach((color) => {
-        const nombre = color.nombre?.trim()
-        if (nombre) values.add(nombre)
-      })
-    })
-    return Array.from(values).sort((a, b) => a.localeCompare(b))
-  }, [displayedProductos])
+        if (!response.ok) {
+          setCategoriasDisponibles([])
+          setCategoryTotalPages(1)
+          return
+        }
+
+        const pageData = data as CategoriaPageResponse<Categoria> | null
+        const totalPages =
+          typeof pageData?.totalPages === "number" && pageData.totalPages > 0
+            ? pageData.totalPages
+            : 1
+
+        if (categoryPage > totalPages - 1) {
+          setCategoryPage(Math.max(0, totalPages - 1))
+          return
+        }
+
+        setCategoriasDisponibles(mapCategoryFilters(data))
+        setCategoryTotalPages(totalPages)
+      } catch {
+        setCategoriasDisponibles([])
+        setCategoryTotalPages(1)
+      }
+    }
+
+    void fetchCategorias()
+  }, [categoryPage])
 
   useEffect(() => {
-    if (categoriaFilter === "TODAS") return
-    if (categoriasDisponibles.includes(categoriaFilter)) return
-    setCategoriaFilter("TODAS")
-  }, [categoriaFilter, categoriasDisponibles])
+    const fetchColores = async () => {
+      try {
+        const response = await authFetch(`/api/color/listar?page=${colorPage}`)
+        const data = await parseJsonSafe(response)
 
-  useEffect(() => {
-    if (colorFilter === "TODOS") return
-    if (coloresDisponibles.includes(colorFilter)) return
-    setColorFilter("TODOS")
-  }, [colorFilter, coloresDisponibles])
+        if (!response.ok) {
+          setColoresDisponibles([])
+          setColorTotalPages(1)
+          return
+        }
 
-  const productosFiltrados = useMemo(() => {
-    return displayedProductos.filter((producto) => {
-      const sameCategoria =
-        categoriaFilter === "TODAS" || producto.nombreCategoria === categoriaFilter
-      const hasColor =
-        colorFilter === "TODOS" ||
-        producto.colores.some((color) => color.nombre === colorFilter)
-      const activeOk = !onlyActive || producto.estado === "ACTIVO"
-      return sameCategoria && hasColor && activeOk
-    })
-  }, [categoriaFilter, colorFilter, displayedProductos, onlyActive])
+        const pageData = data as ColorPageResponse<Color> | null
+        const totalPages =
+          typeof pageData?.totalPages === "number" && pageData.totalPages > 0
+            ? pageData.totalPages
+            : 1
+
+        if (colorPage > totalPages - 1) {
+          setColorPage(Math.max(0, totalPages - 1))
+          return
+        }
+
+        setColoresDisponibles(mapColorFilters(data))
+        setColorTotalPages(totalPages)
+      } catch {
+        setColoresDisponibles([])
+        setColorTotalPages(1)
+      }
+    }
+
+    void fetchColores()
+  }, [colorPage])
+
+  const safeCategoryPage = Math.max(
+    0,
+    Math.min(categoryPage, Math.max(0, categoryTotalPages - 1))
+  )
+  const canGoPrevCategoryPage = safeCategoryPage > 0
+  const canGoNextCategoryPage = safeCategoryPage < categoryTotalPages - 1
+
+  const handleNextCategoryPage = useCallback(() => {
+    if (!canGoNextCategoryPage) return
+    setCategoryPage((previous) => previous + 1)
+  }, [canGoNextCategoryPage])
+
+  const handlePrevCategoryPage = useCallback(() => {
+    if (!canGoPrevCategoryPage) return
+    setCategoryPage((previous) => Math.max(0, previous - 1))
+  }, [canGoPrevCategoryPage])
+
+  const safeColorPage = Math.max(0, Math.min(colorPage, Math.max(0, colorTotalPages - 1)))
+  const canGoPrevColorPage = safeColorPage > 0
+  const canGoNextColorPage = safeColorPage < colorTotalPages - 1
+
+  const handleNextColorPage = useCallback(() => {
+    if (!canGoNextColorPage) return
+    setColorPage((previous) => previous + 1)
+  }, [canGoNextColorPage])
+
+  const handlePrevColorPage = useCallback(() => {
+    if (!canGoPrevColorPage) return
+    setColorPage((previous) => Math.max(0, previous - 1))
+  }, [canGoPrevColorPage])
+
+  const productosFiltrados = displayedProductos
 
   useEffect(() => {
     if (productosFiltrados.length === 0) {
@@ -258,78 +381,73 @@ export default function ProductosPage() {
 
   return (
     <div className="space-y-5">
-      <section className="rounded-2xl border bg-card p-4 shadow-sm">
-        <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-center 2xl:justify-between">
-          <div className="space-y-3 2xl:max-w-3xl">
-            <div className="relative">
-              <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Buscar por nombre, SKU o categoria..."
-                className="h-10 pl-10"
-              />
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <label className="inline-flex items-center gap-2 rounded-full border bg-background px-3 py-1.5">
-                <span className="text-xs text-muted-foreground">Categoria:</span>
-                <select
-                  value={categoriaFilter}
-                  onChange={(event) => setCategoriaFilter(event.target.value)}
-                  className="bg-transparent text-xs text-foreground outline-none"
-                >
-                  <option value="TODAS">Todas</option>
-                  {categoriasDisponibles.map((categoria) => (
-                    <option key={categoria} value={categoria}>
-                      {categoria}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="inline-flex items-center gap-2 rounded-full border bg-background px-3 py-1.5">
-                <span className="text-xs text-muted-foreground">Color:</span>
-                <select
-                  value={colorFilter}
-                  onChange={(event) => setColorFilter(event.target.value)}
-                  className="bg-transparent text-xs text-foreground outline-none"
-                >
-                  <option value="TODOS">Todos</option>
-                  {coloresDisponibles.map((color) => (
-                    <option key={color} value={color}>
-                      {color}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="inline-flex items-center gap-2 rounded-full border bg-background px-3 py-1.5">
-                <span className="text-xs text-muted-foreground">Solo activos</span>
-                <Switch checked={onlyActive} onCheckedChange={setOnlyActive} />
-              </label>
-            </div>
-
-            <p className="text-xs text-muted-foreground">
-              Mostrando {productosFiltrados.length} producto(s) de{" "}
-              {displayedProductos.length} en esta pagina.
-            </p>
+      
+        <div className="flex flex-col gap-3">
+          <div className="relative">
+            <MagnifyingGlassIcon className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Buscar por nombre, SKU o categoria..."
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-sm shadow-sm transition-all placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800"
+            />
           </div>
 
-          <ProductosHeader />
+          <div className="rounded-xl border border-slate-100 bg-white px-3.5 py-3 shadow-sm dark:border-slate-700/60 dark:bg-slate-800/60">
+            <CategoryFilter
+              categories={categoriasDisponibles}
+              colors={coloresDisponibles}
+              activeCategoryId={idCategoriaFilter}
+              onCategoryChange={setIdCategoriaFilter}
+              categoryPage={safeCategoryPage}
+              categoryTotalPages={categoryTotalPages}
+              onCategoryNextPage={handleNextCategoryPage}
+              onCategoryPrevPage={handlePrevCategoryPage}
+              activeColorId={idColorFilter}
+              onColorChange={setIdColorFilter}
+              colorPage={safeColorPage}
+              colorTotalPages={colorTotalPages}
+              onColorNextPage={handleNextColorPage}
+              onColorPrevPage={handlePrevColorPage}
+            />
+          </div>
+
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Mostrando {productosFiltrados.length} producto(s) de {displayedProductos.length} en esta
+            pagina.
+          </p>
+
+          <div className="w-full">
+            <ProductosHeader
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
+            />
+          </div>
         </div>
-      </section>
+      
 
       <section className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_440px] 2xl:grid-cols-[minmax(0,1fr)_500px]">
         <div className="space-y-4">
-          <ProductosCards
-            productos={productosFiltrados}
-            loading={displayedLoading}
-            selectedProductoId={selectedProductoId}
-            onSelectProducto={handleSelectProducto}
-            onEditProducto={handleEditProducto}
-            onDeleteProducto={handleDeleteProducto}
-          />
+          {viewMode === "cards" ? (
+            <ProductosCards
+              productos={productosFiltrados}
+              loading={displayedLoading}
+              selectedProductoId={selectedProductoId}
+              onSelectProducto={handleSelectProducto}
+              onEditProducto={handleEditProducto}
+              onDeleteProducto={handleDeleteProducto}
+            />
+          ) : (
+            <ProductosTable
+              productos={productosFiltrados}
+              loading={displayedLoading}
+              selectedProductoId={selectedProductoId}
+              onSelectProducto={handleSelectProducto}
+              onEditProducto={handleEditProducto}
+              onDeleteProducto={handleDeleteProducto}
+            />
+          )}
 
           <ProductosPagination
             totalElements={displayedTotalElements}

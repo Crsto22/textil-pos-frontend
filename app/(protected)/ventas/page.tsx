@@ -26,12 +26,14 @@ import { useAuth } from "@/lib/auth/auth-context"
 import ProductCard from "@/components/ventas/ProductCard"
 import ProductModal, { type SelectedVariant } from "@/components/ventas/ProductModal"
 import { authFetch } from "@/lib/auth/auth-fetch"
+import { useComprobanteOptions } from "@/lib/hooks/useComprobanteOptions"
 import { useProductos } from "@/lib/hooks/useProductos"
 import { useSucursalOptions } from "@/lib/hooks/useSucursalOptions"
+import type { Categoria, PageResponse as CategoriaPageResponse } from "@/lib/types/categoria"
+import type { Color, PageResponse as ColorPageResponse } from "@/lib/types/color"
 import type { ProductoResumen } from "@/lib/types/producto"
 
 const DEFAULT_CLIENT: ClientSelection = { idCliente: null, nombre: "Cliente Generico" }
-const TIPO_COMPROBANTE_TICKET = "TICKET"
 const IGV_PORCENTAJE_SIN_APLICAR = 0
 
 function LiveClock() {
@@ -88,33 +90,60 @@ function hasValidSucursalId(idSucursal?: number | null): idSucursal is number {
   return typeof idSucursal === "number" && idSucursal > 0
 }
 
+interface CategoryFilterOption {
+  id: number
+  name: string
+}
+
 interface ColorFilterOption {
+  id: number
   name: string
   hex: string | null | undefined
 }
 
-function buildColorFilters(productos: ProductoResumen[]): ColorFilterOption[] {
-  const colorMap = new Map<string, ColorFilterOption>()
+async function parseJsonSafe(response: Response) {
+  return response.json().catch(() => null)
+}
 
-  productos.forEach((producto) => {
-    producto.colores.forEach((color) => {
-      const name = color.nombre?.trim() ?? ""
-      if (!name) return
+function mapColorFilters(payload: unknown): ColorFilterOption[] {
+  const pageData = payload as ColorPageResponse<Color> | null
+  const content = Array.isArray(pageData?.content) ? pageData.content : []
 
-      const key = name.toLowerCase()
-      const previous = colorMap.get(key)
-      if (!previous) {
-        colorMap.set(key, { name, hex: color.hex })
-        return
-      }
-
-      if ((previous.hex === null || previous.hex === undefined || previous.hex === "") && color.hex) {
-        colorMap.set(key, { name: previous.name, hex: color.hex })
+  return content
+    .filter((color) => {
+      if (typeof color?.idColor !== "number" || color.idColor <= 0) return false
+      const estado = String(color?.estado ?? "").trim().toUpperCase()
+      return !estado || estado === "ACTIVO"
+    })
+    .map((color) => {
+      const name = color.nombre?.trim()
+      return {
+        id: color.idColor,
+        name: name && name.length > 0 ? name : `Color #${color.idColor}`,
+        hex: color.codigo,
       }
     })
-  })
+}
 
-  return Array.from(colorMap.values()).sort((a, b) => a.name.localeCompare(b.name))
+function mapCategoryFilters(payload: unknown): CategoryFilterOption[] {
+  const pageData = payload as CategoriaPageResponse<Categoria> | null
+  const content = Array.isArray(pageData?.content) ? pageData.content : []
+
+  return content
+    .filter((categoria) => {
+      if (typeof categoria?.idCategoria !== "number" || categoria.idCategoria <= 0) {
+        return false
+      }
+      const estado = String(categoria?.estado ?? "").trim().toUpperCase()
+      return !estado || estado === "ACTIVO"
+    })
+    .map((categoria) => {
+      const name = categoria.nombreCategoria?.trim()
+      return {
+        id: categoria.idCategoria,
+        name: name && name.length > 0 ? name : `Categoria #${categoria.idCategoria}`,
+      }
+    })
 }
 
 function extractVentaId(payload: unknown): number | null {
@@ -155,6 +184,10 @@ export default function VentasPage() {
   const {
     search,
     setSearch,
+    idCategoriaFilter,
+    idColorFilter,
+    setIdCategoriaFilter,
+    setIdColorFilter,
     displayedProductos,
     displayedTotalElements,
     displayedTotalPages,
@@ -165,19 +198,23 @@ export default function VentasPage() {
     refreshCurrentView,
   } = useProductos()
 
-  const [activeCategory, setActiveCategory] = useState("Todos")
-  const [activeColor, setActiveColor] = useState<string | null>(null)
-
   const [cart, setCart] = useState<CartItemData[]>([])
   const [selectedPayment, setSelectedPayment] = useState<PaymentKey | null>(null)
   const [selectedClient, setSelectedClient] = useState<ClientSelection>(DEFAULT_CLIENT)
   const [selectedSucursalId, setSelectedSucursalId] = useState<number | null>(null)
+  const [selectedComprobanteId, setSelectedComprobanteId] = useState("")
   const [modalProduct, setModalProduct] = useState<ProductoResumen | null>(null)
   const [submittingVenta, setSubmittingVenta] = useState(false)
   const [ventaError, setVentaError] = useState<string | null>(null)
   const [activeMetodosPago, setActiveMetodosPago] = useState<MetodoPagoActivo[] | undefined>(
     undefined
   )
+  const [categoriasDisponibles, setCategoriasDisponibles] = useState<CategoryFilterOption[]>([])
+  const [categoryPage, setCategoryPage] = useState(0)
+  const [categoryTotalPages, setCategoryTotalPages] = useState(1)
+  const [coloresDisponibles, setColoresDisponibles] = useState<ColorFilterOption[]>([])
+  const [colorPage, setColorPage] = useState(0)
+  const [colorTotalPages, setColorTotalPages] = useState(1)
 
   const {
     sucursalOptions,
@@ -187,83 +224,166 @@ export default function VentasPage() {
     setSearchSucursal,
   } = useSucursalOptions(isAdmin)
 
-  const categoriasDisponibles = useMemo(() => {
-    const values = new Set<string>()
-    displayedProductos.forEach((producto) => {
-      const categoria = producto.nombreCategoria?.trim()
-      if (categoria) values.add(categoria)
-    })
-    return Array.from(values).sort((a, b) => a.localeCompare(b))
-  }, [displayedProductos])
-
-  const coloresDisponibles = useMemo(
-    () => buildColorFilters(displayedProductos),
-    [displayedProductos]
-  )
-
   useEffect(() => {
-    if (activeCategory === "Todos") return
-    if (categoriasDisponibles.includes(activeCategory)) return
-    setActiveCategory("Todos")
-  }, [activeCategory, categoriasDisponibles])
+    const fetchCategorias = async () => {
+      try {
+        const response = await authFetch(`/api/categoria/listar?page=${categoryPage}`)
+        const data = await parseJsonSafe(response)
 
-  useEffect(() => {
-    if (activeColor === null) return
-    if (coloresDisponibles.some((color) => color.name.toLowerCase() === activeColor.toLowerCase())) {
-      return
-    }
-    setActiveColor(null)
-  }, [activeColor, coloresDisponibles])
+        if (!response.ok) {
+          setCategoriasDisponibles([])
+          setCategoryTotalPages(1)
+          return
+        }
 
-  useEffect(() => {
-    if (!isAdmin) {
-      setSelectedSucursalId(null)
-      return
+        const pageData = data as CategoriaPageResponse<Categoria> | null
+        const totalPages =
+          typeof pageData?.totalPages === "number" && pageData.totalPages > 0
+            ? pageData.totalPages
+            : 1
+
+        if (categoryPage > totalPages - 1) {
+          setCategoryPage(Math.max(0, totalPages - 1))
+          return
+        }
+
+        setCategoriasDisponibles(mapCategoryFilters(data))
+        setCategoryTotalPages(totalPages)
+      } catch {
+        setCategoriasDisponibles([])
+        setCategoryTotalPages(1)
+      }
     }
 
-    if (hasValidSucursalId(selectedSucursalId)) return
-    if (hasValidSucursalId(user?.idSucursal)) {
-      setSelectedSucursalId(user.idSucursal)
-    }
-  }, [isAdmin, selectedSucursalId, user?.idSucursal])
+    void fetchCategorias()
+  }, [categoryPage])
 
-  const hasSelectedSucursal = hasValidSucursalId(selectedSucursalId)
+  useEffect(() => {
+    const fetchColores = async () => {
+      try {
+        const response = await authFetch(`/api/color/listar?page=${colorPage}`)
+        const data = await parseJsonSafe(response)
+
+        if (!response.ok) {
+          setColoresDisponibles([])
+          setColorTotalPages(1)
+          return
+        }
+
+        const pageData = data as ColorPageResponse<Color> | null
+        const totalPages =
+          typeof pageData?.totalPages === "number" && pageData.totalPages > 0
+            ? pageData.totalPages
+            : 1
+
+        if (colorPage > totalPages - 1) {
+          setColorPage(Math.max(0, totalPages - 1))
+          return
+        }
+
+        setColoresDisponibles(mapColorFilters(data))
+        setColorTotalPages(totalPages)
+      } catch {
+        setColoresDisponibles([])
+        setColorTotalPages(1)
+      }
+    }
+
+    void fetchColores()
+  }, [colorPage])
+
+  const defaultAdminSucursalId =
+    isAdmin && hasValidSucursalId(user?.idSucursal) ? user.idSucursal : null
+  const effectiveSelectedSucursalId = hasValidSucursalId(selectedSucursalId)
+    ? selectedSucursalId
+    : defaultAdminSucursalId
+  const hasSelectedSucursal = hasValidSucursalId(effectiveSelectedSucursalId)
 
   const sucursalComboboxOptions = useMemo<ComboboxOption[]>(
     () =>
       hasSelectedSucursal &&
-      !sucursalOptions.some((option) => option.value === String(selectedSucursalId))
+      !sucursalOptions.some(
+        (option) => option.value === String(effectiveSelectedSucursalId)
+      )
         ? [
             {
-              value: String(selectedSucursalId),
-              label: `Sucursal #${selectedSucursalId}`,
+              value: String(effectiveSelectedSucursalId),
+              label: `Sucursal #${effectiveSelectedSucursalId}`,
             },
             ...sucursalOptions,
           ]
         : sucursalOptions,
-    [hasSelectedSucursal, selectedSucursalId, sucursalOptions]
+    [effectiveSelectedSucursalId, hasSelectedSucursal, sucursalOptions]
   )
 
   const resolvedSucursalId = isAdmin
     ? hasSelectedSucursal
-      ? selectedSucursalId
+      ? effectiveSelectedSucursalId
       : null
     : userHasSucursal
       ? user?.idSucursal ?? null
       : null
 
-  const filteredProductos = useMemo(() => {
-    return displayedProductos.filter((producto) => {
-      const sameCategory =
-        activeCategory === "Todos" || producto.nombreCategoria === activeCategory
-      const hasColor =
-        activeColor === null ||
-        producto.colores.some(
-          (color) => color.nombre.trim().toLowerCase() === activeColor.toLowerCase()
-        )
-      return sameCategory && hasColor
-    })
-  }, [activeCategory, activeColor, displayedProductos])
+  const {
+    comprobantes,
+    comprobanteOptions,
+    loadingComprobantes,
+    errorComprobantes,
+    searchComprobante,
+    setSearchComprobante,
+  } = useComprobanteOptions({
+    enabled: true,
+    idSucursal: resolvedSucursalId,
+  })
+
+  const effectiveSelectedComprobanteId = useMemo(() => {
+    if (comprobanteOptions.length === 0) return ""
+    const exists = comprobanteOptions.some(
+      (option) => option.value === selectedComprobanteId
+    )
+    return exists ? selectedComprobanteId : comprobanteOptions[0].value
+  }, [comprobanteOptions, selectedComprobanteId])
+
+  const selectedComprobante = useMemo(
+    () =>
+      comprobantes.find(
+        (item) => String(item.idComprobante) === effectiveSelectedComprobanteId
+      ) ?? null,
+    [comprobantes, effectiveSelectedComprobanteId]
+  )
+
+  const safeCategoryPage = Math.max(
+    0,
+    Math.min(categoryPage, Math.max(0, categoryTotalPages - 1))
+  )
+  const canGoPrevCategoryPage = safeCategoryPage > 0
+  const canGoNextCategoryPage = safeCategoryPage < categoryTotalPages - 1
+
+  const handleNextCategoryPage = useCallback(() => {
+    if (!canGoNextCategoryPage) return
+    setCategoryPage((previous) => previous + 1)
+  }, [canGoNextCategoryPage])
+
+  const handlePrevCategoryPage = useCallback(() => {
+    if (!canGoPrevCategoryPage) return
+    setCategoryPage((previous) => Math.max(0, previous - 1))
+  }, [canGoPrevCategoryPage])
+
+  const safeColorPage = Math.max(0, Math.min(colorPage, Math.max(0, colorTotalPages - 1)))
+  const canGoPrevColorPage = safeColorPage > 0
+  const canGoNextColorPage = safeColorPage < colorTotalPages - 1
+
+  const handleNextColorPage = useCallback(() => {
+    if (!canGoNextColorPage) return
+    setColorPage((previous) => previous + 1)
+  }, [canGoNextColorPage])
+
+  const handlePrevColorPage = useCallback(() => {
+    if (!canGoPrevColorPage) return
+    setColorPage((previous) => Math.max(0, previous - 1))
+  }, [canGoPrevColorPage])
+
+  const filteredProductos = displayedProductos
 
   const total = cart.reduce((sum, item) => sum + item.precio * item.cantidad, 0)
   const totalItems = cart.reduce((sum, item) => sum + item.cantidad, 0)
@@ -275,7 +395,8 @@ export default function VentasPage() {
     cart.length > 0 &&
     selectedPayment !== null &&
     selectedMetodoPago !== null &&
-    resolvedSucursalId !== null
+    resolvedSucursalId !== null &&
+    selectedComprobante !== null
 
   const confirmHint = useMemo(() => {
     if (cart.length === 0) return "Agrega al menos un producto"
@@ -284,10 +405,24 @@ export default function VentasPage() {
         ? "Selecciona una sucursal"
         : "Tu usuario no tiene sucursal asignada"
     }
+    if (selectedComprobante === null) {
+      if (loadingComprobantes) return "Cargando tipos de comprobante..."
+      if (errorComprobantes) return errorComprobantes
+      return "Selecciona un tipo de comprobante"
+    }
     if (selectedPayment === null) return "Selecciona un metodo de pago"
     if (selectedMetodoPago === null) return "Selecciona un metodo de pago valido"
     return ""
-  }, [cart.length, isAdmin, resolvedSucursalId, selectedMetodoPago, selectedPayment])
+  }, [
+    cart.length,
+    isAdmin,
+    loadingComprobantes,
+    errorComprobantes,
+    resolvedSucursalId,
+    selectedComprobante,
+    selectedMetodoPago,
+    selectedPayment,
+  ])
 
   useEffect(() => {
     const fetchMetodos = async () => {
@@ -458,20 +593,25 @@ export default function VentasPage() {
       return
     }
 
+    if (!selectedComprobante) {
+      setVentaError("Debe seleccionar un tipo de comprobante valido.")
+      return
+    }
+
     setSubmittingVenta(true)
     setVentaError(null)
     const ventaPromise = (async () => {
       const body = {
         idSucursal: resolvedSucursalId,
         idCliente: selectedClient.idCliente,
-        tipoComprobante: TIPO_COMPROBANTE_TICKET,
+        tipoComprobante: selectedComprobante.tipoComprobante,
         igvPorcentaje: IGV_PORCENTAJE_SIN_APLICAR,
-        descuentoTotal: 0,
+        descuentoTotal: null,
         tipoDescuento: null,
         detalles: cart.map((item) => ({
           idProductoVariante: item.varianteId as number,
           cantidad: item.cantidad,
-          precioUnitario: item.precio,
+          precioUnitario: null,
           descuento: 0,
         })),
         pagos: [
@@ -539,6 +679,7 @@ export default function VentasPage() {
     resetVentaDraft,
     router,
     selectedClient.idCliente,
+    selectedComprobante,
     selectedMetodoPago,
     selectedPayment,
     submittingVenta,
@@ -571,10 +712,18 @@ export default function VentasPage() {
               <CategoryFilter
                 categories={categoriasDisponibles}
                 colors={coloresDisponibles}
-                activeCategory={activeCategory}
-                onCategoryChange={setActiveCategory}
-                activeColor={activeColor}
-                onColorChange={setActiveColor}
+                activeCategoryId={idCategoriaFilter}
+                onCategoryChange={setIdCategoriaFilter}
+                activeColorId={idColorFilter}
+                onColorChange={setIdColorFilter}
+                categoryPage={safeCategoryPage}
+                categoryTotalPages={categoryTotalPages}
+                onCategoryNextPage={handleNextCategoryPage}
+                onCategoryPrevPage={handlePrevCategoryPage}
+                colorPage={safeColorPage}
+                colorTotalPages={colorTotalPages}
+                onColorNextPage={handleNextColorPage}
+                onColorPrevPage={handlePrevColorPage}
               />
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -641,7 +790,9 @@ export default function VentasPage() {
                 {isAdmin ? (
                   <Combobox
                     id="venta-sucursal"
-                    value={hasSelectedSucursal ? String(selectedSucursalId) : ""}
+                    value={
+                      hasSelectedSucursal ? String(effectiveSelectedSucursalId) : ""
+                    }
                     options={sucursalComboboxOptions}
                     searchValue={searchSucursal}
                     onSearchValueChange={setSearchSucursal}
@@ -667,6 +818,37 @@ export default function VentasPage() {
             </div>
             {isAdmin && errorSucursales && (
               <p className="text-[11px] text-red-500">{errorSucursales}</p>
+            )}
+
+            <div className="flex items-center gap-2">
+              <SectionLabel>Comprobante</SectionLabel>
+              <div className="flex-1">
+                <Combobox
+                  id="venta-comprobante"
+                  value={effectiveSelectedComprobanteId}
+                  options={comprobanteOptions}
+                  searchValue={searchComprobante}
+                  onSearchValueChange={setSearchComprobante}
+                  onValueChange={setSelectedComprobanteId}
+                  placeholder={
+                    resolvedSucursalId
+                      ? "Selecciona comprobante"
+                      : "Selecciona sucursal primero"
+                  }
+                  searchPlaceholder="Buscar comprobante..."
+                  emptyMessage={
+                    resolvedSucursalId
+                      ? "No hay comprobantes activos para esta sucursal"
+                      : "Selecciona una sucursal"
+                  }
+                  loading={loadingComprobantes}
+                  loadingMessage="Cargando comprobantes..."
+                  disabled={resolvedSucursalId === null}
+                />
+              </div>
+            </div>
+            {errorComprobantes && (
+              <p className="text-[11px] text-red-500">{errorComprobantes}</p>
             )}
 
             <div className="flex items-center gap-2">

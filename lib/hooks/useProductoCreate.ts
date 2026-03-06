@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import {
   useCallback,
@@ -154,6 +154,13 @@ function parsePrecio(value: string): number | null {
   return parsed
 }
 
+function parsePrecioOferta(value: string): number | null {
+  if (value.trim() === "") return null
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed) || parsed <= 0) return null
+  return parsed
+}
+
 function parseStock(value: string): number | null {
   if (value.trim() === "") return null
   const parsed = Number(value)
@@ -161,7 +168,7 @@ function parseStock(value: string): number | null {
   return parsed
 }
 
-function mergeCatalogById<T extends { [key: string]: unknown }>(
+function mergeCatalogById<T>(
   previous: Record<number, T>,
   values: T[],
   getId: (value: T) => number
@@ -450,6 +457,7 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
 
   const [variantValues, setVariantValues] = useState<Record<string, VariantValues>>({})
   const [excludedVariantKeys, setExcludedVariantKeys] = useState<string[]>([])
+  const [deletingVariantKeys, setDeletingVariantKeys] = useState<string[]>([])
 
   useEffect(() => {
     if (!isEditing || !hasValidId(productoId)) {
@@ -512,9 +520,15 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
           }
 
           nextVariantValues[buildVariantKey(variant.colorId, variant.tallaId)] = {
+            idProductoVariante: variant.idProductoVariante,
             sku: variant.sku ?? "",
-            codigoExterno: variant.codigoExterno ?? "",
             precio: String(variant.precio),
+            ofertaActiva:
+              typeof variant.precioOferta === "number" && variant.precioOferta > 0,
+            precioOferta:
+              typeof variant.precioOferta === "number"
+                ? String(variant.precioOferta)
+                : "",
             stock: String(variant.stock),
           }
         })
@@ -559,6 +573,7 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
         setSelectedTallaIds(nextSelectedTallaIds)
         setVariantValues(nextVariantValues)
         setExcludedVariantKeys([])
+        setDeletingVariantKeys([])
         setMediaByColor((previous) => {
           Object.values(previous).forEach((media) => revokeMedia(media))
           return nextMediaByColor
@@ -625,19 +640,23 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
         const key = `${color.idColor}-${talla.idTalla}`
         if (excludedKeys.has(key)) return
         const values = variantValues[key] ?? {
+          idProductoVariante: null,
           sku: "",
-          codigoExterno: "",
           precio: "",
+          ofertaActiva: false,
+          precioOferta: "",
           stock: "",
         }
 
         rows.push({
           key,
+          idProductoVariante: values.idProductoVariante ?? null,
           color,
           talla,
           sku: values.sku,
-          codigoExterno: values.codigoExterno,
           precio: values.precio,
+          ofertaActiva: values.ofertaActiva,
+          precioOferta: values.precioOferta,
           stock: values.stock,
         })
       })
@@ -651,9 +670,11 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
       setVariantValues((previous) => ({
         ...previous,
         [key]: {
+          idProductoVariante: previous[key]?.idProductoVariante ?? null,
           sku: previous[key]?.sku ?? "",
-          codigoExterno: previous[key]?.codigoExterno ?? "",
           precio: previous[key]?.precio ?? "",
+          ofertaActiva: previous[key]?.ofertaActiva ?? false,
+          precioOferta: previous[key]?.precioOferta ?? "",
           stock: previous[key]?.stock ?? "",
           [field]: value,
         },
@@ -671,15 +692,19 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
 
         variantRows.forEach((variant) => {
           const current = next[variant.key] ?? {
+            idProductoVariante: null,
             sku: "",
-            codigoExterno: "",
             precio: "",
+            ofertaActiva: false,
+            precioOferta: "",
             stock: "",
           }
           next[variant.key] = {
+            idProductoVariante: current.idProductoVariante ?? null,
             sku: current.sku,
-            codigoExterno: current.codigoExterno,
             precio: current.precio,
+            ofertaActiva: current.ofertaActiva,
+            precioOferta: current.precioOferta,
             stock: current.stock,
             [field]: value,
           }
@@ -691,7 +716,55 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
     [variantRows]
   )
 
-  const handleRemoveVariant = useCallback(
+  const handleVariantOfferToggle = useCallback(
+    (key: string, enabled: boolean) => {
+      setVariantValues((previous) => ({
+        ...previous,
+        [key]: {
+          idProductoVariante: previous[key]?.idProductoVariante ?? null,
+          sku: previous[key]?.sku ?? "",
+          precio: previous[key]?.precio ?? "",
+          ofertaActiva: enabled,
+          precioOferta: enabled ? previous[key]?.precioOferta ?? "" : "",
+          stock: previous[key]?.stock ?? "",
+        },
+      }))
+    },
+    []
+  )
+
+  const handleToggleOfferForAll = useCallback(
+    (enabled: boolean) => {
+      if (variantRows.length === 0) return
+
+      setVariantValues((previous) => {
+        const next = { ...previous }
+
+        variantRows.forEach((variant) => {
+          const current = next[variant.key] ?? {
+            idProductoVariante: null,
+            sku: "",
+            precio: "",
+            ofertaActiva: false,
+            precioOferta: "",
+            stock: "",
+          }
+
+          next[variant.key] = {
+            ...current,
+            idProductoVariante: current.idProductoVariante ?? null,
+            ofertaActiva: enabled,
+            precioOferta: enabled ? current.precioOferta : "",
+          }
+        })
+
+        return next
+      })
+    },
+    [variantRows]
+  )
+
+  const removeVariantFromDraft = useCallback(
     (key: string) => {
       const nextExcludedKeys = new Set(excludedVariantKeys)
       nextExcludedKeys.add(key)
@@ -736,6 +809,60 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
       })
     },
     [excludedVariantKeys, selectedColorIds, selectedTallaIds]
+  )
+
+  const handleRemoveVariant = useCallback(
+    async (key: string): Promise<boolean> => {
+      const variant = variantRows.find((item) => item.key === key)
+      if (!variant) return false
+
+      const variantId = variant.idProductoVariante
+      const isPersistedVariant = isEditing && hasValidId(variantId)
+
+      if (!isPersistedVariant) {
+        removeVariantFromDraft(key)
+        return true
+      }
+
+      if (deletingVariantKeys.includes(key)) return false
+
+      setDeletingVariantKeys((previous) =>
+        previous.includes(key) ? previous : [...previous, key]
+      )
+
+      try {
+        const response = await authFetch(`/api/variante/eliminar/${variantId}`, {
+          method: "DELETE",
+        })
+        const payload = await parseJsonSafe(response)
+
+        if (!response.ok) {
+          toast.error(
+            getResponseMessage(
+              payload,
+              `No se pudo eliminar la variante ${variant.color.nombre}/${variant.talla.nombre}`
+            )
+          )
+          return false
+        }
+
+        removeVariantFromDraft(key)
+        toast.success(getResponseMessage(payload, "Variante eliminada logicamente"))
+        return true
+      } catch (requestError) {
+        const message =
+          requestError instanceof Error
+            ? requestError.message
+            : "Error inesperado al eliminar variante"
+        toast.error(message)
+        return false
+      } finally {
+        setDeletingVariantKeys((previous) =>
+          previous.filter((variantKey) => variantKey !== key)
+        )
+      }
+    },
+    [deletingVariantKeys, isEditing, removeVariantFromDraft, variantRows]
   )
 
   const selectedCategoriaName = hasValidId(form.idCategoria)
@@ -822,7 +949,6 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
 
     const variantes: ProductoVarianteCreateRequest[] = []
     const seenSkus = new Set<string>()
-    const seenCodigosExternos = new Set<string>()
 
     for (const variant of variantRows) {
       const sku = variant.sku.trim()
@@ -840,22 +966,26 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
       }
       seenSkus.add(normalizedSku)
 
-      const codigoExterno = variant.codigoExterno.trim()
-      if (codigoExterno !== "") {
-        const normalizedCodigoExterno = codigoExterno.toUpperCase()
-        if (seenCodigosExternos.has(normalizedCodigoExterno)) {
-          toast.error(
-            `No puede repetir codigo externo dentro del mismo producto (${codigoExterno})`
-          )
-          return false
-        }
-        seenCodigosExternos.add(normalizedCodigoExterno)
-      }
-
       const precio = parsePrecio(variant.precio)
       if (precio === null) {
         toast.error(
           `Precio invalido para la variante ${variant.color.nombre}/${variant.talla.nombre}`
+        )
+        return false
+      }
+
+      const precioOferta = variant.ofertaActiva
+        ? parsePrecioOferta(variant.precioOferta)
+        : null
+      if (variant.ofertaActiva && precioOferta === null) {
+        toast.error(
+          `Debe ingresar un precio oferta valido para ${variant.color.nombre}/${variant.talla.nombre}`
+        )
+        return false
+      }
+      if (precioOferta !== null && precioOferta >= precio) {
+        toast.error(
+          `El precio oferta debe ser menor al precio regular para ${variant.color.nombre}/${variant.talla.nombre}`
         )
         return false
       }
@@ -872,8 +1002,8 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
         colorId: variant.color.idColor,
         tallaId: variant.talla.idTalla,
         sku,
-        codigoExterno: codigoExterno === "" ? null : codigoExterno,
         precio,
+        ...(precioOferta !== null ? { precioOferta } : {}),
         stock,
       })
     }
@@ -1130,6 +1260,7 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
     mediaByColor,
     replaceMediaByColor,
     variantRows,
+    deletingVariantKeys,
     totalSelectedMedia,
     setFocusedColorId,
     handleSucursalChange,
@@ -1140,7 +1271,10 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
     toggleTallaSelection,
     handleVariantFieldChange,
     handleApplyVariantFieldToAll,
+    handleVariantOfferToggle,
+    handleToggleOfferForAll,
     handleRemoveVariant,
     saveProducto,
   }
 }
+

@@ -29,12 +29,12 @@ const BASE_TEMPLATE_HEADERS = [
   "sku",
   "nombreProducto",
   "descripcion",
-  "codigoExterno",
   "categoriaNombre",
   "colorNombre",
   "colorHex",
   "tallaNombre",
   "precio",
+  "precioOferta",
   "stock",
 ]
 
