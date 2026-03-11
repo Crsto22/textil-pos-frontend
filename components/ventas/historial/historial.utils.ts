@@ -2,8 +2,15 @@ const ESTADO_CLASSES: Record<string, string> = {
   EMITIDA: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
   COMPLETADA:
     "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+  BORRADOR: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+  ENVIADA: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+  ACEPTADA: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+  APROBADA: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+  CONVERTIDA: "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300",
   PENDIENTE: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+  VENCIDA: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
   ANULADA: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400",
+  RECHAZADA: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400",
 }
 
 export function getEstadoBadgeClass(estado: string): string {

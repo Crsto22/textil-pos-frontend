@@ -33,7 +33,7 @@ export async function PATCH(
     let backendRes: Response
     try {
       backendRes = await fetch(
-        `${BACKEND_URL}/api/variante/precio/${encodeURIComponent(id)}`,
+        `${BACKEND_URL}/api/variante/oferta/${encodeURIComponent(id)}`,
         {
           method: "PATCH",
           headers,
@@ -59,14 +59,14 @@ export async function PATCH(
       const message =
         typeof payload.message === "string"
           ? payload.message
-          : "Error al actualizar precio de variante"
+          : "Error al actualizar oferta de variante"
 
       return NextResponse.json({ message }, { status: backendRes.status })
     }
 
     return NextResponse.json(payload, { status: 200 })
   } catch (error) {
-    console.error("[VARIANTE/PRECIO]", error)
+    console.error("[VARIANTE/PRECIO-ALIAS]", error)
     return NextResponse.json({ message: "Error interno del servidor" }, { status: 500 })
   }
 }

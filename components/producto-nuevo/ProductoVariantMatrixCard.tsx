@@ -2,12 +2,7 @@
 
 import { useMemo, useState } from "react"
 import Image from "next/image"
-import {
-  ArrowPathIcon,
-  ListBulletIcon,
-  Squares2X2Icon,
-  TrashIcon,
-} from "@heroicons/react/24/outline"
+import { ArrowPathIcon, Squares2X2Icon, TrashIcon } from "@heroicons/react/24/outline"
 
 import { ShirtHangerIcon } from "@/components/icons/ShirtHangerIcon"
 import { ProductoVariantDeleteDialog } from "@/components/producto-nuevo/modals/ProductoVariantDeleteDialog"
@@ -15,6 +10,11 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
+import {
+  formatearRangoOferta,
+  obtenerEstadoVigenciaOferta,
+  type EstadoVigenciaOferta,
+} from "@/lib/oferta-utils"
 import type { VariantRow, VariantValues } from "@/lib/types/producto-create"
 import { cn } from "@/lib/utils"
 
@@ -22,14 +22,14 @@ interface ProductoVariantMatrixCardProps {
   hasSelectedColors: boolean
   hasSelectedTallas: boolean
   variantRows: VariantRow[]
+  offersEnabled: boolean
   onVariantFieldChange: (
     key: string,
     field: keyof VariantValues,
     value: string
   ) => void
   onApplyVariantFieldToAll: (field: keyof VariantValues, value: string) => void
-  onVariantOfferToggle: (key: string, enabled: boolean) => void
-  onToggleOfferForAll: (enabled: boolean) => void
+  onOffersEnabledChange: (enabled: boolean) => void
   deletingVariantKeys: string[]
   onRemoveVariant: (key: string) => Promise<boolean> | boolean
 }
@@ -119,20 +119,68 @@ function CurrencyInput({ value, onChange, className, disabled }: CurrencyInputPr
   )
 }
 
+function parseOptionalNumber(value: string): number | null {
+  if (value.trim() === "") return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function getOfferState(variant: VariantRow): EstadoVigenciaOferta {
+  return obtenerEstadoVigenciaOferta({
+    precio: parseOptionalNumber(variant.precio),
+    precioOferta: parseOptionalNumber(variant.precioOferta),
+    ofertaInicio: variant.ofertaInicio,
+    ofertaFin: variant.ofertaFin,
+  })
+}
+
+function getOfferStateCopy(variant: VariantRow): string | null {
+  const offerState = getOfferState(variant)
+
+  switch (offerState) {
+    case "indefinida":
+      return "Oferta indefinida"
+    case "activa":
+      return `Oferta vigente: ${formatearRangoOferta(variant.ofertaInicio, variant.ofertaFin)}`
+    case "programada":
+      return `Oferta programada: ${formatearRangoOferta(variant.ofertaInicio, variant.ofertaFin)}`
+    case "vencida":
+      return `Oferta vencida: ${formatearRangoOferta(variant.ofertaInicio, variant.ofertaFin)}`
+    case "invalida":
+      return "Revise el rango de fechas de la oferta"
+    default:
+      return null
+  }
+}
+
+function getOfferStateClass(offerState: EstadoVigenciaOferta): string {
+  switch (offerState) {
+    case "activa":
+    case "indefinida":
+      return "text-emerald-600 dark:text-emerald-400"
+    case "programada":
+      return "text-amber-600 dark:text-amber-400"
+    case "vencida":
+    case "invalida":
+      return "text-slate-500 dark:text-slate-400"
+    default:
+      return "text-slate-500 dark:text-slate-400"
+  }
+}
+
 export function ProductoVariantMatrixCard({
   hasSelectedColors,
   hasSelectedTallas,
   variantRows,
+  offersEnabled,
   onVariantFieldChange,
   onApplyVariantFieldToAll,
-  onVariantOfferToggle,
-  onToggleOfferForAll,
+  onOffersEnabledChange,
   deletingVariantKeys,
   onRemoveVariant,
 }: ProductoVariantMatrixCardProps) {
   const hasAttributeSelection = hasSelectedColors && hasSelectedTallas
   const disableBulkOptions = !hasAttributeSelection || variantRows.length === 0
-  const [viewMode, setViewMode] = useState<"cards" | "table">("table")
   const [deleteTargetKey, setDeleteTargetKey] = useState<string | null>(null)
 
   const deleteTarget = useMemo(
@@ -148,7 +196,6 @@ export function ProductoVariantMatrixCard({
 
   const handlePrecioOfertaChange = (key: string, value: string) => {
     onVariantFieldChange(key, "precioOferta", value)
-    onVariantOfferToggle(key, value.trim() !== "")
   }
 
   const handleOpenDeleteDialog = (variant: VariantRow) => {
@@ -179,39 +226,6 @@ export function ProductoVariantMatrixCard({
           </CardTitle>
 
           <div className="flex items-center gap-2">
-            <div className="inline-flex items-center gap-1 rounded-2xl border border-border bg-muted/30 p-1">
-              <button
-                type="button"
-                title="Vista tarjetas"
-                aria-label="Vista tarjetas"
-                aria-pressed={viewMode === "cards"}
-                onClick={() => setViewMode("cards")}
-                className={cn(
-                  "inline-flex h-9 w-9 items-center justify-center rounded-xl border transition-colors",
-                  viewMode === "cards"
-                    ? "border-border bg-background text-foreground shadow-sm"
-                    : "border-transparent bg-transparent text-muted-foreground hover:bg-background/80 hover:text-foreground"
-                )}
-              >
-                <Squares2X2Icon className="h-5 w-5" />
-              </button>
-              <button
-                type="button"
-                title="Vista tabla"
-                aria-label="Vista tabla"
-                aria-pressed={viewMode === "table"}
-                onClick={() => setViewMode("table")}
-                className={cn(
-                  "inline-flex h-9 w-9 items-center justify-center rounded-xl border transition-colors",
-                  viewMode === "table"
-                    ? "border-border bg-background text-foreground shadow-sm"
-                    : "border-transparent bg-transparent text-muted-foreground hover:bg-background/80 hover:text-foreground"
-                )}
-              >
-                <ListBulletIcon className="h-5 w-5" />
-              </button>
-            </div>
-
             <span className="rounded-md bg-blue-600/10 px-3 py-1 text-xs font-semibold text-blue-700 dark:text-blue-300">
               {variantRows.length} combinaciones
             </span>
@@ -220,7 +234,27 @@ export function ProductoVariantMatrixCard({
       </CardHeader>
 
       <CardContent className="pt-6">
-        <div className="mb-4 grid gap-3 rounded-lg border border-dashed bg-muted/20 p-3 md:grid-cols-3">
+        <div
+          className={cn(
+            "mb-4 grid gap-3 rounded-lg border border-dashed bg-muted/20 p-3",
+            offersEnabled ? "md:grid-cols-4" : "md:grid-cols-3"
+          )}
+        >
+          <div className="rounded-lg border bg-background/80 p-3">
+            <div className="flex h-full items-center justify-between gap-3">
+              <div className="space-y-1">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Activar Ofertas
+                </p>
+              </div>
+              <Switch
+                checked={offersEnabled}
+                onCheckedChange={onOffersEnabledChange}
+                disabled={disableBulkOptions}
+              />
+            </div>
+          </div>
+
           <div className="space-y-1.5">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Aplicar Precio a Todas
@@ -234,24 +268,6 @@ export function ProductoVariantMatrixCard({
               onChange={(event) =>
                 onApplyVariantFieldToAll("precio", event.target.value)
               }
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Aplicar Oferta a Todas
-            </p>
-            <Input
-              type="number"
-              min="0"
-              step="0.01"
-              placeholder="Opcional"
-              disabled={disableBulkOptions}
-              onChange={(event) => {
-                const nextValue = event.target.value
-                onToggleOfferForAll(nextValue.trim() !== "")
-                onApplyVariantFieldToAll("precioOferta", nextValue)
-              }}
             />
           </div>
 
@@ -290,123 +306,13 @@ export function ProductoVariantMatrixCard({
               </p>
             </div>
           </div>
-        ) : viewMode === "table" ? (
-          <div className="overflow-hidden rounded-xl border bg-background shadow-sm">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[1140px] text-sm">
-                <thead className="bg-muted/45">
-                  <tr className="border-b">
-                    <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                      #
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                      Combinacion
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                      SKU *
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                      Precio
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                      Precio Oferta
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                      Stock
-                    </th>
-                    <th className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                      Acciones
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {variantRows.map((variant, index) => {
-                    const isDeletingVariant = deletingVariantKeys.includes(variant.key)
-
-                    return (
-                      <tr
-                        key={variant.key}
-                        className="border-b align-top last:border-0 even:bg-muted/[0.08]"
-                      >
-                        <td className="px-3 py-3 text-xs font-semibold text-muted-foreground">
-                          {index + 1}
-                        </td>
-                        <td className="px-4 py-3">
-                          <VariantCombinationPreview variant={variant} />
-                        </td>
-                        <td className="px-4 py-3">
-                          <Input
-                            type="text"
-                            className="max-w-[230px]"
-                            value={variant.sku}
-                            placeholder={`${variant.color.nombre}-${variant.talla.nombre}`}
-                            onChange={(event) =>
-                              onVariantFieldChange(variant.key, "sku", event.target.value)
-                            }
-                            disabled={isDeletingVariant}
-                          />
-                        </td>
-                        <td className="px-4 py-3">
-                          <CurrencyInput
-                            value={variant.precio}
-                            className="max-w-[160px]"
-                            onChange={(nextValue) =>
-                              onVariantFieldChange(variant.key, "precio", nextValue)
-                            }
-                            disabled={isDeletingVariant}
-                          />
-                        </td>
-                        <td className="px-4 py-3">
-                          <CurrencyInput
-                            value={variant.precioOferta}
-                            className="max-w-[160px]"
-                            onChange={(nextValue) =>
-                              handlePrecioOfertaChange(variant.key, nextValue)
-                            }
-                            disabled={isDeletingVariant}
-                          />
-                        </td>
-                        <td className="px-4 py-3">
-                          <Input
-                            type="number"
-                            min="0"
-                            step="1"
-                            className="max-w-[120px]"
-                            value={variant.stock}
-                            onChange={(event) =>
-                              onVariantFieldChange(variant.key, "stock", event.target.value)
-                            }
-                            disabled={isDeletingVariant}
-                          />
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon-sm"
-                            disabled={!hasAttributeSelection || isDeletingVariant}
-                            onClick={() => handleOpenDeleteDialog(variant)}
-                            aria-label={`Eliminar variante ${variant.color.nombre}/${variant.talla.nombre}`}
-                            className="text-red-600 hover:bg-red-50 hover:text-red-700"
-                          >
-                            {isDeletingVariant ? (
-                              <ArrowPathIcon className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <TrashIcon className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
         ) : (
           <div className="grid gap-3 md:grid-cols-2">
             {variantRows.map((variant) => {
               const isDeletingVariant = deletingVariantKeys.includes(variant.key)
+              const hasOfferPrice = variant.precioOferta.trim() !== ""
+              const offerState = getOfferState(variant)
+              const offerStateCopy = getOfferStateCopy(variant)
 
               return (
                 <article
@@ -432,7 +338,12 @@ export function ProductoVariantMatrixCard({
                     </Button>
                   </div>
 
-                  <div className="grid gap-3 sm:grid-cols-2">
+                  <div
+                    className={cn(
+                      "grid gap-3 sm:grid-cols-2",
+                      offersEnabled && "xl:grid-cols-3"
+                    )}
+                  >
                     <div className="space-y-1">
                       <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                         SKU *
@@ -477,31 +388,72 @@ export function ProductoVariantMatrixCard({
                       />
                     </div>
 
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                          Precio Oferta
-                        </p>
-                        <div className="inline-flex items-center gap-2">
-                          <span className="text-[11px] text-muted-foreground">Oferta</span>
-                          <Switch
-                            checked={variant.ofertaActiva}
-                            onCheckedChange={(checked) =>
-                              onVariantOfferToggle(variant.key, checked)
-                            }
+                    {offersEnabled ? (
+                      <>
+                        <div className="space-y-1">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            Precio Oferta
+                          </p>
+                          <CurrencyInput
+                            value={variant.precioOferta}
                             disabled={isDeletingVariant}
+                            onChange={(nextValue) =>
+                              handlePrecioOfertaChange(variant.key, nextValue)
+                            }
                           />
                         </div>
-                      </div>
-                      <CurrencyInput
-                        value={variant.precioOferta}
-                        disabled={!variant.ofertaActiva || isDeletingVariant}
-                        onChange={(nextValue) =>
-                          handlePrecioOfertaChange(variant.key, nextValue)
-                        }
-                      />
-                    </div>
+
+                        <div className="space-y-1">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            Oferta Inicio
+                          </p>
+                          <Input
+                            type="datetime-local"
+                            step="1"
+                            value={variant.ofertaInicio}
+                            disabled={isDeletingVariant || !hasOfferPrice}
+                            onChange={(event) =>
+                              onVariantFieldChange(
+                                variant.key,
+                                "ofertaInicio",
+                                event.target.value
+                              )
+                            }
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            Oferta Fin
+                          </p>
+                          <Input
+                            type="datetime-local"
+                            step="1"
+                            value={variant.ofertaFin}
+                            disabled={isDeletingVariant || !hasOfferPrice}
+                            onChange={(event) =>
+                              onVariantFieldChange(variant.key, "ofertaFin", event.target.value)
+                            }
+                          />
+                        </div>
+                      </>
+                    ) : null}
                   </div>
+
+                  {offersEnabled && (
+                    <div className="mt-3 space-y-1">
+                      <p className="text-[11px] text-muted-foreground">
+                        Si deja ambas fechas vacias, la oferta queda indefinida.
+                      </p>
+                      {offerStateCopy && (
+                        <p
+                          className={`text-[11px] font-semibold ${getOfferStateClass(offerState)}`}
+                        >
+                          {offerStateCopy}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </article>
               )
             })}

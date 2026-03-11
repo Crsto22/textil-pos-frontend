@@ -25,6 +25,8 @@ export interface VentaDetalleItem {
   nombreProducto: string
   sku: string | null
   precioOferta: number | null
+  ofertaInicio: string | null
+  ofertaFin: string | null
   idColor: number | null
   color: string | null
   idTalla: number | null

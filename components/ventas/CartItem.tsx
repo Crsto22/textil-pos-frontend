@@ -25,7 +25,7 @@ interface CartItemProps {
 export default function CartItem({ item, onIncrease, onDecrease, onRemove, onEdit }: CartItemProps) {
     return (
         <div className="flex items-start gap-3 py-3.5 border-b border-slate-100 dark:border-slate-700/50 last:border-0">
-            <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-800">
+            <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/40">
                 {item.imageUrl ? (
                     <Image
                         src={item.imageUrl}
@@ -33,7 +33,7 @@ export default function CartItem({ item, onIncrease, onDecrease, onRemove, onEdi
                         fill
                         unoptimized
                         sizes="48px"
-                        className="object-cover"
+                        className="object-contain p-1"
                     />
                 ) : (
                     <div className="flex h-full w-full items-center justify-center text-slate-400 dark:text-slate-500">

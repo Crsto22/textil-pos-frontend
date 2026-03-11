@@ -33,6 +33,8 @@ export interface VariantValues {
   precio: string
   ofertaActiva: boolean
   precioOferta: string
+  ofertaInicio: string
+  ofertaFin: string
   stock: string
 }
 
@@ -45,5 +47,7 @@ export interface VariantRow {
   precio: string
   ofertaActiva: boolean
   precioOferta: string
+  ofertaInicio: string
+  ofertaFin: string
   stock: string
 }

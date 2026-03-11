@@ -41,6 +41,10 @@ function parseDetalleItems(value: unknown): VentaDetalleItem[] {
         sku: typeof data.sku === "string" ? data.sku : null,
         precioOferta:
           typeof data.precioOferta === "number" ? data.precioOferta : null,
+        ofertaInicio:
+          typeof data.ofertaInicio === "string" ? data.ofertaInicio : null,
+        ofertaFin:
+          typeof data.ofertaFin === "string" ? data.ofertaFin : null,
         idColor: nullableNumber(data.idColor),
         color: typeof data.color === "string" ? data.color : null,
         idTalla: nullableNumber(data.idTalla),

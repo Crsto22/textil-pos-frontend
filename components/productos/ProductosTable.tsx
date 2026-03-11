@@ -1,5 +1,5 @@
 import Image from "next/image"
-import { memo, useState, type MouseEvent } from "react"
+import { memo, useState } from "react"
 import { PencilSquareIcon, PhotoIcon, TrashIcon } from "@heroicons/react/24/outline"
 
 import { formatRangoPrecioPen } from "@/components/productos/productos.utils"
@@ -9,14 +9,8 @@ import { cn } from "@/lib/utils"
 interface ProductosTableProps {
   productos: ProductoResumen[]
   loading: boolean
-  selectedProductoId?: number | null
-  onSelectProducto?: (producto: ProductoResumen) => void
   onEditProducto: (producto: ProductoResumen) => void
   onDeleteProducto: (producto: ProductoResumen) => void
-}
-
-function stopRowAction(event: MouseEvent<HTMLButtonElement>) {
-  event.stopPropagation()
 }
 
 function getSkuCount(producto: ProductoResumen): number {
@@ -50,8 +44,6 @@ function normalizeHexColor(code: string | null | undefined): string {
 function ProductosTableComponent({
   productos,
   loading,
-  selectedProductoId,
-  onSelectProducto,
   onEditProducto,
   onDeleteProducto,
 }: ProductosTableProps) {
@@ -100,7 +92,6 @@ function ProductosTableComponent({
               </tr>
             ) : (
               productos.map((producto) => {
-                const isSelected = selectedProductoId === producto.idProducto
                 const skuCount = getSkuCount(producto)
                 const colorCount = getColorCount(producto)
                 const estadoActivo = producto.estado === "ACTIVO"
@@ -114,17 +105,11 @@ function ProductosTableComponent({
                 return (
                   <tr
                     key={producto.idProducto}
-                    onClick={() => onSelectProducto?.(producto)}
-                    className={cn(
-                      "cursor-pointer border-b transition-colors last:border-0",
-                      isSelected
-                        ? "bg-blue-50/70 dark:bg-blue-500/10"
-                        : "hover:bg-muted/20"
-                    )}
+                    className="border-b transition-colors last:border-0 hover:bg-muted/20"
                   >
                     <td className="px-4 py-3">
                       <div className="flex min-w-[250px] items-center gap-3">
-                        <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border bg-muted/40">
+                        <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border bg-slate-50 dark:bg-slate-900/40">
                           {selectedColorImageUrl ? (
                             <Image
                               src={selectedColorImageUrl}
@@ -132,7 +117,7 @@ function ProductosTableComponent({
                               fill
                               unoptimized
                               sizes="56px"
-                              className="object-cover"
+                              className="object-contain p-1.5"
                             />
                           ) : (
                             <div className="flex h-full w-full items-center justify-center text-muted-foreground">
@@ -165,8 +150,7 @@ function ProductosTableComponent({
                             <button
                               type="button"
                               key={`${producto.idProducto}-${color.colorId}`}
-                              onClick={(event) => {
-                                event.stopPropagation()
+                              onClick={() => {
                                 setSelectedColorByProduct((previous) => ({
                                   ...previous,
                                   [producto.idProducto]: color.colorId,
@@ -205,10 +189,7 @@ function ProductosTableComponent({
                       <div className="flex items-center justify-end gap-1">
                         <button
                           type="button"
-                          onClick={(event) => {
-                            stopRowAction(event)
-                            onEditProducto(producto)
-                          }}
+                          onClick={() => onEditProducto(producto)}
                           className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-500/10 dark:hover:text-blue-400"
                           title="Editar producto"
                         >
@@ -216,10 +197,7 @@ function ProductosTableComponent({
                         </button>
                         <button
                           type="button"
-                          onClick={(event) => {
-                            stopRowAction(event)
-                            onDeleteProducto(producto)
-                          }}
+                          onClick={() => onDeleteProducto(producto)}
                           className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400"
                           title="Eliminar producto"
                         >

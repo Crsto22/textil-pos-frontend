@@ -64,6 +64,7 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
     mediaByColor,
     replaceMediaByColor,
     variantRows,
+    offersEnabled,
     deletingVariantKeys,
     totalSelectedMedia,
     setFocusedColorId,
@@ -77,8 +78,7 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
     toggleTallaSelection,
     handleVariantFieldChange,
     handleApplyVariantFieldToAll,
-    handleVariantOfferToggle,
-    handleToggleOfferForAll,
+    handleOffersEnabledChange,
     handleRemoveVariant,
     saveProducto,
   } = useProductoCreate({ productoId })
@@ -109,10 +109,11 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
 
     const hasVariantValues = variantRows.some(
       (variant) =>
-        variant.ofertaActiva ||
         variant.sku.trim() !== "" ||
         variant.precio.trim() !== "" ||
         variant.precioOferta.trim() !== "" ||
+        variant.ofertaInicio.trim() !== "" ||
+        variant.ofertaFin.trim() !== "" ||
         variant.stock.trim() !== ""
     )
 
@@ -121,6 +122,7 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
       hasSelectInput ||
       hasAttributesSelected ||
       hasMediaSelected ||
+      offersEnabled ||
       hasVariantValues
     )
   }, [
@@ -130,6 +132,7 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
     form.nombre,
     isAdmin,
     mediaByColor,
+    offersEnabled,
     selectedColorIds.length,
     selectedTallaIds.length,
     variantRows,
@@ -220,10 +223,10 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
             hasSelectedColors={selectedColors.length > 0}
             hasSelectedTallas={selectedTallas.length > 0}
             variantRows={variantRows}
+            offersEnabled={offersEnabled}
             onVariantFieldChange={handleVariantFieldChange}
             onApplyVariantFieldToAll={handleApplyVariantFieldToAll}
-            onVariantOfferToggle={handleVariantOfferToggle}
-            onToggleOfferForAll={handleToggleOfferForAll}
+            onOffersEnabledChange={handleOffersEnabledChange}
             deletingVariantKeys={deletingVariantKeys}
             onRemoveVariant={handleRemoveVariant}
           />

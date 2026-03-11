@@ -9,6 +9,8 @@ import {
 } from "@heroicons/react/24/outline"
 import type { ReactNode } from "react"
 
+import type { MetodoPagoActivo } from "@/lib/types/metodo-pago"
+
 export type PaymentKey = string   // dynamic from backend: "EFECTIVO", "YAPE", etc.
 
 /* Map backend enum → backend enum (identity, kept for VentaRequest consistency) */
@@ -89,11 +91,6 @@ const DEFAULT_STYLE: MethodStyle = {
 }
 
 /* ── Backend method shape ────────────────────────────────── */
-export interface MetodoPagoActivo {
-    idMetodoPago: number
-    nombre: string    // "EFECTIVO", "YAPE", etc.
-}
-
 interface PaymentMethodProps {
     selected: PaymentKey | null
     onSelect: (key: PaymentKey) => void

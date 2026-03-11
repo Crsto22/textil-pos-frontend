@@ -16,6 +16,11 @@ import { useCategoriaOptions } from "@/lib/hooks/useCategoriaOptions"
 import { useColores } from "@/lib/hooks/useColores"
 import { useSucursalOptions } from "@/lib/hooks/useSucursalOptions"
 import { useTallas } from "@/lib/hooks/useTallas"
+import {
+  convertirFechaHoraLocalParaBackend,
+  convertirFechaHoraLocalParaInput,
+  normalizarFechaHoraLocal,
+} from "@/lib/oferta-utils"
 import type { Color } from "@/lib/types/color"
 import {
   MAX_MEDIA_PER_COLOR,
@@ -166,6 +171,50 @@ function parseStock(value: string): number | null {
   const parsed = Number(value)
   if (!Number.isInteger(parsed) || parsed < 0) return null
   return parsed
+}
+
+function createEmptyVariantValues(): VariantValues {
+  return {
+    idProductoVariante: null,
+    sku: "",
+    precio: "",
+    ofertaActiva: false,
+    precioOferta: "",
+    ofertaInicio: "",
+    ofertaFin: "",
+    stock: "",
+  }
+}
+
+function normalizeVariantValues(
+  values: Partial<VariantValues> | undefined
+): VariantValues {
+  const base = createEmptyVariantValues()
+  if (!values) return base
+
+  return {
+    ...base,
+    ...values,
+    idProductoVariante:
+      typeof values.idProductoVariante === "number" ? values.idProductoVariante : null,
+    sku: typeof values.sku === "string" ? values.sku : "",
+    precio: typeof values.precio === "string" ? values.precio : "",
+    ofertaActiva: Boolean(values.ofertaActiva),
+    precioOferta: typeof values.precioOferta === "string" ? values.precioOferta : "",
+    ofertaInicio: typeof values.ofertaInicio === "string" ? values.ofertaInicio : "",
+    ofertaFin: typeof values.ofertaFin === "string" ? values.ofertaFin : "",
+    stock: typeof values.stock === "string" ? values.stock : "",
+  }
+}
+
+function clearVariantOffer(values: VariantValues): VariantValues {
+  return {
+    ...values,
+    ofertaActiva: false,
+    precioOferta: "",
+    ofertaInicio: "",
+    ofertaFin: "",
+  }
 }
 
 function mergeCatalogById<T>(
@@ -458,6 +507,7 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
   const [variantValues, setVariantValues] = useState<Record<string, VariantValues>>({})
   const [excludedVariantKeys, setExcludedVariantKeys] = useState<string[]>([])
   const [deletingVariantKeys, setDeletingVariantKeys] = useState<string[]>([])
+  const [offersEnabled, setOffersEnabled] = useState(false)
 
   useEffect(() => {
     if (!isEditing || !hasValidId(productoId)) {
@@ -495,6 +545,10 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
         const nextSelectedTallaIds: number[] = []
         const nextVariantValues: Record<string, VariantValues> = {}
         const nextMediaByColor: Record<number, MediaItem[]> = {}
+        const nextOffersEnabled = payload.variantes.some(
+          (variant) =>
+            typeof variant.precioOferta === "number" && variant.precioOferta > 0
+        )
 
         const pushUniqueId = (list: number[], value: number) => {
           if (hasValidId(value) && !list.includes(value)) {
@@ -529,6 +583,8 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
               typeof variant.precioOferta === "number"
                 ? String(variant.precioOferta)
                 : "",
+            ofertaInicio: convertirFechaHoraLocalParaInput(variant.ofertaInicio),
+            ofertaFin: convertirFechaHoraLocalParaInput(variant.ofertaFin),
             stock: String(variant.stock),
           }
         })
@@ -574,6 +630,7 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
         setVariantValues(nextVariantValues)
         setExcludedVariantKeys([])
         setDeletingVariantKeys([])
+        setOffersEnabled(nextOffersEnabled)
         setMediaByColor((previous) => {
           Object.values(previous).forEach((media) => revokeMedia(media))
           return nextMediaByColor
@@ -639,14 +696,7 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
       selectedTallas.forEach((talla) => {
         const key = `${color.idColor}-${talla.idTalla}`
         if (excludedKeys.has(key)) return
-        const values = variantValues[key] ?? {
-          idProductoVariante: null,
-          sku: "",
-          precio: "",
-          ofertaActiva: false,
-          precioOferta: "",
-          stock: "",
-        }
+        const values = normalizeVariantValues(variantValues[key])
 
         rows.push({
           key,
@@ -657,6 +707,8 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
           precio: values.precio,
           ofertaActiva: values.ofertaActiva,
           precioOferta: values.precioOferta,
+          ofertaInicio: values.ofertaInicio,
+          ofertaFin: values.ofertaFin,
           stock: values.stock,
         })
       })
@@ -667,18 +719,35 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
 
   const handleVariantFieldChange = useCallback(
     (key: string, field: keyof VariantValues, value: string) => {
-      setVariantValues((previous) => ({
-        ...previous,
-        [key]: {
-          idProductoVariante: previous[key]?.idProductoVariante ?? null,
-          sku: previous[key]?.sku ?? "",
-          precio: previous[key]?.precio ?? "",
-          ofertaActiva: previous[key]?.ofertaActiva ?? false,
-          precioOferta: previous[key]?.precioOferta ?? "",
-          stock: previous[key]?.stock ?? "",
-          [field]: value,
-        },
-      }))
+      setVariantValues((previous) => {
+        const current = normalizeVariantValues(previous[key])
+
+        if (field === "precioOferta") {
+          if (value.trim() === "") {
+            return {
+              ...previous,
+              [key]: clearVariantOffer(current),
+            }
+          }
+
+          return {
+            ...previous,
+            [key]: {
+              ...current,
+              ofertaActiva: true,
+              precioOferta: value,
+            },
+          }
+        }
+
+        return {
+          ...previous,
+          [key]: {
+            ...current,
+            [field]: value,
+          },
+        }
+      })
     },
     []
   )
@@ -687,82 +756,68 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
     (field: keyof VariantValues, value: string) => {
       if (variantRows.length === 0) return
 
-      setVariantValues((previous) => {
-        const next = { ...previous }
-
-        variantRows.forEach((variant) => {
-          const current = next[variant.key] ?? {
-            idProductoVariante: null,
-            sku: "",
-            precio: "",
-            ofertaActiva: false,
-            precioOferta: "",
-            stock: "",
-          }
-          next[variant.key] = {
-            idProductoVariante: current.idProductoVariante ?? null,
-            sku: current.sku,
-            precio: current.precio,
-            ofertaActiva: current.ofertaActiva,
-            precioOferta: current.precioOferta,
-            stock: current.stock,
-            [field]: value,
-          }
-        })
-
-        return next
-      })
-    },
-    [variantRows]
-  )
-
-  const handleVariantOfferToggle = useCallback(
-    (key: string, enabled: boolean) => {
-      setVariantValues((previous) => ({
-        ...previous,
-        [key]: {
-          idProductoVariante: previous[key]?.idProductoVariante ?? null,
-          sku: previous[key]?.sku ?? "",
-          precio: previous[key]?.precio ?? "",
-          ofertaActiva: enabled,
-          precioOferta: enabled ? previous[key]?.precioOferta ?? "" : "",
-          stock: previous[key]?.stock ?? "",
-        },
-      }))
-    },
-    []
-  )
-
-  const handleToggleOfferForAll = useCallback(
-    (enabled: boolean) => {
-      if (variantRows.length === 0) return
+      const isOfferField = field === "precioOferta"
+      const isOfferScheduleField = field === "ofertaInicio" || field === "ofertaFin"
 
       setVariantValues((previous) => {
         const next = { ...previous }
+        let changed = false
 
         variantRows.forEach((variant) => {
-          const current = next[variant.key] ?? {
-            idProductoVariante: null,
-            sku: "",
-            precio: "",
-            ofertaActiva: false,
-            precioOferta: "",
-            stock: "",
+          const current = normalizeVariantValues(next[variant.key])
+
+          if (isOfferScheduleField && current.precioOferta.trim() === "") {
+            return
+          }
+
+          if (isOfferField) {
+            next[variant.key] =
+              value.trim() === ""
+                ? clearVariantOffer(current)
+                : {
+                    ...current,
+                    ofertaActiva: true,
+                    precioOferta: value,
+                  }
+            changed = true
+            return
           }
 
           next[variant.key] = {
             ...current,
-            idProductoVariante: current.idProductoVariante ?? null,
-            ofertaActiva: enabled,
-            precioOferta: enabled ? current.precioOferta : "",
+            [field]: value,
           }
+          changed = true
         })
 
-        return next
+        return changed ? next : previous
       })
     },
     [variantRows]
   )
+
+  const handleOffersEnabledChange = useCallback((enabled: boolean) => {
+    setOffersEnabled(enabled)
+
+    if (enabled) return
+
+    setVariantValues((previous) => {
+      let changed = false
+      const next: Record<string, VariantValues> = {}
+
+      for (const [key, value] of Object.entries(previous)) {
+        if (!value.ofertaActiva && value.precioOferta.trim() === "") {
+          next[key] = value
+          continue
+        }
+
+        changed = true
+        next[key] = clearVariantOffer(value)
+      }
+
+      return changed ? next : previous
+    })
+  }, [])
 
   const removeVariantFromDraft = useCallback(
     (key: string) => {
@@ -974,15 +1029,63 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
         return false
       }
 
-      const precioOferta = variant.ofertaActiva
+      const precioOferta = offersEnabled && variant.ofertaActiva
         ? parsePrecioOferta(variant.precioOferta)
         : null
-      if (variant.ofertaActiva && precioOferta === null) {
+      if (offersEnabled && variant.ofertaActiva && precioOferta === null) {
         toast.error(
           `Debe ingresar un precio oferta valido para ${variant.color.nombre}/${variant.talla.nombre}`
         )
         return false
       }
+
+      const ofertaInicio = precioOferta !== null
+        ? normalizarFechaHoraLocal(variant.ofertaInicio)
+        : ""
+      const ofertaFin = precioOferta !== null
+        ? normalizarFechaHoraLocal(variant.ofertaFin)
+        : ""
+
+      if (precioOferta === null && (ofertaInicio !== "" || ofertaFin !== "")) {
+        toast.error(
+          `No puede registrar ofertaInicio/ofertaFin sin precioOferta para ${variant.color.nombre}/${variant.talla.nombre}`
+        )
+        return false
+      }
+
+      if ((ofertaInicio === "") !== (ofertaFin === "")) {
+        toast.error(
+          `Debe enviar ofertaInicio y ofertaFin juntas para ${variant.color.nombre}/${variant.talla.nombre}`
+        )
+        return false
+      }
+
+      const ofertaInicioPayload =
+        ofertaInicio !== "" ? convertirFechaHoraLocalParaBackend(ofertaInicio) : null
+      const ofertaFinPayload =
+        ofertaFin !== "" ? convertirFechaHoraLocalParaBackend(ofertaFin) : null
+
+      if (
+        (ofertaInicio !== "" && !ofertaInicioPayload) ||
+        (ofertaFin !== "" && !ofertaFinPayload)
+      ) {
+        toast.error(
+          `La vigencia de oferta no tiene un formato valido para ${variant.color.nombre}/${variant.talla.nombre}`
+        )
+        return false
+      }
+
+      if (
+        ofertaInicioPayload !== null &&
+        ofertaFinPayload !== null &&
+        ofertaFinPayload <= ofertaInicioPayload
+      ) {
+        toast.error(
+          `ofertaFin debe ser mayor a ofertaInicio para ${variant.color.nombre}/${variant.talla.nombre}`
+        )
+        return false
+      }
+
       if (precioOferta !== null && precioOferta >= precio) {
         toast.error(
           `El precio oferta debe ser menor al precio regular para ${variant.color.nombre}/${variant.talla.nombre}`
@@ -1004,6 +1107,12 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
         sku,
         precio,
         ...(precioOferta !== null ? { precioOferta } : {}),
+        ...(ofertaInicioPayload !== null && ofertaFinPayload !== null
+          ? {
+              ofertaInicio: ofertaInicioPayload,
+              ofertaFin: ofertaFinPayload,
+            }
+          : {}),
         stock,
       })
     }
@@ -1158,6 +1267,7 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
     isEditing,
     isSaving,
     mediaByColor,
+    offersEnabled,
     productoId,
     selectedColors,
     selectedSucursalId,
@@ -1260,6 +1370,7 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
     mediaByColor,
     replaceMediaByColor,
     variantRows,
+    offersEnabled,
     deletingVariantKeys,
     totalSelectedMedia,
     setFocusedColorId,
@@ -1271,8 +1382,7 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
     toggleTallaSelection,
     handleVariantFieldChange,
     handleApplyVariantFieldToAll,
-    handleVariantOfferToggle,
-    handleToggleOfferForAll,
+    handleOffersEnabledChange,
     handleRemoveVariant,
     saveProducto,
   }

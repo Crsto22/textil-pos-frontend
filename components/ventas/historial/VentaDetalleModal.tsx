@@ -14,6 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { formatearRangoOferta } from "@/lib/oferta-utils"
 import { authFetch } from "@/lib/auth/auth-fetch"
 import { formatComprobante, formatFechaHora, formatMonto } from "@/components/ventas/historial/historial.utils"
 import type { VentaDetalleResponse } from "@/lib/types/venta"
@@ -217,7 +218,14 @@ export function VentaDetalleModal({
                           <td className="px-3 py-2 text-center font-semibold">{item.cantidad}</td>
                           <td className="px-3 py-2 text-right">
                             {typeof item.precioOferta === "number"
-                              ? formatMonto(item.precioOferta)
+                              ? (
+                                  <div className="space-y-0.5 text-right">
+                                    <p>{formatMonto(item.precioOferta)}</p>
+                                    <p className="text-[11px] text-muted-foreground">
+                                      {formatearRangoOferta(item.ofertaInicio, item.ofertaFin)}
+                                    </p>
+                                  </div>
+                                )
                               : "-"}
                           </td>
                           <td className="px-3 py-2 text-right">{formatMonto(item.precioUnitario)}</td>

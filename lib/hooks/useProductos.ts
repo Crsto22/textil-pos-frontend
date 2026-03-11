@@ -104,6 +104,10 @@ function normalizeProductoResumen(producto: Producto | ProductoResumen): Product
               precio: typeof talla.precio === "number" ? talla.precio : null,
               precioOferta:
                 typeof talla.precioOferta === "number" ? talla.precioOferta : null,
+              ofertaInicio:
+                typeof talla.ofertaInicio === "string" ? talla.ofertaInicio : null,
+              ofertaFin:
+                typeof talla.ofertaFin === "string" ? talla.ofertaFin : null,
               stock: typeof talla.stock === "number" ? talla.stock : null,
               estado: typeof talla.estado === "string" ? talla.estado : null,
             }))

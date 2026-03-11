@@ -18,7 +18,6 @@ import CategoryFilter from "@/components/ventas/CategoryFilter"
 import CartItem, { type CartItemData } from "@/components/ventas/CartItem"
 import ClientSelect, { type ClientSelection } from "@/components/ventas/ClientSelect"
 import PaymentMethod, {
-  type MetodoPagoActivo,
   type PaymentKey,
 } from "@/components/ventas/PaymentMethod"
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
@@ -27,6 +26,7 @@ import ProductCard from "@/components/ventas/ProductCard"
 import ProductModal, { type SelectedVariant } from "@/components/ventas/ProductModal"
 import { authFetch } from "@/lib/auth/auth-fetch"
 import { useComprobanteOptions } from "@/lib/hooks/useComprobanteOptions"
+import { useMetodosPagoActivos } from "@/lib/hooks/useMetodosPagoActivos"
 import { useProductos } from "@/lib/hooks/useProductos"
 import { useSucursalOptions } from "@/lib/hooks/useSucursalOptions"
 import type { Categoria, PageResponse as CategoriaPageResponse } from "@/lib/types/categoria"
@@ -78,12 +78,6 @@ function SectionLabel({ children }: { children: ReactNode }) {
       {children}
     </p>
   )
-}
-
-function isEstadoActivo(value: unknown): boolean {
-  if (value === true) return true
-  if (value === false) return false
-  return typeof value === "string" ? value.trim().toUpperCase() === "ACTIVO" : false
 }
 
 function hasValidSucursalId(idSucursal?: number | null): idSucursal is number {
@@ -206,9 +200,6 @@ export default function VentasPage() {
   const [modalProduct, setModalProduct] = useState<ProductoResumen | null>(null)
   const [submittingVenta, setSubmittingVenta] = useState(false)
   const [ventaError, setVentaError] = useState<string | null>(null)
-  const [activeMetodosPago, setActiveMetodosPago] = useState<MetodoPagoActivo[] | undefined>(
-    undefined
-  )
   const [categoriasDisponibles, setCategoriasDisponibles] = useState<CategoryFilterOption[]>([])
   const [categoryPage, setCategoryPage] = useState(0)
   const [categoryTotalPages, setCategoryTotalPages] = useState(1)
@@ -335,6 +326,9 @@ export default function VentasPage() {
     enabled: true,
     idSucursal: resolvedSucursalId,
   })
+  const {
+    methods: activeMetodosPago,
+  } = useMetodosPagoActivos()
 
   const effectiveSelectedComprobanteId = useMemo(() => {
     if (comprobanteOptions.length === 0) return ""
@@ -423,48 +417,6 @@ export default function VentasPage() {
     selectedMetodoPago,
     selectedPayment,
   ])
-
-  useEffect(() => {
-    const fetchMetodos = async () => {
-      try {
-        const response = await authFetch("/api/config/metodos-pago")
-        if (!response.ok) {
-          setActiveMetodosPago([])
-          return
-        }
-
-        const payload = await response.json()
-        const pageContent =
-          typeof payload === "object" && payload !== null && "content" in payload
-            ? (payload as { content?: unknown }).content
-            : undefined
-
-        const rawData =
-          Array.isArray(payload) ? payload : Array.isArray(pageContent) ? pageContent : []
-
-        const methods: MetodoPagoActivo[] = rawData
-          .map((value: unknown): MetodoPagoActivo | null => {
-            const item =
-              typeof value === "object" && value !== null
-                ? (value as Record<string, unknown>)
-                : {}
-            const idMetodoPago = Number(item.idMetodoPago ?? item.id_metodo_pago ?? item.id)
-            const nombre = typeof item.nombre === "string" ? item.nombre : ""
-            const estado = item.estado ?? item.activo
-            if (estado !== undefined && !isEstadoActivo(estado)) return null
-            if (!Number.isFinite(idMetodoPago) || idMetodoPago <= 0 || !nombre) return null
-            return { idMetodoPago, nombre }
-          })
-          .filter((item): item is MetodoPagoActivo => item !== null)
-
-        setActiveMetodosPago(methods)
-      } catch {
-        setActiveMetodosPago([])
-      }
-    }
-
-    void fetchMetodos()
-  }, [])
 
   const openModal = useCallback((producto: ProductoResumen) => {
     setModalProduct(producto)

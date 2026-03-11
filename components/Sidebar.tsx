@@ -22,6 +22,7 @@ import {
     TagIcon,
     RectangleStackIcon,
     DocumentArrowUpIcon,
+    DocumentTextIcon,
     ChevronDownIcon,
     MagnifyingGlassIcon,
 } from "@heroicons/react/24/outline"
@@ -40,6 +41,7 @@ import {
     TagIcon as TagIconSolid,
     RectangleStackIcon as RectangleStackIconSolid,
     DocumentArrowUpIcon as DocumentArrowUpIconSolid,
+    DocumentTextIcon as DocumentTextIconSolid,
 } from "@heroicons/react/24/solid"
 
 interface SidebarProps {
@@ -72,6 +74,8 @@ const navSections: SidebarSection[] = [
         subtitle: "Ventas",
         items: [
             { label: "Ventas", href: "/ventas", icon: ShoppingCartIcon, iconActive: ShoppingCartIconSolid },
+            { label: "Cotizacion", href: "/ventas/cotizacion", icon: DocumentTextIcon, iconActive: DocumentTextIconSolid },
+            { label: "Historial cotizacion", href: "/ventas/cotizacion/historial", icon: ClipboardDocumentListIcon, iconActive: ClipboardDocumentListIconSolid },
             { label: "Historial ventas", href: "/ventas/historial", icon: ClipboardDocumentListIcon, iconActive: ClipboardDocumentListIconSolid },
             { label: "Clientes", href: "/clientes", icon: UsersIcon, iconActive: UsersIconSolid },
         ],
@@ -180,8 +184,16 @@ export function Sidebar({ isOpen, collapsed, onClose, onToggleCollapse }: Sideba
         setExpandedSections((current) => ({ ...current, [subtitle]: !current[subtitle] }))
     }
 
-    const isActive = (href: string) =>
+    const matchesPath = (href: string) =>
         pathname === href || (href !== "/dashboard" && pathname.startsWith(`${href}/`))
+
+    const activeHref =
+        navSections
+            .flatMap((section) => section.items)
+            .filter((item) => matchesPath(item.href))
+            .sort((current, next) => next.href.length - current.href.length)[0]?.href ?? null
+
+    const isActive = (href: string) => activeHref === href
 
     const itemClass = (active: boolean) =>
         [

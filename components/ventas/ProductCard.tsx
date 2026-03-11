@@ -5,6 +5,7 @@ import Image from "next/image"
 import { PhotoIcon } from "@heroicons/react/24/outline"
 
 import { formatMonedaPen, formatRangoPrecioPen } from "@/components/productos/productos.utils"
+import { ofertaEstaVigente, obtenerPrecioAplicadoOferta, tienePrecioOfertaValido } from "@/lib/oferta-utils"
 import type { ProductoResumen, ProductoResumenTalla } from "@/lib/types/producto"
 import { cn } from "@/lib/utils"
 
@@ -48,18 +49,9 @@ function isVariantInStock(talla: ProductoResumenTalla): boolean {
   return true
 }
 
-function hasValidPrecioOferta(talla: ProductoResumenTalla): boolean {
-  return (
-    typeof talla.precio === "number" &&
-    typeof talla.precioOferta === "number" &&
-    talla.precioOferta > 0 &&
-    talla.precioOferta < talla.precio
-  )
-}
-
 function getPrecioAplicado(talla: ProductoResumenTalla): number | null {
-  if (hasValidPrecioOferta(talla)) return talla.precioOferta as number
-  return typeof talla.precio === "number" ? talla.precio : null
+  if (typeof talla.precio !== "number") return null
+  return obtenerPrecioAplicadoOferta(talla)
 }
 
 export default function ProductCard({ product, onAdd }: ProductCardProps) {
@@ -90,7 +82,7 @@ export default function ProductCard({ product, onAdd }: ProductCardProps) {
 
   const selectedColorTallas = selectedColor?.tallas ?? []
   const selectedColorDiscountedRegularPrices = selectedColorTallas
-    .filter((talla) => hasValidPrecioOferta(talla))
+    .filter((talla) => tienePrecioOfertaValido(talla) && ofertaEstaVigente(talla))
     .map((talla) => talla.precio as number)
   const selectedColorAppliedPrices = selectedColorTallas
     .map((talla) => getPrecioAplicado(talla))
@@ -117,7 +109,7 @@ export default function ProductCard({ product, onAdd }: ProductCardProps) {
         canAdd ? "cursor-pointer hover:bg-muted/20" : "cursor-not-allowed opacity-85"
       )}
     >
-      <div className="relative h-52 w-full overflow-hidden border-b bg-muted/40">
+      <div className="relative h-52 w-full overflow-hidden border-b bg-slate-50 dark:bg-slate-900/40">
         {imageUrl ? (
           <Image
             src={imageUrl}
@@ -125,7 +117,7 @@ export default function ProductCard({ product, onAdd }: ProductCardProps) {
             fill
             unoptimized
             sizes="(max-width: 768px) 100vw, (max-width: 1700px) 33vw, 25vw"
-            className="object-cover"
+            className="object-contain p-4"
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-muted-foreground">

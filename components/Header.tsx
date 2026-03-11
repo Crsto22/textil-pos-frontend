@@ -1,6 +1,7 @@
 "use client"
 
 import { ArrowRightStartOnRectangleIcon, Bars3Icon } from "@heroicons/react/24/outline"
+import Image from "next/image"
 import { usePathname, useRouter } from "next/navigation"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { useAuth } from "@/lib/auth/auth-context"
@@ -12,6 +13,8 @@ interface HeaderProps {
 const pageTitles: Record<string, string> = {
     "/dashboard": "Dashboard",
     "/ventas": "Ventas",
+    "/ventas/cotizacion": "Cotizacion",
+    "/ventas/cotizacion/historial": "Historial de Cotizacion",
     "/ventas/historial": "Historial de Ventas",
     "/productos": "Productos",
     "/productos/nuevo": "Nuevo Producto",
@@ -40,14 +43,16 @@ export function Header({ onMenuToggle }: HeaderProps) {
     const pathname = usePathname()
     const router = useRouter()
     const { user, logout } = useAuth()
-    const getInitial = (value?: string) => value?.trim().charAt(0) ?? ""
 
     const title =
         pageTitles[pathname] ??
-        (/^\/productos\/\d+\/editar$/.test(pathname) ? "Editar Producto" : "Panel")
+        (/^\/productos\/\d+\/editar$/.test(pathname)
+            ? "Editar Producto"
+            : /^\/ventas\/cotizacion\/\d+\/editar$/.test(pathname)
+                ? "Editar Cotizacion"
+                : "Panel")
 
     const sectionLabel = getSectionLabel(pathname)
-    const userInitials = user ? `${getInitial(user.nombre)}${getInitial(user.apellido)}`.toUpperCase() : ""
 
     const handleLogout = async () => {
         await logout()
@@ -90,8 +95,14 @@ export function Header({ onMenuToggle }: HeaderProps) {
 
                     {user && (
                         <div className="hidden items-center gap-2.5 pl-1 sm:flex">
-                            <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-xs font-bold text-white ring-2 ring-white dark:from-blue-400 dark:to-indigo-500 dark:ring-white/10">
-                                {userInitials || "US"}
+                            <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-full ring-2 ring-blue-600 dark:ring-blue-400">
+                                <Image
+                                    src="/img/avatar/avatar1.png"
+                                    alt={`Avatar de ${user.nombre} ${user.apellido}`}
+                                    fill
+                                    sizes="32px"
+                                    className="object-cover"
+                                />
                                 <span className="absolute -bottom-px -right-px h-2 w-2 rounded-full border-[1.5px] border-white bg-emerald-500 dark:border-[oklch(0.13_0_0)]" />
                             </div>
                             <div className="min-w-0 max-w-[180px] leading-none">

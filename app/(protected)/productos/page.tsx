@@ -1,10 +1,9 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { MagnifyingGlassIcon } from "@heroicons/react/24/outline"
 
-import { ProductoDetallePanel } from "@/components/productos/ProductoDetallePanel"
 import { ProductosCards } from "@/components/productos/ProductosCards"
 import {
   ProductosHeader,
@@ -18,24 +17,10 @@ import { authFetch } from "@/lib/auth/auth-fetch"
 import { useProductos } from "@/lib/hooks/useProductos"
 import type { Categoria, PageResponse as CategoriaPageResponse } from "@/lib/types/categoria"
 import type { Color, PageResponse as ColorPageResponse } from "@/lib/types/color"
-import type { ProductoDetalleResponse, ProductoResumen } from "@/lib/types/producto"
+import type { ProductoResumen } from "@/lib/types/producto"
 
 function parseJsonSafe(response: Response) {
   return response.json().catch(() => null)
-}
-
-function isProductoDetalleResponse(payload: unknown): payload is ProductoDetalleResponse {
-  if (!payload || typeof payload !== "object") return false
-  if (!("producto" in payload) || !("variantes" in payload) || !("imagenes" in payload)) {
-    return false
-  }
-
-  const detail = payload as ProductoDetalleResponse
-  return Array.isArray(detail.variantes) && Array.isArray(detail.imagenes)
-}
-
-interface FetchDetalleOptions {
-  preserveData?: boolean
 }
 
 interface CategoryFilterOption {
@@ -93,13 +78,6 @@ function mapColorFilters(payload: unknown): ColorFilterOption[] {
 export default function ProductosPage() {
   const router = useRouter()
   const [deleteTarget, setDeleteTarget] = useState<ProductoResumen | null>(null)
-  const [selectedProductoId, setSelectedProductoId] = useState<number | null>(null)
-  const [detalleProducto, setDetalleProducto] = useState<ProductoDetalleResponse | null>(
-    null
-  )
-  const [detalleLoading, setDetalleLoading] = useState(false)
-  const [detalleError, setDetalleError] = useState<string | null>(null)
-  const detalleAbortRef = useRef<AbortController | null>(null)
   const [viewMode, setViewMode] = useState<ProductosViewMode>("cards")
   const [categoriasDisponibles, setCategoriasDisponibles] = useState<CategoryFilterOption[]>(
     []
@@ -225,125 +203,9 @@ export default function ProductosPage() {
     setColorPage((previous) => Math.max(0, previous - 1))
   }, [canGoPrevColorPage])
 
-  const productosFiltrados = displayedProductos
-
-  useEffect(() => {
-    if (productosFiltrados.length === 0) {
-      detalleAbortRef.current?.abort()
-      setSelectedProductoId(null)
-      setDetalleProducto(null)
-      setDetalleError(null)
-      setDetalleLoading(false)
-      return
-    }
-
-    if (selectedProductoId === null) {
-      return
-    }
-
-    const stillExists = productosFiltrados.some(
-      (producto) => producto.idProducto === selectedProductoId
-    )
-    if (!stillExists) {
-      detalleAbortRef.current?.abort()
-      setSelectedProductoId(null)
-      setDetalleProducto(null)
-      setDetalleError(null)
-      setDetalleLoading(false)
-    }
-  }, [productosFiltrados, selectedProductoId])
-
-  const fetchDetalleProducto = useCallback(
-    async (idProducto: number, options?: FetchDetalleOptions) => {
-      detalleAbortRef.current?.abort()
-      const controller = new AbortController()
-      detalleAbortRef.current = controller
-
-      setDetalleLoading(true)
-      setDetalleError(null)
-      if (!options?.preserveData) {
-        setDetalleProducto(null)
-      }
-
-      try {
-        const response = await authFetch(`/api/producto/detalle/${idProducto}`, {
-          signal: controller.signal,
-          cache: "no-store",
-        })
-        const payload = await parseJsonSafe(response)
-        if (controller.signal.aborted) return
-
-        if (!response.ok) {
-          const message =
-            payload &&
-            typeof payload === "object" &&
-            "message" in payload &&
-            typeof payload.message === "string"
-              ? payload.message
-              : "No se pudo cargar el detalle del producto"
-
-          setDetalleError(message)
-          return
-        }
-
-        if (!isProductoDetalleResponse(payload)) {
-          setDetalleError("El detalle del producto no tiene el formato esperado")
-          return
-        }
-
-        setDetalleProducto(payload)
-      } catch (error) {
-        if (controller.signal.aborted) return
-        const message =
-          error instanceof Error
-            ? error.message
-            : "No se pudo cargar el detalle del producto"
-        setDetalleError(message)
-      } finally {
-        if (!controller.signal.aborted) {
-          setDetalleLoading(false)
-        }
-      }
-    },
-    []
-  )
-
-  useEffect(() => {
-    if (selectedProductoId === null) {
-      detalleAbortRef.current?.abort()
-      return
-    }
-    void fetchDetalleProducto(selectedProductoId)
-  }, [fetchDetalleProducto, selectedProductoId])
-
-  useEffect(() => {
-    return () => {
-      detalleAbortRef.current?.abort()
-    }
-  }, [])
-
-  const selectedProducto = useMemo(
-    () =>
-      productosFiltrados.find(
-        (producto) => producto.idProducto === selectedProductoId
-      ) ?? null,
-    [productosFiltrados, selectedProductoId]
-  )
-
   const handleDeleteProducto = useCallback((producto: ProductoResumen) => {
     setDeleteTarget(producto)
   }, [])
-
-  const handleSelectProducto = useCallback(
-    (producto: ProductoResumen) => {
-      if (producto.idProducto === selectedProductoId) {
-        void fetchDetalleProducto(producto.idProducto, { preserveData: true })
-        return
-      }
-      setSelectedProductoId(producto.idProducto)
-    },
-    [fetchDetalleProducto, selectedProductoId]
-  )
 
   const handleEditProducto = useCallback(
     (producto: ProductoResumen) => {
@@ -352,121 +214,80 @@ export default function ProductosPage() {
     [router]
   )
 
-  const handleEditFromPanel = useCallback(
-    (idProducto: number) => {
-      router.push(`/productos/${idProducto}/editar`)
-    },
-    [router]
-  )
-
   const handleDeleteConfirmed = useCallback(
     async (idProducto: number) => {
       const success = await deleteProducto(idProducto)
       if (!success) return false
-
-      if (selectedProductoId === idProducto) {
-        setSelectedProductoId(null)
-        setDetalleProducto(null)
-      }
-
       return true
     },
-    [deleteProducto, selectedProductoId]
+    [deleteProducto]
   )
-
-  const handleRetryDetalle = useCallback(() => {
-    if (selectedProductoId === null) return
-    void fetchDetalleProducto(selectedProductoId, { preserveData: true })
-  }, [fetchDetalleProducto, selectedProductoId])
 
   return (
     <div className="space-y-5">
-      
-        <div className="flex flex-col gap-3">
-          <div className="relative">
-            <MagnifyingGlassIcon className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Buscar por nombre, SKU o categoria..."
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-sm shadow-sm transition-all placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800"
-            />
-          </div>
-
-          <div className="rounded-xl border border-slate-100 bg-white px-3.5 py-3 shadow-sm dark:border-slate-700/60 dark:bg-slate-800/60">
-            <CategoryFilter
-              categories={categoriasDisponibles}
-              colors={coloresDisponibles}
-              activeCategoryId={idCategoriaFilter}
-              onCategoryChange={setIdCategoriaFilter}
-              categoryPage={safeCategoryPage}
-              categoryTotalPages={categoryTotalPages}
-              onCategoryNextPage={handleNextCategoryPage}
-              onCategoryPrevPage={handlePrevCategoryPage}
-              activeColorId={idColorFilter}
-              onColorChange={setIdColorFilter}
-              colorPage={safeColorPage}
-              colorTotalPages={colorTotalPages}
-              onColorNextPage={handleNextColorPage}
-              onColorPrevPage={handlePrevColorPage}
-            />
-          </div>
-
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Mostrando {productosFiltrados.length} producto(s) de {displayedProductos.length} en esta
-            pagina.
-          </p>
-
-          <div className="w-full">
-            <ProductosHeader
-              viewMode={viewMode}
-              onViewModeChange={setViewMode}
-            />
-          </div>
-        </div>
-      
-
-      <section className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_440px] 2xl:grid-cols-[minmax(0,1fr)_500px]">
-        <div className="space-y-4">
-          {viewMode === "cards" ? (
-            <ProductosCards
-              productos={productosFiltrados}
-              loading={displayedLoading}
-              selectedProductoId={selectedProductoId}
-              onSelectProducto={handleSelectProducto}
-              onEditProducto={handleEditProducto}
-              onDeleteProducto={handleDeleteProducto}
-            />
-          ) : (
-            <ProductosTable
-              productos={productosFiltrados}
-              loading={displayedLoading}
-              selectedProductoId={selectedProductoId}
-              onSelectProducto={handleSelectProducto}
-              onEditProducto={handleEditProducto}
-              onDeleteProducto={handleDeleteProducto}
-            />
-          )}
-
-          <ProductosPagination
-            totalElements={displayedTotalElements}
-            totalPages={displayedTotalPages}
-            page={displayedPage}
-            onPageChange={setDisplayedPage}
+      <div className="flex flex-col gap-3">
+        <div className="relative">
+          <MagnifyingGlassIcon className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Buscar por nombre, SKU o categoria..."
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-sm shadow-sm transition-all placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800"
           />
         </div>
 
-        <div className="self-start 2xl:sticky 2xl:top-20">
-          <ProductoDetallePanel
-            productoSeleccionado={selectedProducto}
-            detalle={detalleProducto}
-            loading={detalleLoading}
-            error={detalleError}
-            onRetry={handleRetryDetalle}
-            onEditProducto={handleEditFromPanel}
+        <div className="rounded-xl border border-slate-100 bg-white px-3.5 py-3 shadow-sm dark:border-slate-700/60 dark:bg-slate-800/60">
+          <CategoryFilter
+            categories={categoriasDisponibles}
+            colors={coloresDisponibles}
+            activeCategoryId={idCategoriaFilter}
+            onCategoryChange={setIdCategoriaFilter}
+            categoryPage={safeCategoryPage}
+            categoryTotalPages={categoryTotalPages}
+            onCategoryNextPage={handleNextCategoryPage}
+            onCategoryPrevPage={handlePrevCategoryPage}
+            activeColorId={idColorFilter}
+            onColorChange={setIdColorFilter}
+            colorPage={safeColorPage}
+            colorTotalPages={colorTotalPages}
+            onColorNextPage={handleNextColorPage}
+            onColorPrevPage={handlePrevColorPage}
           />
         </div>
+
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          Mostrando {displayedProductos.length} producto(s) en esta pagina.
+        </p>
+
+        <div className="w-full">
+          <ProductosHeader viewMode={viewMode} onViewModeChange={setViewMode} />
+        </div>
+      </div>
+
+      <section className="space-y-4">
+        {viewMode === "cards" ? (
+          <ProductosCards
+            productos={displayedProductos}
+            loading={displayedLoading}
+            onEditProducto={handleEditProducto}
+            onDeleteProducto={handleDeleteProducto}
+          />
+        ) : (
+          <ProductosTable
+            productos={displayedProductos}
+            loading={displayedLoading}
+            onEditProducto={handleEditProducto}
+            onDeleteProducto={handleDeleteProducto}
+          />
+        )}
+
+        <ProductosPagination
+          totalElements={displayedTotalElements}
+          totalPages={displayedTotalPages}
+          page={displayedPage}
+          onPageChange={setDisplayedPage}
+        />
       </section>
 
       <ProductoDeleteDialog

@@ -1,4 +1,4 @@
-import { memo, useState, type KeyboardEvent, type MouseEvent } from "react"
+import { memo, useState } from "react"
 import Image from "next/image"
 import {
   PencilSquareIcon,
@@ -14,8 +14,6 @@ import { cn } from "@/lib/utils"
 interface ProductosCardsProps {
   productos: ProductoResumen[]
   loading: boolean
-  selectedProductoId?: number | null
-  onSelectProducto?: (producto: ProductoResumen) => void
   onEditProducto: (producto: ProductoResumen) => void
   onDeleteProducto: (producto: ProductoResumen) => void
 }
@@ -37,10 +35,6 @@ function getDefaultColorId(producto: ProductoResumen): number | null {
   const colorWithImage = producto.colores.find((color) => color.imagenPrincipal)
   if (colorWithImage) return colorWithImage.colorId
   return producto.colores[0]?.colorId ?? null
-}
-
-function stopCardClick(event: MouseEvent<HTMLButtonElement>) {
-  event.stopPropagation()
 }
 
 function getVariantSkuStats(producto: ProductoResumen, selectedColorId: number | null) {
@@ -67,8 +61,6 @@ function getVariantSkuStats(producto: ProductoResumen, selectedColorId: number |
 function ProductosCardsComponent({
   productos,
   loading,
-  selectedProductoId,
-  onSelectProducto,
   onEditProducto,
   onDeleteProducto,
 }: ProductosCardsProps) {
@@ -97,33 +89,16 @@ function ProductosCardsComponent({
         const selectedColorTallas = selectedColor?.tallas ?? []
         const imageUrl = selectedColor?.imagenPrincipal?.url || getImageUrl(producto)
         const estadoActivo = producto.estado === "ACTIVO"
-        const isSelected = selectedProductoId === producto.idProducto
         const visibleTallas = selectedColorTallas.slice(0, 4)
         const hiddenTallas = Math.max(0, selectedColorTallas.length - visibleTallas.length)
         const skuStats = getVariantSkuStats(producto, selectedColorId)
 
-        const handleCardKeyDown = (event: KeyboardEvent<HTMLElement>) => {
-          if (event.key !== "Enter" && event.key !== " ") return
-          event.preventDefault()
-          onSelectProducto?.(producto)
-        }
-
         return (
           <article
             key={producto.idProducto}
-            className={cn(
-              "group overflow-hidden rounded-2xl border bg-card shadow-sm transition-all",
-              isSelected
-                ? "border-blue-300 bg-blue-50/70 dark:border-blue-500/40 dark:bg-blue-500/10"
-                : "hover:bg-muted/20"
-            )}
-            onClick={() => onSelectProducto?.(producto)}
-            onKeyDown={handleCardKeyDown}
-            tabIndex={0}
-            role="button"
-            aria-pressed={isSelected}
+            className="overflow-hidden rounded-2xl border bg-card shadow-sm transition-colors hover:bg-muted/20"
           >
-            <div className="relative h-56 w-full overflow-hidden border-b bg-muted/40">
+            <div className="relative h-56 w-full overflow-hidden border-b bg-slate-50 dark:bg-slate-900/40">
               {imageUrl ? (
                 <Image
                   src={imageUrl}
@@ -131,7 +106,7 @@ function ProductosCardsComponent({
                   fill
                   unoptimized
                   sizes="(max-width: 768px) 100vw, (max-width: 1700px) 50vw, 33vw"
-                  className="object-cover"
+                  className="object-contain p-4"
                 />
               ) : (
                 <div className="flex h-full w-full items-center justify-center text-muted-foreground">
@@ -175,8 +150,7 @@ function ProductosCardsComponent({
                     <button
                       type="button"
                       key={`${producto.idProducto}-${color.colorId}`}
-                      onClick={(event) => {
-                        stopCardClick(event)
+                      onClick={() => {
                         setSelectedColorByProduct((previous) => ({
                           ...previous,
                           [producto.idProducto]: color.colorId,
@@ -202,10 +176,7 @@ function ProductosCardsComponent({
                     type="button"
                     className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-500/10 dark:hover:text-blue-400"
                     title="Editar producto"
-                    onClick={(event) => {
-                      stopCardClick(event)
-                      onEditProducto(producto)
-                    }}
+                    onClick={() => onEditProducto(producto)}
                   >
                     <PencilSquareIcon className="h-4 w-4" />
                   </button>
@@ -213,10 +184,7 @@ function ProductosCardsComponent({
                     type="button"
                     className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400"
                     title="Eliminar producto"
-                    onClick={(event) => {
-                      stopCardClick(event)
-                      onDeleteProducto(producto)
-                    }}
+                    onClick={() => onDeleteProducto(producto)}
                   >
                     <TrashIcon className="h-4 w-4" />
                   </button>

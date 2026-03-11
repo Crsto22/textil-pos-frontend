@@ -6,6 +6,9 @@ interface ProductosPaginationProps {
   totalPages: number
   page: number
   onPageChange: Dispatch<SetStateAction<number>>
+  itemLabel?: string
+  activePageClassName?: string
+  inactivePageClassName?: string
 }
 
 function ProductosPaginationComponent({
@@ -13,6 +16,9 @@ function ProductosPaginationComponent({
   totalPages,
   page,
   onPageChange,
+  itemLabel = "productos",
+  activePageClassName = "bg-blue-600 text-white",
+  inactivePageClassName = "text-muted-foreground hover:bg-muted",
 }: ProductosPaginationProps) {
   const pageNumbers = useMemo(
     () => Array.from({ length: totalPages }, (_, index) => index),
@@ -22,7 +28,7 @@ function ProductosPaginationComponent({
   return (
     <div className="mt-4 flex items-center justify-between">
       <p className="text-xs text-muted-foreground">
-        {totalElements} productos
+        {totalElements} {itemLabel}
         {totalPages > 1 && ` - Pagina ${page + 1} de ${totalPages}`}
       </p>
 
@@ -42,8 +48,8 @@ function ProductosPaginationComponent({
               onClick={() => onPageChange(pageNumber)}
               className={`inline-flex h-8 w-8 items-center justify-center rounded-lg text-xs font-medium transition-colors ${
                 pageNumber === page
-                  ? "bg-blue-600 text-white"
-                  : "text-muted-foreground hover:bg-muted"
+                  ? activePageClassName
+                  : inactivePageClassName
               }`}
             >
               {pageNumber + 1}

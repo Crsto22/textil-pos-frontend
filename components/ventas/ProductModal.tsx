@@ -13,6 +13,12 @@ import {
 
 import { formatMonedaPen } from "@/components/productos/productos.utils"
 import { authFetch } from "@/lib/auth/auth-fetch"
+import {
+  ofertaEstaVigente,
+  obtenerPrecioAplicadoOferta,
+  obtenerTextoExpiracionOferta,
+  tienePrecioOfertaValido,
+} from "@/lib/oferta-utils"
 import type {
   ProductoDetalleResponse,
   ProductoResumen,
@@ -135,27 +141,6 @@ function getStockLevelClass(stock: number): string {
   return "bg-rose-500"
 }
 
-function hasValidPrecioOferta(
-  precio: number | null | undefined,
-  precioOferta: number | null | undefined
-): precioOferta is number {
-  return (
-    typeof precio === "number" &&
-    typeof precioOferta === "number" &&
-    precioOferta > 0 &&
-    precioOferta < precio
-  )
-}
-
-function getPrecioAplicado(
-  precio: number | null | undefined,
-  precioOferta: number | null | undefined
-): number {
-  if (hasValidPrecioOferta(precio, precioOferta)) return precioOferta
-  if (typeof precio === "number") return precio
-  return 0
-}
-
 export interface SelectedVariant {
   id: number
   varianteId: number
@@ -185,6 +170,20 @@ export default function ProductModal({ product, onClose, onConfirm }: ProductMod
   const [selectedTallaId, setSelectedTallaId] = useState<number | null>(null)
   const [cantidad, setCantidad] = useState(1)
   const [currentImgIdx, setCurrentImgIdx] = useState(0)
+  const [offerClock, setOfferClock] = useState(() => Date.now())
+
+  useEffect(() => {
+    if (!product) return
+
+    setOfferClock(Date.now())
+    const intervalId = window.setInterval(() => {
+      setOfferClock(Date.now())
+    }, 15000)
+
+    return () => {
+      window.clearInterval(intervalId)
+    }
+  }, [product])
 
   useEffect(() => {
     if (!product) {
@@ -378,6 +377,8 @@ export default function ProductModal({ product, onClose, onConfirm }: ProductMod
 
   if (!product) return null
 
+  const currentOfferDate = new Date(offerClock)
+
   const canConfirm =
     selectedVariante !== null &&
     selectedVariante.estado === "ACTIVO" &&
@@ -385,9 +386,18 @@ export default function ProductModal({ product, onClose, onConfirm }: ProductMod
     cantidad > 0 &&
     cantidad <= selectedVariante.stock
 
+  const selectedVarianteOfferCopy =
+    selectedVariante !== null
+      ? obtenerTextoExpiracionOferta(selectedVariante, currentOfferDate)
+      : null
+  const selectedVarianteHasOfferApplied =
+    selectedVariante !== null &&
+    tienePrecioOfertaValido(selectedVariante) &&
+    ofertaEstaVigente(selectedVariante, currentOfferDate)
+
   const displayPrice =
     selectedVariante !== null
-      ? getPrecioAplicado(selectedVariante.precio, selectedVariante.precioOferta)
+      ? obtenerPrecioAplicadoOferta(selectedVariante, currentOfferDate)
       : (product.precioMin ?? 0)
   const subtotal = displayPrice * cantidad
 
@@ -469,7 +479,7 @@ export default function ProductModal({ product, onClose, onConfirm }: ProductMod
           <XMarkIcon className="h-4 w-4" />
         </button>
 
-        <section className="relative h-[300px] w-full shrink-0 overflow-hidden border-b border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-800 sm:h-auto sm:w-[44%] sm:border-b-0 sm:border-r">
+        <section className="relative h-[300px] w-full shrink-0 overflow-hidden border-b border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/40 sm:h-auto sm:w-[44%] sm:border-b-0 sm:border-r">
           {detalleLoading && !detalle ? (
             <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-slate-200 via-slate-100 to-slate-200 dark:from-slate-800 dark:via-slate-700 dark:to-slate-800" />
           ) : galleryImages.length > 0 ? (
@@ -479,7 +489,7 @@ export default function ProductModal({ product, onClose, onConfirm }: ProductMod
               fill
               unoptimized
               sizes="(max-width: 1024px) 100vw, 42vw"
-              className="object-cover"
+              className="object-contain p-6"
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-slate-500 dark:text-slate-400">
@@ -566,11 +576,7 @@ export default function ProductModal({ product, onClose, onConfirm }: ProductMod
                   )}
                 </div>
 
-                {selectedVariante &&
-                  hasValidPrecioOferta(
-                    selectedVariante.precio,
-                    selectedVariante.precioOferta
-                  ) && (
+                {selectedVariante && selectedVarianteHasOfferApplied && (
                     <p className="pt-1 text-sm font-semibold text-slate-500 line-through dark:text-slate-400">
                       {formatMonedaPen(selectedVariante.precio)}
                     </p>
@@ -578,6 +584,11 @@ export default function ProductModal({ product, onClose, onConfirm }: ProductMod
                 <p className="text-2xl font-extrabold text-blue-600 dark:text-blue-400">
                   {formatMonedaPen(displayPrice)}
                 </p>
+                {selectedVarianteOfferCopy && (
+                  <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                    {selectedVarianteOfferCopy}
+                  </p>
+                )}
               </div>
 
               {detalleError && (
@@ -646,6 +657,12 @@ export default function ProductModal({ product, onClose, onConfirm }: ProductMod
                         variantesPorColor.map((variante) => {
                           const agotado = variante.estado !== "ACTIVO" || variante.stock <= 0
                           const selected = variante.tallaId === selectedTallaId
+                          const showOfferPrice =
+                            tienePrecioOfertaValido(variante) &&
+                            ofertaEstaVigente(variante, currentOfferDate)
+                          const offerCopy = showOfferPrice
+                            ? obtenerTextoExpiracionOferta(variante, currentOfferDate)
+                            : null
 
                           return (
                             <button
@@ -671,7 +688,7 @@ export default function ProductModal({ product, onClose, onConfirm }: ProductMod
                               </div>
 
                               <div className="mt-2">
-                                {hasValidPrecioOferta(variante.precio, variante.precioOferta) ? (
+                                {showOfferPrice ? (
                                   <div className="space-y-1">
                                     <p className="text-xs font-medium leading-none text-slate-500 line-through dark:text-slate-400">
                                       {formatMonedaPen(variante.precio)}
@@ -686,6 +703,11 @@ export default function ProductModal({ product, onClose, onConfirm }: ProductMod
                                   </p>
                                 )}
                               </div>
+                              {offerCopy && (
+                                <p className="mt-2 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                                  {offerCopy}
+                                </p>
+                              )}
                             </button>
                           )
                         })
