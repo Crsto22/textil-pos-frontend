@@ -11,7 +11,8 @@ import {
   type ReactNode,
 } from "react"
 
-import type { Empresa, EmpresaPublica } from "@/lib/types/empresa"
+import { normalizeEmpresaPublica } from "@/lib/empresa"
+import type { Empresa } from "@/lib/types/empresa"
 
 interface CompanyContextType {
   company: Empresa | null
@@ -29,34 +30,6 @@ function isAbortError(error: unknown) {
 
 async function parseJsonSafe(response: Response) {
   return response.json().catch(() => null)
-}
-
-function mapEmpresaPublicaToEmpresa(data: EmpresaPublica): Empresa {
-  const normalizedLogo =
-    typeof data.logoUrl === "string" ? data.logoUrl.trim() : ""
-
-  return {
-    idEmpresa: 0,
-    nombre: data.nombre.trim(),
-    ruc: "",
-    razonSocial: "",
-    correo: "",
-    fechaCreacion: "",
-    logoUrl: normalizedLogo ? normalizedLogo : undefined,
-  }
-}
-
-function parseEmpresaPublica(data: unknown): Empresa | null {
-  if (!data || typeof data !== "object") return null
-
-  const payload = data as Partial<EmpresaPublica>
-  const nombre =
-    typeof payload.nombre === "string" ? payload.nombre.trim() : ""
-  const logoUrl =
-    typeof payload.logoUrl === "string" ? payload.logoUrl : undefined
-  if (!nombre) return null
-
-  return mapEmpresaPublicaToEmpresa({ nombre, logoUrl })
 }
 
 export function CompanyProvider({ children }: { children: ReactNode }) {
@@ -87,7 +60,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
           return
         }
 
-        setCompany(parseEmpresaPublica(data))
+        setCompany(normalizeEmpresaPublica(data))
       } catch (requestError) {
         if (isAbortError(requestError)) return
         const message =

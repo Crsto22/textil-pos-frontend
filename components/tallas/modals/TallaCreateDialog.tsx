@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 
 import {
   Dialog,
@@ -18,21 +18,29 @@ interface TallaCreateDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onCreate: (payload: TallaCreateRequest) => Promise<boolean>
+  initialNombre?: string
 }
 
 export function TallaCreateDialog({
   open,
   onOpenChange,
   onCreate,
+  initialNombre = "",
 }: TallaCreateDialogProps) {
-  const [nombre, setNombre] = useState("")
+  const [nombre, setNombre] = useState(initialNombre)
   const [isSaving, setIsSaving] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+
+    setNombre(initialNombre)
+  }, [initialNombre, open])
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (isSaving) return
     onOpenChange(nextOpen)
     if (!nextOpen) {
-      setNombre("")
+      setNombre(initialNombre)
     }
   }
 

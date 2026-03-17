@@ -11,13 +11,21 @@ import {
 } from "@/components/productos/ProductosHeader"
 import { ProductosPagination } from "@/components/productos/ProductosPagination"
 import { ProductosTable } from "@/components/productos/ProductosTable"
+import { ProductosVariantesCards } from "@/components/productos/ProductosVariantesCards"
 import { ProductoDeleteDialog } from "@/components/productos/modals/ProductoDeleteDialog"
+import { ProductoVarianteDeleteDialog } from "@/components/productos/modals/ProductoVarianteDeleteDialog"
+import { ProductoVarianteEditDialog } from "@/components/productos/modals/ProductoVarianteEditDialog"
+import CatalogViewToggle from "@/components/ventas/CatalogViewToggle"
 import CategoryFilter from "@/components/ventas/CategoryFilter"
+import type { CatalogVariantItem, CatalogViewMode } from "@/lib/catalog-view"
 import { authFetch } from "@/lib/auth/auth-fetch"
+import { useCatalogoVariantes } from "@/lib/hooks/useCatalogoVariantes"
+import { useCatalogViewMode } from "@/lib/hooks/useCatalogViewMode"
 import { useProductos } from "@/lib/hooks/useProductos"
 import type { Categoria, PageResponse as CategoriaPageResponse } from "@/lib/types/categoria"
 import type { Color, PageResponse as ColorPageResponse } from "@/lib/types/color"
 import type { ProductoResumen } from "@/lib/types/producto"
+import type { VarianteUpdateRequest } from "@/lib/types/variante"
 
 function parseJsonSafe(response: Response) {
   return response.json().catch(() => null)
@@ -78,7 +86,10 @@ function mapColorFilters(payload: unknown): ColorFilterOption[] {
 export default function ProductosPage() {
   const router = useRouter()
   const [deleteTarget, setDeleteTarget] = useState<ProductoResumen | null>(null)
+  const [editVariantTarget, setEditVariantTarget] = useState<CatalogVariantItem | null>(null)
+  const [deleteVariantTarget, setDeleteVariantTarget] = useState<CatalogVariantItem | null>(null)
   const [viewMode, setViewMode] = useState<ProductosViewMode>("cards")
+  const [catalogViewMode, setCatalogViewMode] = useCatalogViewMode()
   const [categoriasDisponibles, setCategoriasDisponibles] = useState<CategoryFilterOption[]>(
     []
   )
@@ -87,22 +98,39 @@ export default function ProductosPage() {
   const [coloresDisponibles, setColoresDisponibles] = useState<ColorFilterOption[]>([])
   const [colorPage, setColorPage] = useState(0)
   const [colorTotalPages, setColorTotalPages] = useState(1)
+  const isVariantView = catalogViewMode === "variantes"
 
   const {
-    search,
-    setSearch,
-    idCategoriaFilter,
-    idColorFilter,
-    setIdCategoriaFilter,
-    setIdColorFilter,
+    search: searchProductos,
+    setSearch: setSearchProductos,
+    idCategoriaFilter: idCategoriaFilterProductos,
+    idColorFilter: idColorFilterProductos,
+    setIdCategoriaFilter: setIdCategoriaFilterProductos,
+    setIdColorFilter: setIdColorFilterProductos,
     displayedProductos,
-    displayedLoading,
-    displayedTotalElements,
-    displayedTotalPages,
-    displayedPage,
-    setDisplayedPage,
+    displayedLoading: displayedLoadingProductos,
+    displayedTotalElements: displayedTotalElementsProductos,
+    displayedTotalPages: displayedTotalPagesProductos,
+    displayedPage: displayedPageProductos,
+    setDisplayedPage: setDisplayedPageProductos,
     deleteProducto,
-  } = useProductos()
+  } = useProductos(!isVariantView)
+  const {
+    search: searchVariantes,
+    setSearch: setSearchVariantes,
+    idCategoriaFilter: idCategoriaFilterVariantes,
+    idColorFilter: idColorFilterVariantes,
+    setIdCategoriaFilter: setIdCategoriaFilterVariantes,
+    setIdColorFilter: setIdColorFilterVariantes,
+    displayedCatalogVariants,
+    displayedLoading: displayedLoadingVariantes,
+    displayedTotalElements: displayedTotalElementsVariantes,
+    displayedTotalPages: displayedTotalPagesVariantes,
+    displayedPage: displayedPageVariantes,
+    setDisplayedPage: setDisplayedPageVariantes,
+    updateVariante,
+    deleteVariante,
+  } = useCatalogoVariantes(isVariantView)
 
   useEffect(() => {
     const fetchCategorias = async () => {
@@ -223,18 +251,115 @@ export default function ProductosPage() {
     [deleteProducto]
   )
 
+  const handleEditVariante = useCallback((variant: CatalogVariantItem) => {
+    if (!variant.variantId) return
+    setEditVariantTarget(variant)
+  }, [])
+
+  const handleDeleteVariante = useCallback((variant: CatalogVariantItem) => {
+    if (!variant.variantId) return
+    setDeleteVariantTarget(variant)
+  }, [])
+
+  const handleVariantUpdateConfirmed = useCallback(
+    async (idVariante: number, payload: VarianteUpdateRequest) => {
+      const success = await updateVariante(idVariante, payload)
+      if (!success) return false
+      setEditVariantTarget(null)
+      return true
+    },
+    [updateVariante]
+  )
+
+  const handleVariantDeleteConfirmed = useCallback(
+    async (idVariante: number) => {
+      const success = await deleteVariante(idVariante)
+      if (!success) return false
+      return true
+    },
+    [deleteVariante]
+  )
+
+  const search = isVariantView ? searchVariantes : searchProductos
+  const idCategoriaFilter = isVariantView
+    ? idCategoriaFilterVariantes
+    : idCategoriaFilterProductos
+  const idColorFilter = isVariantView ? idColorFilterVariantes : idColorFilterProductos
+  const displayedLoading = isVariantView ? displayedLoadingVariantes : displayedLoadingProductos
+  const displayedTotalElements = isVariantView
+    ? displayedTotalElementsVariantes
+    : displayedTotalElementsProductos
+  const displayedTotalPages = isVariantView
+    ? displayedTotalPagesVariantes
+    : displayedTotalPagesProductos
+  const displayedPage = isVariantView ? displayedPageVariantes : displayedPageProductos
+
+  const handleSearchChange = useCallback(
+    (value: string) => {
+      if (isVariantView) {
+        setSearchVariantes(value)
+        return
+      }
+
+      setSearchProductos(value)
+    },
+    [isVariantView, setSearchProductos, setSearchVariantes]
+  )
+
+  const handleCategoriaFilterChange = useCallback(
+    (value: number | null) => {
+      if (isVariantView) {
+        setIdCategoriaFilterVariantes(value)
+        return
+      }
+
+      setIdCategoriaFilterProductos(value)
+    },
+    [isVariantView, setIdCategoriaFilterProductos, setIdCategoriaFilterVariantes]
+  )
+
+  const handleColorFilterChange = useCallback(
+    (value: number | null) => {
+      if (isVariantView) {
+        setIdColorFilterVariantes(value)
+        return
+      }
+
+      setIdColorFilterProductos(value)
+    },
+    [isVariantView, setIdColorFilterProductos, setIdColorFilterVariantes]
+  )
+
+  const handleDisplayedPageChange = useCallback(
+    (value: number | ((previous: number) => number)) => {
+      if (isVariantView) {
+        setDisplayedPageVariantes(value)
+        return
+      }
+
+      setDisplayedPageProductos(value)
+    },
+    [isVariantView, setDisplayedPageProductos, setDisplayedPageVariantes]
+  )
+
   return (
     <div className="space-y-5">
       <div className="flex flex-col gap-3">
-        <div className="relative">
-          <MagnifyingGlassIcon className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Buscar por nombre, SKU o categoria..."
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-sm shadow-sm transition-all placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800"
-          />
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="relative flex-1">
+            <MagnifyingGlassIcon className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Buscar por nombre, SKU o categoria..."
+              value={search}
+              onChange={(event) => handleSearchChange(event.target.value)}
+              className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-sm shadow-sm transition-all placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800"
+            />
+          </div>
+
+          <div className="flex items-center justify-end">
+            <CatalogViewToggle value={catalogViewMode} onChange={setCatalogViewMode} />
+          </div>
         </div>
 
         <div className="rounded-xl border border-slate-100 bg-white px-3.5 py-3 shadow-sm dark:border-slate-700/60 dark:bg-slate-800/60">
@@ -242,13 +367,13 @@ export default function ProductosPage() {
             categories={categoriasDisponibles}
             colors={coloresDisponibles}
             activeCategoryId={idCategoriaFilter}
-            onCategoryChange={setIdCategoriaFilter}
+            onCategoryChange={handleCategoriaFilterChange}
             categoryPage={safeCategoryPage}
             categoryTotalPages={categoryTotalPages}
             onCategoryNextPage={handleNextCategoryPage}
             onCategoryPrevPage={handlePrevCategoryPage}
             activeColorId={idColorFilter}
-            onColorChange={setIdColorFilter}
+            onColorChange={handleColorFilterChange}
             colorPage={safeColorPage}
             colorTotalPages={colorTotalPages}
             onColorNextPage={handleNextColorPage}
@@ -257,16 +382,29 @@ export default function ProductosPage() {
         </div>
 
         <p className="text-xs text-slate-500 dark:text-slate-400">
-          Mostrando {displayedProductos.length} producto(s) en esta pagina.
+          Mostrando{" "}
+          {isVariantView ? displayedCatalogVariants.length : displayedProductos.length}{" "}
+          {isVariantView ? "variante(s)" : "producto(s)"} en esta pagina.
         </p>
 
         <div className="w-full">
-          <ProductosHeader viewMode={viewMode} onViewModeChange={setViewMode} />
+          <ProductosHeader
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+            showViewModeToggle={!isVariantView}
+          />
         </div>
       </div>
 
       <section className="space-y-4">
-        {viewMode === "cards" ? (
+        {isVariantView ? (
+          <ProductosVariantesCards
+            variants={displayedCatalogVariants}
+            loading={displayedLoading}
+            onEditVariante={handleEditVariante}
+            onDeleteVariante={handleDeleteVariante}
+          />
+        ) : viewMode === "cards" ? (
           <ProductosCards
             productos={displayedProductos}
             loading={displayedLoading}
@@ -286,7 +424,8 @@ export default function ProductosPage() {
           totalElements={displayedTotalElements}
           totalPages={displayedTotalPages}
           page={displayedPage}
-          onPageChange={setDisplayedPage}
+          onPageChange={handleDisplayedPageChange}
+          itemLabel={isVariantView ? "variantes" : "productos"}
         />
       </section>
 
@@ -297,6 +436,24 @@ export default function ProductosPage() {
           if (!open) setDeleteTarget(null)
         }}
         onDelete={handleDeleteConfirmed}
+      />
+
+      <ProductoVarianteEditDialog
+        open={editVariantTarget !== null}
+        target={editVariantTarget}
+        onOpenChange={(open) => {
+          if (!open) setEditVariantTarget(null)
+        }}
+        onUpdate={handleVariantUpdateConfirmed}
+      />
+
+      <ProductoVarianteDeleteDialog
+        open={deleteVariantTarget !== null}
+        target={deleteVariantTarget}
+        onOpenChange={(open) => {
+          if (!open) setDeleteVariantTarget(null)
+        }}
+        onDelete={handleVariantDeleteConfirmed}
       />
     </div>
   )

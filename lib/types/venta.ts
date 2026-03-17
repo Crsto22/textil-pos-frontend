@@ -1,4 +1,64 @@
-export type TipoComprobante = "TICKET" | "BOLETA" | "FACTURA" | (string & {})
+export type TipoComprobante = "NOTA DE VENTA" | "BOLETA" | "FACTURA" | (string & {})
+export type MonedaCodigo = "PEN" | "USD" | (string & {})
+export type FormaPagoVenta = "CONTADO" | "CREDITO" | (string & {})
+export type TipoDescuentoVenta = "PORCENTAJE" | "MONTO" | null
+export type SunatEstado =
+  | "PENDIENTE"
+  | "ACEPTADO"
+  | "OBSERVADO"
+  | "RECHAZADO"
+  | "ERROR"
+  | "NO_APLICA"
+  | (string & {})
+
+export interface VentaCreateDetalleRequest {
+  idProductoVariante: number
+  descripcion?: string | null
+  cantidad: number
+  unidadMedida?: string | null
+  codigoTipoAfectacionIgv?: string | null
+  precioUnitario: number
+  descuento: number
+}
+
+export interface VentaCreatePagoRequest {
+  idMetodoPago: number
+  monto: number
+  codigoOperacion?: string | null
+}
+
+export interface VentaCreateRequest {
+  idSucursal: number
+  idCliente: number | null
+  tipoComprobante: TipoComprobante
+  moneda?: MonedaCodigo | null
+  formaPago?: FormaPagoVenta | null
+  igvPorcentaje?: number | null
+  descuentoTotal?: number | null
+  tipoDescuento?: TipoDescuentoVenta
+  detalles: VentaCreateDetalleRequest[]
+  pagos: VentaCreatePagoRequest[]
+}
+
+export interface VentaInsertPagoResponse {
+  idPago: number
+  idMetodoPago: number
+  metodoPago: string
+  monto: number
+  codigoOperacion: string | null
+  fecha: string | null
+}
+
+export interface VentaInsertResponse {
+  idVenta: number
+  sunatEstado: SunatEstado | null
+  sunatXmlNombre: string | null
+  sunatZipNombre: string | null
+  sunatCdrNombre: string | null
+  pagos?: VentaInsertPagoResponse[]
+  sunatAutoDispatchTriggered?: boolean
+  sunatAutoDispatchError?: string | null
+}
 
 export interface VentaHistorial {
   idVenta: number
@@ -6,8 +66,10 @@ export interface VentaHistorial {
   tipoComprobante: TipoComprobante
   serie: string
   correlativo: number
+  moneda: MonedaCodigo
   total: number
   estado: string
+  sunatEstado: SunatEstado | null
   idCliente: number | null
   nombreCliente: string
   idUsuario: number | null
@@ -23,6 +85,7 @@ export interface VentaDetalleItem {
   idProductoVariante: number
   idProducto: number
   nombreProducto: string
+  descripcion: string
   sku: string | null
   precioOferta: number | null
   ofertaInicio: string | null
@@ -32,17 +95,21 @@ export interface VentaDetalleItem {
   idTalla: number | null
   talla: string | null
   cantidad: number
+  unidadMedida: string
+  codigoTipoAfectacionIgv: string
   precioUnitario: number
   descuento: number
+  igvDetalle: number
   subtotal: number
+  totalDetalle: number
 }
 
 export interface VentaDetallePago {
   idPago: number
   idMetodoPago: number
-  metodoPago: string
+  nombreMetodoPago: string
   monto: number
-  referencia: string | null
+  codigoOperacion: string | null
   fecha: string | null
 }
 
@@ -52,6 +119,7 @@ export interface VentaDetalleResponse {
   tipoComprobante: TipoComprobante
   serie: string
   correlativo: number
+  moneda: MonedaCodigo
   igvPorcentaje: number
   subtotal: number
   descuentoTotal: number
@@ -59,6 +127,16 @@ export interface VentaDetalleResponse {
   igv: number
   total: number
   estado: string
+  sunatEstado: SunatEstado | null
+  sunatCodigo: string | null
+  sunatMensaje: string | null
+  sunatHash: string | null
+  sunatTicket: string | null
+  sunatXmlNombre: string | null
+  sunatZipNombre: string | null
+  sunatCdrNombre: string | null
+  sunatEnviadoAt: string | null
+  sunatRespondidoAt: string | null
   idCliente: number | null
   nombreCliente: string
   idUsuario: number | null
@@ -67,6 +145,16 @@ export interface VentaDetalleResponse {
   nombreSucursal: string
   detalles: VentaDetalleItem[]
   pagos: VentaDetallePago[]
+}
+
+export interface VentaSunatRetryResponse {
+  idVenta: number
+  sunatEstado: SunatEstado | null
+  sunatCodigo: string | null
+  sunatMensaje: string | null
+  sunatXmlNombre: string | null
+  sunatZipNombre: string | null
+  sunatCdrNombre: string | null
 }
 
 export interface VentaHistorialPageResponse {

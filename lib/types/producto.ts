@@ -34,6 +34,7 @@ export interface ProductoResumenTalla {
   nombre: string
   sku?: string | null
   precio?: number | null
+  precioMayor?: number | null
   precioOferta?: number | null
   ofertaInicio?: string | null
   ofertaFin?: string | null
@@ -59,6 +60,7 @@ export interface ProductoVarianteCreateRequest {
   tallaId: number
   sku: string
   precio: number
+  precioMayor?: number | null
   precioOferta?: number | null
   ofertaInicio?: string | null
   ofertaFin?: string | null
@@ -139,6 +141,7 @@ export interface ProductoDetalleVariante {
   tallaId: number
   tallaNombre: string
   precio: number
+  precioMayor: number | null
   precioOferta: number | null
   ofertaInicio: string | null
   ofertaFin: string | null

@@ -1,6 +1,7 @@
 import { memo } from "react"
 import {
   BuildingOffice2Icon,
+  EnvelopeIcon,
   MapPinIcon,
   PencilSquareIcon,
   PhoneIcon,
@@ -9,6 +10,7 @@ import {
 } from "@heroicons/react/24/outline"
 
 import { SucursalesCardsSkeleton } from "@/components/sucursales/SucursalesCardsSkeleton"
+import { getSucursalLocationLabel } from "@/lib/sucursal"
 import { cn } from "@/lib/utils"
 import type { Sucursal } from "@/lib/types/sucursal"
 
@@ -117,6 +119,7 @@ function SucursalesCardsComponent({
         const usuariosTotal = Number.isFinite(sucursal.usuariosTotal)
           ? sucursal.usuariosTotal
           : usuarios.length
+        const locationLabel = getSucursalLocationLabel(sucursal)
 
 
         return (
@@ -198,11 +201,27 @@ function SucursalesCardsComponent({
                 </span>
               </p>
               <p className="flex items-center gap-2.5 text-[13px] text-muted-foreground">
+                <MapPinIcon className="h-4 w-4 shrink-0 text-muted-foreground/60" />
+                <span className="truncate">{locationLabel || "Ubicación no registrada"}</span>
+              </p>
+              <p className="flex items-center gap-2.5 text-[13px] text-muted-foreground">
                 <PhoneIcon className="h-4 w-4 shrink-0 text-muted-foreground/60" />
                 <span className="truncate">
                   {sucursal.telefono || "Sin teléfono"}
                 </span>
               </p>
+              <p className="flex items-center gap-2.5 text-[13px] text-muted-foreground">
+                <EnvelopeIcon className="h-4 w-4 shrink-0 text-muted-foreground/60" />
+                <span className="truncate">{sucursal.correo || "Sin correo"}</span>
+              </p>
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                  Ubigeo {sucursal.ubigeo || "-"}
+                </span>
+                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                  SUNAT {sucursal.codigoEstablecimientoSunat || "-"}
+                </span>
+              </div>
             </div>
 
             {/* ─── Staff section ─── */}

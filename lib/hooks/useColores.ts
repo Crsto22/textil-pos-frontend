@@ -46,6 +46,53 @@ function isAbortError(error: unknown) {
   return error instanceof DOMException && error.name === "AbortError"
 }
 
+function isColorEntity(value: unknown): value is Color {
+  if (!value || typeof value !== "object") return false
+
+  return (
+    "idColor" in value &&
+    typeof value.idColor === "number" &&
+    "nombre" in value &&
+    typeof value.nombre === "string" &&
+    "estado" in value &&
+    typeof value.estado === "string"
+  )
+}
+
+function getColorFromCreatePayload(payload: unknown): Color | null {
+  if (isColorEntity(payload)) return payload
+  if (!payload || typeof payload !== "object") return null
+
+  const payloadRecord = payload as Record<string, unknown>
+
+  for (const key of ["color", "data", "payload", "result"]) {
+    const candidate = payloadRecord[key]
+    if (isColorEntity(candidate)) {
+      return candidate
+    }
+  }
+
+  return null
+}
+
+function normalizeName(value: string) {
+  return value.trim().toLocaleLowerCase()
+}
+
+function findExactColorMatch(colors: Color[], nombre: string) {
+  const normalizedNombre = normalizeName(nombre)
+  if (!normalizedNombre) return null
+
+  return (
+    colors.find((color) => normalizeName(color.nombre) === normalizedNombre) ?? null
+  )
+}
+
+interface CreateColorResult {
+  success: boolean
+  color: Color | null
+}
+
 export function useColores() {
   const { isLoading: isAuthLoading } = useAuth()
 
@@ -219,8 +266,31 @@ export function useColores() {
     await fetchColores(page)
   }, [debouncedSearch, fetchBuscar, fetchColores, isSearchMode, page, searchPage])
 
-  const createColor = useCallback(
-    async (payload: ColorCreateRequest) => {
+  const findColorByName = useCallback(async (nombre: string) => {
+    const trimmedNombre = nombre.trim()
+    if (!trimmedNombre) return null
+
+    try {
+      const params = new URLSearchParams({
+        q: trimmedNombre,
+        page: "0",
+      })
+
+      const response = await authFetch(`/api/color/buscar?${params.toString()}`)
+      const data = await parseJsonSafe(response)
+      if (!response.ok) return null
+
+      const pageData = data as PageResponse<Color> | null
+      const content = Array.isArray(pageData?.content) ? pageData.content : []
+
+      return findExactColorMatch(content, trimmedNombre) ?? null
+    } catch {
+      return null
+    }
+  }, [])
+
+  const createColorAndReturn = useCallback(
+    async (payload: ColorCreateRequest): Promise<CreateColorResult> => {
       try {
         const response = await authFetch("/api/color/insertar", {
           method: "POST",
@@ -234,21 +304,34 @@ export function useColores() {
           const message = getErrorMessage(response.status, data?.message)
           setError(message)
           toast.error(message)
-          return false
+          return { success: false, color: null }
         }
 
         toast.success("Color creado exitosamente")
         await refreshCurrentView()
-        return true
+        return {
+          success: true,
+          color:
+            getColorFromCreatePayload(data) ??
+            (await findColorByName(payload.nombre)),
+        }
       } catch (requestError) {
         const message =
           requestError instanceof Error ? requestError.message : "Error inesperado"
         setError(message)
         toast.error(message)
-        return false
+        return { success: false, color: null }
       }
     },
-    [refreshCurrentView]
+    [findColorByName, refreshCurrentView]
+  )
+
+  const createColor = useCallback(
+    async (payload: ColorCreateRequest) => {
+      const result = await createColorAndReturn(payload)
+      return result.success
+    },
+    [createColorAndReturn]
   )
 
   const updateColor = useCallback(
@@ -373,6 +456,7 @@ export function useColores() {
     fetchColores,
     fetchBuscar,
     refreshCurrentView,
+    createColorAndReturn,
     createColor,
     updateColor,
     deleteColor,

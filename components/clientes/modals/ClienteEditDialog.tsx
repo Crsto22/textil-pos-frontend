@@ -1,5 +1,11 @@
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import {
+    ArrowPathIcon,
+    MagnifyingGlassIcon,
+} from "@heroicons/react/24/outline"
 
+import { Button } from "@/components/ui/button"
+import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
 import {
     Dialog,
     DialogClose,
@@ -9,6 +15,8 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
     Select,
     SelectContent,
@@ -16,13 +24,10 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
-import { Button } from "@/components/ui/button"
-import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { useAuth } from "@/lib/auth/auth-context"
+import { useDocumentoLookup } from "@/lib/hooks/useDocumentoLookup"
 import { useSucursalOptions } from "@/lib/hooks/useSucursalOptions"
 import {
     emptyClienteUpdate,
@@ -32,6 +37,11 @@ import {
     type Cliente,
     type ClienteUpdateRequest,
 } from "@/lib/types/cliente"
+import {
+    applyClienteDocumentoAutofill,
+    getClienteAutofillFromDni,
+    getClienteAutofillFromRuc,
+} from "@/lib/utils/cliente-documento"
 
 interface ClienteEditDialogProps {
     open: boolean
@@ -55,6 +65,13 @@ export function ClienteEditDialog({
     const [isUpdating, setIsUpdating] = useState(false)
 
     const {
+        loading: isLookingUpDocument,
+        error: documentLookupError,
+        clearError: clearDocumentLookupError,
+        lookupDocumento,
+    } = useDocumentoLookup()
+
+    const {
         sucursalOptions,
         loadingSucursales,
         errorSucursales,
@@ -74,24 +91,26 @@ export function ClienteEditDialog({
     const comboboxOptions = useMemo<ComboboxOption[]>(
         () =>
             hasValidSucursal &&
-                !sucursalOptions.some((option) => option.value === String(form.idSucursal))
+            !sucursalOptions.some(
+                (option) => option.value === String(form.idSucursal)
+            )
                 ? [
-                    {
-                        value: String(form.idSucursal),
-                        label:
-                            cliente?.nombreSucursal || `Sucursal #${form.idSucursal}`,
-                    },
-                    ...sucursalOptions,
-                ]
+                      {
+                          value: String(form.idSucursal),
+                          label:
+                              cliente?.nombreSucursal ||
+                              `Sucursal #${form.idSucursal}`,
+                      },
+                      ...sucursalOptions,
+                  ]
                 : sucursalOptions,
-        [form.idSucursal, hasValidSucursal, sucursalOptions, cliente?.nombreSucursal]
+        [cliente?.nombreSucursal, form.idSucursal, hasValidSucursal, sucursalOptions]
     )
-
-    /* ── Hidratar formulario al abrir ──────────────────────── */
 
     useEffect(() => {
         if (!open || !cliente) return
 
+        clearDocumentLookupError()
         setForm({
             tipoDocumento: cliente.tipoDocumento,
             nroDocumento: cliente.nroDocumento ?? "",
@@ -100,16 +119,28 @@ export function ClienteEditDialog({
             correo: cliente.correo,
             direccion: cliente.direccion,
             estado: cliente.estado,
-            idSucursal: userHasSucursal ? user!.idSucursal : cliente.idSucursal,
+            idSucursal: userHasSucursal ? user?.idSucursal ?? null : cliente.idSucursal,
         })
         setSearchSucursal("")
-    }, [open, setSearchSucursal, cliente, userHasSucursal, user])
+    }, [
+        clearDocumentLookupError,
+        cliente,
+        open,
+        setSearchSucursal,
+        user?.idSucursal,
+        userHasSucursal,
+    ])
 
     const isNroDocValid = useMemo(() => {
         if (isSinDoc) return true
-        const len = form.nroDocumento.trim().length
-        return len >= nroDocMinLength && len <= nroDocMaxLength
+        const length = form.nroDocumento.trim().length
+        return length >= nroDocMinLength && length <= nroDocMaxLength
     }, [form.nroDocumento, isSinDoc, nroDocMaxLength, nroDocMinLength])
+
+    const canLookupDocument =
+        (form.tipoDocumento === "DNI" || form.tipoDocumento === "RUC") &&
+        form.nroDocumento.trim().length > 0 &&
+        isNroDocValid
 
     const isEditValid = useMemo(
         () =>
@@ -120,13 +151,44 @@ export function ClienteEditDialog({
         [form, isNroDocValid]
     )
 
-    const handleOpenChange = (nextOpen: boolean) => {
-        onOpenChange(nextOpen)
-        if (!nextOpen) {
-            setForm(emptyClienteUpdate)
-            setSearchSucursal("")
-        }
-    }
+    const handleOpenChange = useCallback(
+        (nextOpen: boolean) => {
+            onOpenChange(nextOpen)
+            clearDocumentLookupError()
+
+            if (!nextOpen) {
+                setForm(emptyClienteUpdate)
+                setSearchSucursal("")
+            }
+        },
+        [clearDocumentLookupError, onOpenChange, setSearchSucursal]
+    )
+
+    const handleLookupDocument = useCallback(async () => {
+        if (!canLookupDocument) return
+        if (!isTipoDocumento(form.tipoDocumento)) return
+
+        const result = await lookupDocumento(
+            form.tipoDocumento,
+            form.nroDocumento
+        )
+
+        if (!result.ok) return
+
+        setForm((previous) =>
+            applyClienteDocumentoAutofill(
+                previous,
+                result.tipoDocumento === "DNI"
+                    ? getClienteAutofillFromDni(result.data)
+                    : getClienteAutofillFromRuc(result.data)
+            )
+        )
+    }, [
+        canLookupDocument,
+        form.nroDocumento,
+        form.tipoDocumento,
+        lookupDocumento,
+    ])
 
     const handleUpdate = async () => {
         if (!cliente || !isEditValid) return
@@ -159,7 +221,6 @@ export function ClienteEditDialog({
                 </DialogHeader>
 
                 <div className="grid gap-4 py-4">
-                    {/* Nombre completo */}
                     <div className="grid gap-2">
                         <Label htmlFor="ce-nombres">Nombre completo</Label>
                         <Input
@@ -174,7 +235,6 @@ export function ClienteEditDialog({
                         />
                     </div>
 
-                    {/* Tipo y Número de documento */}
                     <div className="grid grid-cols-5 gap-4">
                         <div className="col-span-2 grid gap-2">
                             <Label htmlFor="ce-tipo-doc">Tipo Doc.</Label>
@@ -183,6 +243,8 @@ export function ClienteEditDialog({
                                 onValueChange={(value) =>
                                     setForm((previous) => {
                                         if (!isTipoDocumento(value)) return previous
+
+                                        clearDocumentLookupError()
                                         return {
                                             ...previous,
                                             tipoDocumento: value,
@@ -203,41 +265,76 @@ export function ClienteEditDialog({
                                 </SelectContent>
                             </Select>
                         </div>
+
                         <div className="col-span-3 grid gap-2">
                             <Label htmlFor="ce-nro-doc">Nro. Documento</Label>
-                            <Input
-                                id="ce-nro-doc"
-                                placeholder={isSinDoc ? "—" : "12345678"}
-                                maxLength={nroDocMaxLength}
-                                disabled={isSinDoc}
-                                value={isSinDoc ? "" : form.nroDocumento}
-                                onChange={(event) => {
-                                    const raw = event.target.value
-                                    const sanitized = isAlphanumeric
-                                        ? raw.replace(/[^a-zA-Z0-9]/g, "").slice(0, nroDocMaxLength)
-                                        : raw.replace(/\D/g, "").slice(0, nroDocMaxLength)
-                                    setForm((previous) => ({
-                                        ...previous,
-                                        nroDocumento: sanitized,
-                                    }))
-                                }}
-                            />
-                            {!isSinDoc &&
+                            <div className="flex items-start gap-2">
+                                <Input
+                                    id="ce-nro-doc"
+                                    placeholder={isSinDoc ? "-" : "12345678"}
+                                    maxLength={nroDocMaxLength}
+                                    disabled={isSinDoc}
+                                    value={isSinDoc ? "" : form.nroDocumento}
+                                    onChange={(event) => {
+                                        clearDocumentLookupError()
+
+                                        const raw = event.target.value
+                                        const sanitized = isAlphanumeric
+                                            ? raw
+                                                  .replace(/[^a-zA-Z0-9]/g, "")
+                                                  .slice(0, nroDocMaxLength)
+                                            : raw
+                                                  .replace(/\D/g, "")
+                                                  .slice(0, nroDocMaxLength)
+
+                                        setForm((previous) => ({
+                                            ...previous,
+                                            nroDocumento: sanitized,
+                                        }))
+                                    }}
+                                />
+                                {(form.tipoDocumento === "DNI" ||
+                                    form.tipoDocumento === "RUC") && (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="shrink-0"
+                                        onClick={() => {
+                                            void handleLookupDocument()
+                                        }}
+                                        disabled={!canLookupDocument || isLookingUpDocument}
+                                    >
+                                        {isLookingUpDocument ? (
+                                            <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                                        ) : (
+                                            <MagnifyingGlassIcon className="h-4 w-4" />
+                                        )}
+                                        Buscar
+                                    </Button>
+                                )}
+                            </div>
+                            {documentLookupError ? (
+                                <p className="text-xs text-red-500">
+                                    {documentLookupError}
+                                </p>
+                            ) : (
+                                !isSinDoc &&
                                 form.nroDocumento.length > 0 &&
                                 form.nroDocumento.length < nroDocMinLength && (
                                     <p className="text-xs text-red-500">
                                         {nroDocMinLength === nroDocMaxLength
-                                            ? `Debe tener ${nroDocMinLength} ${isAlphanumeric ? "caracteres" : "dígitos"} (${form.nroDocumento.length}/${nroDocMaxLength})`
-                                            : `Mínimo ${nroDocMinLength} ${isAlphanumeric ? "caracteres" : "dígitos"} (${form.nroDocumento.length}/${nroDocMaxLength})`}
+                                            ? `Debe tener ${nroDocMinLength} ${isAlphanumeric ? "caracteres" : "digitos"} (${form.nroDocumento.length}/${nroDocMaxLength})`
+                                            : `Minimo ${nroDocMinLength} ${isAlphanumeric ? "caracteres" : "digitos"} (${form.nroDocumento.length}/${nroDocMaxLength})`}
                                     </p>
-                                )}
+                                )
+                            )}
                         </div>
                     </div>
 
-                    {/* Teléfono y Correo */}
                     <div className="grid grid-cols-2 gap-4">
                         <div className="grid gap-2">
-                            <Label htmlFor="ce-telefono">Teléfono</Label>
+                            <Label htmlFor="ce-telefono">Telefono</Label>
                             <Input
                                 id="ce-telefono"
                                 maxLength={9}
@@ -245,16 +342,19 @@ export function ClienteEditDialog({
                                 onChange={(event) =>
                                     setForm((previous) => ({
                                         ...previous,
-                                        telefono: event.target.value.replace(/\D/g, "").slice(0, 9),
+                                        telefono: event.target.value
+                                            .replace(/\D/g, "")
+                                            .slice(0, 9),
                                     }))
                                 }
                             />
                             {form.telefono.length > 0 && form.telefono.length < 9 && (
                                 <p className="text-xs text-red-500">
-                                    Debe tener 9 dígitos ({form.telefono.length}/9)
+                                    Debe tener 9 digitos ({form.telefono.length}/9)
                                 </p>
                             )}
                         </div>
+
                         <div className="grid gap-2">
                             <Label htmlFor="ce-correo">Correo</Label>
                             <Input
@@ -271,9 +371,8 @@ export function ClienteEditDialog({
                         </div>
                     </div>
 
-                    {/* Dirección */}
                     <div className="grid gap-2">
-                        <Label htmlFor="ce-direccion">Dirección</Label>
+                        <Label htmlFor="ce-direccion">Direccion</Label>
                         <Textarea
                             id="ce-direccion"
                             value={form.direccion}
@@ -288,16 +387,16 @@ export function ClienteEditDialog({
                         />
                     </div>
 
-                    {/* Estado y Sucursal */}
                     <div className="grid grid-cols-2 gap-4">
                         <div className="grid gap-2">
                             <Label htmlFor="ce-estado">Estado</Label>
                             <div className="flex h-9 items-center justify-between rounded-md border px-3">
                                 <span
-                                    className={`text-sm font-medium ${form.estado === "ACTIVO"
+                                    className={`text-sm font-medium ${
+                                        form.estado === "ACTIVO"
                                             ? "text-emerald-600"
                                             : "text-slate-500"
-                                        }`}
+                                    }`}
                                 >
                                     {form.estado === "ACTIVO" ? "Activo" : "Inactivo"}
                                 </span>
@@ -320,7 +419,8 @@ export function ClienteEditDialog({
                             {userHasSucursal ? (
                                 <div className="flex h-9 items-center rounded-md border bg-muted/50 px-3">
                                     <span className="truncate text-sm font-medium">
-                                        {user?.nombreSucursal || `Sucursal #${user?.idSucursal}`}
+                                        {user?.nombreSucursal ||
+                                            `Sucursal #${user?.idSucursal}`}
                                     </span>
                                 </div>
                             ) : (
@@ -343,7 +443,9 @@ export function ClienteEditDialog({
                                         loading={loadingSucursales}
                                     />
                                     {errorSucursales && (
-                                        <p className="text-xs text-red-500">{errorSucursales}</p>
+                                        <p className="text-xs text-red-500">
+                                            {errorSucursales}
+                                        </p>
                                     )}
                                 </>
                             )}

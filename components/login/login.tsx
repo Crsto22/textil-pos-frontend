@@ -16,6 +16,7 @@ import Autoplay from "embla-carousel-autoplay"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { useAuth } from "@/lib/auth/auth-context"
 import { useCompany } from "@/lib/company/company-context"
+import { getEmpresaDisplayName } from "@/lib/empresa"
 import { toast } from "sonner"
 
 export function Login() {
@@ -26,7 +27,7 @@ export function Login() {
   const { login } = useAuth()
   const { company, isLoadingCompany } = useCompany()
   const router = useRouter()
-  const companyName = company?.nombre?.trim() || "Sistema POS Textil"
+  const companyName = getEmpresaDisplayName(company) || "Sistema POS Textil"
   const companyLogoUrl = company?.logoUrl?.trim()
 
   // Versión del sistema

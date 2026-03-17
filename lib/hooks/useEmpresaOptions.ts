@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 
 import { authFetch } from "@/lib/auth/auth-fetch"
+import { normalizeEmpresaList } from "@/lib/empresa"
 import type { Empresa } from "@/lib/types/empresa"
 
 function isAbortError(error: unknown) {
@@ -41,8 +42,7 @@ export function useEmpresaOptions(enabled: boolean) {
         return
       }
 
-      const list = Array.isArray(data) ? (data as Empresa[]) : []
-      setEmpresas(list)
+      setEmpresas(normalizeEmpresaList(data))
     } catch (requestError) {
       if (isAbortError(requestError)) return
       const message =

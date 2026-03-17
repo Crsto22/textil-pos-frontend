@@ -1,17 +1,21 @@
 "use client"
 
 import Image from "next/image"
-import { PhotoIcon } from "@heroicons/react/24/outline"
+import { PhotoIcon, PlusIcon, SwatchIcon } from "@heroicons/react/24/outline"
 
 import type { Color } from "@/lib/types/color"
+import type { Talla } from "@/lib/types/talla"
 import { cn } from "@/lib/utils"
 
 interface ProductoLabelPreviewProps {
   productName: string
   selectedColors: Color[]
+  selectedTallas: Talla[]
   activeColorId: number | null
   previewImageUrl: string | null
   onOpenImages: () => void
+  onOpenColors: () => void
+  onOpenTallas: () => void
   onActiveColorChange: (idColor: number) => void
 }
 
@@ -25,86 +29,115 @@ function normalizeHexColor(code: string | null | undefined): string {
 export function ProductoLabelPreview({
   productName,
   selectedColors,
+  selectedTallas,
   activeColorId,
   previewImageUrl,
   onOpenImages,
+  onOpenColors,
+  onOpenTallas,
   onActiveColorChange,
 }: ProductoLabelPreviewProps) {
-  const displayName = productName.trim() || "Product name"
+  const displayName = productName.trim() || "PRODUCT NAME"
 
   return (
-    <div className="overflow-hidden rounded-2xl border bg-card">
-      <div className="relative h-40 bg-[#D6D9DE]">
-        <div className="absolute left-1/2 top-8 w-[142px] -translate-x-1/2 overflow-hidden rounded-md shadow-sm">
-          <div className="relative h-24 w-full bg-[#5A657A]">
+    <div className="space-y-4">
+      <button
+        type="button"
+        onClick={onOpenImages}
+        className="group block w-full rounded-[26px] border-0 bg-transparent p-0 text-left"
+      >
+        <div className="overflow-hidden rounded-[26px] bg-muted/40 shadow-sm dark:bg-muted/15">
+          <div className="relative m-4 h-[220px] overflow-hidden rounded-[24px] bg-white/35 ring-1 ring-sky-400/60 dark:bg-slate-950/35 dark:ring-sky-500/40">
             {previewImageUrl ? (
               <Image
                 src={previewImageUrl}
                 alt={`Preview de ${displayName}`}
-                width={142}
-                height={96}
+                fill
                 unoptimized
-                className="h-full w-full object-cover"
+                className="object-contain p-3"
               />
             ) : (
-              <div className="flex h-full items-center justify-center">
-                <PhotoIcon className="h-10 w-10 text-[#C6CDD9]" />
+              <div className="flex h-full flex-col items-center justify-center gap-3 text-slate-500 dark:text-slate-400">
+                <PhotoIcon className="h-14 w-14" />
+                <span className="text-[15px] font-semibold uppercase tracking-[0.08em]">
+                  {displayName}
+                </span>
               </div>
             )}
           </div>
 
-          <div className="bg-[#485469] px-2 py-1.5">
-            <p className="truncate text-[16px] font-semibold leading-none text-white">
-              {displayName}
-            </p>
+          <div className="bg-slate-700 px-4 py-3 text-center text-[11px] font-semibold text-white transition-colors group-hover:bg-slate-800 dark:bg-slate-800 dark:group-hover:bg-slate-700">
+            Haz clic para subir imagen
           </div>
         </div>
+      </button>
+
+      <div className="grid grid-cols-2 gap-3">
+        <button
+          type="button"
+          onClick={onOpenColors}
+          className="inline-flex items-center justify-center gap-2 rounded-2xl bg-background px-4 py-3 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-muted/60"
+        >
+          <SwatchIcon className="h-4 w-4" />
+          <span>Colores</span>
+          <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
+            {selectedColors.length}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={onOpenTallas}
+          className="inline-flex items-center justify-center gap-2 rounded-2xl bg-background px-4 py-3 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-muted/60"
+        >
+          <PlusIcon className="h-4 w-4" />
+          <span>Tallas</span>
+          <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
+            {selectedTallas.length}
+          </span>
+        </button>
       </div>
 
-      <div className="space-y-3 bg-card px-4 py-4">
-        <div className="flex items-center justify-center">
-          <button
-            type="button"
-            onClick={onOpenImages}
-            className="inline-flex items-center gap-2 text-sm font-medium  transition-opacity hover:opacity-80 cursor-pointer"
-          >
-            <PhotoIcon className="h-5 w-5" />
-            <span>Imagenes</span>
-          </button>
-        </div>
-
+      {selectedColors.length > 0 && (
         <div className="flex flex-wrap justify-center gap-2">
-          {selectedColors.length === 0 ? (
-            <p className="text-xs text-muted-foreground">
-              Selecciona colores para ver la vista previa por color.
-            </p>
-          ) : (
-            selectedColors.map((color) => {
-              const isActive = color.idColor === activeColorId
-              return (
-                <button
-                  key={color.idColor}
-                  type="button"
-                  onClick={() => onActiveColorChange(color.idColor)}
-                  className={cn(
-                    "inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs transition-colors",
-                    isActive
-                      ? "border-blue-600 bg-blue-50 font-semibold text-blue-700"
-                      : "border-border bg-background text-foreground hover:bg-muted"
-                  )}
-                >
-                  <span
-                    className="h-2.5 w-2.5 rounded-full border border-black/10"
-                    style={{ backgroundColor: normalizeHexColor(color.codigo) }}
-                    aria-hidden
-                  />
-                  <span>{color.nombre}</span>
-                </button>
-              )
-            })
-          )}
+          {selectedColors.map((color) => {
+            const isActive = color.idColor === activeColorId
+            return (
+              <button
+                key={color.idColor}
+                type="button"
+                onClick={() => onActiveColorChange(color.idColor)}
+                title={color.nombre}
+                className={cn(
+                  "flex h-8 w-8 items-center justify-center rounded-full transition-transform hover:scale-105",
+                  isActive
+                    ? "bg-background ring-2 ring-slate-300 dark:ring-slate-700"
+                    : "bg-background shadow-sm"
+                )}
+              >
+                <span
+                  className="h-4 w-4 rounded-full border border-black/10"
+                  style={{ backgroundColor: normalizeHexColor(color.codigo) }}
+                  aria-hidden
+                />
+              </button>
+            )
+          })}
         </div>
-      </div>
+      )}
+
+      {selectedTallas.length > 0 && (
+        <div className="flex flex-wrap justify-center gap-2">
+          {selectedTallas.map((talla) => (
+            <span
+              key={talla.idTalla}
+              className="inline-flex min-w-11 items-center justify-center rounded-full bg-background px-3 py-1.5 text-xs font-semibold text-foreground shadow-sm"
+            >
+              {talla.nombre}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

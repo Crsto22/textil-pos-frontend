@@ -16,16 +16,14 @@ import { useCategoriaOptions } from "@/lib/hooks/useCategoriaOptions"
 import { useColores } from "@/lib/hooks/useColores"
 import { useSucursalOptions } from "@/lib/hooks/useSucursalOptions"
 import { useTallas } from "@/lib/hooks/useTallas"
-import {
-  convertirFechaHoraLocalParaBackend,
-  convertirFechaHoraLocalParaInput,
-  normalizarFechaHoraLocal,
-} from "@/lib/oferta-utils"
-import type { Color } from "@/lib/types/color"
+import type { CategoriaCreateRequest } from "@/lib/types/categoria"
+import type { Color, ColorCreateRequest } from "@/lib/types/color"
 import {
   MAX_MEDIA_PER_COLOR,
   type MediaItem,
   type ProductoCreateFormState,
+  type VariantEditableField,
+  type VariantReadonlyOfferInfo,
   type VariantRow,
   type VariantValues,
 } from "@/lib/types/producto-create"
@@ -40,6 +38,7 @@ import type {
   ProductoVarianteCreateRequest,
 } from "@/lib/types/producto"
 import type { Talla } from "@/lib/types/talla"
+import type { TallaCreateRequest } from "@/lib/types/talla"
 
 function hasValidId(value: number | null | undefined): value is number {
   return typeof value === "number" && value > 0
@@ -159,11 +158,17 @@ function parsePrecio(value: string): number | null {
   return parsed
 }
 
-function parsePrecioOferta(value: string): number | null {
-  if (value.trim() === "") return null
+function parsePrecioMayor(value: string) {
+  if (value.trim() === "") {
+    return { value: null, invalid: false }
+  }
+
   const parsed = Number(value)
-  if (!Number.isFinite(parsed) || parsed <= 0) return null
-  return parsed
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return { value: null, invalid: true }
+  }
+
+  return { value: parsed, invalid: false }
 }
 
 function parseStock(value: string): number | null {
@@ -173,15 +178,141 @@ function parseStock(value: string): number | null {
   return parsed
 }
 
+const SKU_SEGMENT_LENGTH = 3
+const SKU_SEQUENCE_LENGTH = 3
+
+function normalizeSkuCharacters(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+}
+
+function buildSkuFixedSegment(value: string, fallback: string): string {
+  const token = normalizeSkuCharacters(value).slice(0, SKU_SEGMENT_LENGTH)
+  return token !== "" ? token : fallback
+}
+
+function buildSkuTallaSegment(value: string): string {
+  const token = normalizeSkuCharacters(value)
+  return token !== "" ? token : "TAL"
+}
+
+function formatSkuSequence(sequence: number): string {
+  const safeSequence = Number.isFinite(sequence) ? Math.max(1, Math.trunc(sequence)) : 1
+  return String(safeSequence).padStart(SKU_SEQUENCE_LENGTH, "0")
+}
+
+function extractSkuSequence(value: string): number | null {
+  const match = value.trim().toUpperCase().match(/-(\d{3})$/)
+  if (!match) return null
+
+  const parsed = Number(match[1])
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null
+}
+
+function collectSkuStrings(value: unknown): string[] {
+  const collected = new Set<string>()
+
+  const visit = (current: unknown) => {
+    if (Array.isArray(current)) {
+      current.forEach(visit)
+      return
+    }
+
+    if (!current || typeof current !== "object") return
+
+    Object.entries(current).forEach(([key, nestedValue]) => {
+      if (key === "sku" && typeof nestedValue === "string" && nestedValue.trim() !== "") {
+        collected.add(nestedValue.trim())
+      }
+
+      visit(nestedValue)
+    })
+  }
+
+  visit(value)
+
+  return Array.from(collected)
+}
+
+function getNextSkuSequenceFromPayload(payload: unknown): number {
+  return (
+    collectSkuStrings(payload).reduce((maxSequence, sku) => {
+      const sequence = extractSkuSequence(sku)
+      if (sequence === null) return maxSequence
+      return Math.max(maxSequence, sequence)
+    }, 0) + 1
+  )
+}
+
+function buildAutoSkuBase(
+  productName: string,
+  colorName: string,
+  tallaName: string
+): string {
+  return [
+    buildSkuFixedSegment(productName, "PRO"),
+    buildSkuFixedSegment(colorName, "COL"),
+    buildSkuTallaSegment(tallaName),
+  ].join("-")
+}
+
+interface VariantDraftState {
+  sku: string
+  precio: string
+  precioMayor: string
+  stock: string
+  isEmpty: boolean
+  missingFields: string[]
+}
+
+function getVariantDraftState(
+  variant: Pick<VariantRow, "sku" | "precio" | "precioMayor" | "stock">
+): VariantDraftState {
+  const sku = variant.sku.trim()
+  const precio = variant.precio.trim()
+  const precioMayor = variant.precioMayor.trim()
+  const stock = variant.stock.trim()
+
+  const requiredFields = [
+    { label: "SKU", value: sku },
+    { label: "precio", value: precio },
+    { label: "stock", value: stock },
+  ]
+  const allFields = [...requiredFields, { label: "precio por mayor", value: precioMayor }]
+  const filledRequiredFields = requiredFields.filter((field) => field.value !== "")
+  const hasAnyValue = allFields.some((field) => field.value !== "")
+
+  return {
+    sku,
+    precio,
+    precioMayor,
+    stock,
+    isEmpty: !hasAnyValue,
+    missingFields:
+      !hasAnyValue || filledRequiredFields.length === requiredFields.length
+        ? []
+        : requiredFields
+            .filter((field) => field.value === "")
+            .map((field) => field.label),
+  }
+}
+
+function formatRequiredFields(fields: string[]): string {
+  if (fields.length === 0) return ""
+  if (fields.length === 1) return fields[0]
+  if (fields.length === 2) return `${fields[0]} y ${fields[1]}`
+  return `${fields.slice(0, -1).join(", ")} y ${fields.at(-1)}`
+}
+
 function createEmptyVariantValues(): VariantValues {
   return {
     idProductoVariante: null,
     sku: "",
     precio: "",
-    ofertaActiva: false,
-    precioOferta: "",
-    ofertaInicio: "",
-    ofertaFin: "",
+    precioMayor: "",
     stock: "",
   }
 }
@@ -199,21 +330,8 @@ function normalizeVariantValues(
       typeof values.idProductoVariante === "number" ? values.idProductoVariante : null,
     sku: typeof values.sku === "string" ? values.sku : "",
     precio: typeof values.precio === "string" ? values.precio : "",
-    ofertaActiva: Boolean(values.ofertaActiva),
-    precioOferta: typeof values.precioOferta === "string" ? values.precioOferta : "",
-    ofertaInicio: typeof values.ofertaInicio === "string" ? values.ofertaInicio : "",
-    ofertaFin: typeof values.ofertaFin === "string" ? values.ofertaFin : "",
+    precioMayor: typeof values.precioMayor === "string" ? values.precioMayor : "",
     stock: typeof values.stock === "string" ? values.stock : "",
-  }
-}
-
-function clearVariantOffer(values: VariantValues): VariantValues {
-  return {
-    ...values,
-    ofertaActiva: false,
-    precioOferta: "",
-    ofertaInicio: "",
-    ofertaFin: "",
   }
 }
 
@@ -260,6 +378,38 @@ function buildVariantKey(idColor: number, idTalla: number) {
   return `${idColor}-${idTalla}`
 }
 
+function buildAutoSkuByVariantKey(
+  selectedColors: Color[],
+  selectedTallas: Talla[],
+  excludedVariantKeys: Set<string>,
+  productName: string,
+  variantValues: Record<string, VariantValues>,
+  startingSequence: number
+): Record<string, string> {
+  const skuByVariantKey: Record<string, string> = {}
+  let nextSequence = Math.max(1, Math.trunc(startingSequence))
+
+  selectedColors.forEach((color) => {
+    selectedTallas.forEach((talla) => {
+      const variantKey = buildVariantKey(color.idColor, talla.idTalla)
+      if (excludedVariantKeys.has(variantKey)) return
+
+      const currentValues = normalizeVariantValues(variantValues[variantKey])
+      const shouldPreserveExistingSku =
+        hasValidId(currentValues.idProductoVariante) && currentValues.sku.trim() !== ""
+
+      if (shouldPreserveExistingSku) return
+
+      const baseSku = buildAutoSkuBase(productName, color.nombre, talla.nombre)
+
+      skuByVariantKey[variantKey] = `${baseSku}-${formatSkuSequence(nextSequence)}`
+      nextSequence += 1
+    })
+  })
+
+  return skuByVariantKey
+}
+
 interface UseProductoCreateOptions {
   productoId?: number | null
 }
@@ -301,6 +451,7 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
     errorCategorias,
     searchCategoria,
     setSearchCategoria,
+    createCategoriaAndReturn,
   } = useCategoriaOptions(true)
 
   const {
@@ -313,6 +464,7 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
     setSearch: setSearchColor,
     setDisplayedPage: setColorPage,
     error: errorColores,
+    createColorAndReturn,
   } = useColores()
 
   const {
@@ -325,6 +477,7 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
     setSearch: setSearchTalla,
     setDisplayedPage: setTallaPage,
     error: errorTallas,
+    createTallaAndReturn,
   } = useTallas()
 
   const availableColors = useMemo(() => {
@@ -406,6 +559,17 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
     [availableColors]
   )
 
+  const selectColor = useCallback((color: Color) => {
+    setSelectedColorCatalog((previous) => ({
+      ...previous,
+      [color.idColor]: color,
+    }))
+    setSelectedColorIds((previous) =>
+      previous.includes(color.idColor) ? previous : [...previous, color.idColor]
+    )
+    setFocusedColorId(color.idColor)
+  }, [])
+
   const toggleTallaSelection = useCallback(
     (idTalla: number) => {
       setSelectedTallaIds((previous) => {
@@ -425,6 +589,16 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
     },
     [availableTallas]
   )
+
+  const selectTalla = useCallback((talla: Talla) => {
+    setSelectedTallaCatalog((previous) => ({
+      ...previous,
+      [talla.idTalla]: talla,
+    }))
+    setSelectedTallaIds((previous) =>
+      previous.includes(talla.idTalla) ? previous : [...previous, talla.idTalla]
+    )
+  }, [])
 
   const selectedColors = useMemo(
     () =>
@@ -504,10 +678,77 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
     [selectedColorIds]
   )
 
+  const handleCreateColor = useCallback(
+    async (payload: ColorCreateRequest) => {
+      const result = await createColorAndReturn(payload)
+      if (!result.success) return false
+
+      if (result.color) {
+        selectColor(result.color)
+      }
+
+      return true
+    },
+    [createColorAndReturn, selectColor]
+  )
+
+  const handleCreateTalla = useCallback(
+    async (payload: TallaCreateRequest) => {
+      const result = await createTallaAndReturn(payload)
+      if (!result.success) return false
+
+      if (result.talla) {
+        selectTalla(result.talla)
+      }
+
+      return true
+    },
+    [createTallaAndReturn, selectTalla]
+  )
+
   const [variantValues, setVariantValues] = useState<Record<string, VariantValues>>({})
+  const [variantReadonlyOffers, setVariantReadonlyOffers] = useState<
+    Record<string, VariantReadonlyOfferInfo | null>
+  >({})
   const [excludedVariantKeys, setExcludedVariantKeys] = useState<string[]>([])
   const [deletingVariantKeys, setDeletingVariantKeys] = useState<string[]>([])
-  const [offersEnabled, setOffersEnabled] = useState(false)
+  const [isAutoSkuEnabled, setIsAutoSkuEnabled] = useState(!isEditing)
+  const [nextAutoSkuSequenceSeed, setNextAutoSkuSequenceSeed] = useState(1)
+
+  const loadNextAutoSkuSequence = useCallback(
+    async (signal?: AbortSignal) => {
+      const response = await authFetch("/api/variante/listar", {
+        signal,
+        cache: "no-store",
+      })
+      const payload = await parseJsonSafe(response)
+
+      if (!response.ok) {
+        throw new Error(
+          getResponseMessage(payload, "No se pudo obtener la secuencia actual de SKU")
+        )
+      }
+
+      const nextSequence = getNextSkuSequenceFromPayload(payload)
+      setNextAutoSkuSequenceSeed(nextSequence)
+
+      return nextSequence
+    },
+    []
+  )
+
+  useEffect(() => {
+    const controller = new AbortController()
+
+    void loadNextAutoSkuSequence(controller.signal).catch((requestError) => {
+      if (isAbortError(requestError)) return
+      console.error("[SKU/AUTO-SEQUENCE]", requestError)
+    })
+
+    return () => {
+      controller.abort()
+    }
+  }, [loadNextAutoSkuSequence])
 
   useEffect(() => {
     if (!isEditing || !hasValidId(productoId)) {
@@ -544,11 +785,8 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
         const nextSelectedColorIds: number[] = []
         const nextSelectedTallaIds: number[] = []
         const nextVariantValues: Record<string, VariantValues> = {}
+        const nextVariantReadonlyOffers: Record<string, VariantReadonlyOfferInfo | null> = {}
         const nextMediaByColor: Record<number, MediaItem[]> = {}
-        const nextOffersEnabled = payload.variantes.some(
-          (variant) =>
-            typeof variant.precioOferta === "number" && variant.precioOferta > 0
-        )
 
         const pushUniqueId = (list: number[], value: number) => {
           if (hasValidId(value) && !list.includes(value)) {
@@ -573,20 +811,28 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
             estado: variant.estado ?? "ACTIVO",
           }
 
-          nextVariantValues[buildVariantKey(variant.colorId, variant.tallaId)] = {
+          const variantKey = buildVariantKey(variant.colorId, variant.tallaId)
+
+          nextVariantValues[variantKey] = {
             idProductoVariante: variant.idProductoVariante,
             sku: variant.sku ?? "",
             precio: String(variant.precio),
-            ofertaActiva:
-              typeof variant.precioOferta === "number" && variant.precioOferta > 0,
-            precioOferta:
-              typeof variant.precioOferta === "number"
-                ? String(variant.precioOferta)
+            precioMayor:
+              typeof variant.precioMayor === "number" && variant.precioMayor > 0
+                ? String(variant.precioMayor)
                 : "",
-            ofertaInicio: convertirFechaHoraLocalParaInput(variant.ofertaInicio),
-            ofertaFin: convertirFechaHoraLocalParaInput(variant.ofertaFin),
             stock: String(variant.stock),
           }
+
+          nextVariantReadonlyOffers[variantKey] =
+            typeof variant.precioOferta === "number" && variant.precioOferta > 0
+              ? {
+                  precioBase: variant.precio,
+                  precioOferta: variant.precioOferta,
+                  ofertaInicio: variant.ofertaInicio,
+                  ofertaFin: variant.ofertaFin,
+                }
+              : null
         })
 
         payload.imagenes
@@ -628,9 +874,9 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
         setSelectedColorIds(nextSelectedColorIds)
         setSelectedTallaIds(nextSelectedTallaIds)
         setVariantValues(nextVariantValues)
+        setVariantReadonlyOffers(nextVariantReadonlyOffers)
         setExcludedVariantKeys([])
         setDeletingVariantKeys([])
-        setOffersEnabled(nextOffersEnabled)
         setMediaByColor((previous) => {
           Object.values(previous).forEach((media) => revokeMedia(media))
           return nextMediaByColor
@@ -682,11 +928,68 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
       return changed ? next : previous
     })
 
+    setVariantReadonlyOffers((previous) => {
+      let changed = false
+      const next: Record<string, VariantReadonlyOfferInfo | null> = {}
+
+      for (const [key, value] of Object.entries(previous)) {
+        if (allowedKeys.has(key)) {
+          next[key] = value
+          continue
+        }
+        changed = true
+      }
+
+      return changed ? next : previous
+    })
+
     setExcludedVariantKeys((previous) => {
       const next = previous.filter((key) => allowedKeys.has(key))
       return next.length === previous.length ? previous : next
     })
   }, [selectedColorIds, selectedTallaIds])
+
+  useEffect(() => {
+    if (!isAutoSkuEnabled) return
+
+    const autoSkuByVariantKey = buildAutoSkuByVariantKey(
+      selectedColors,
+      selectedTallas,
+      new Set(excludedVariantKeys),
+      form.nombre,
+      variantValues,
+      nextAutoSkuSequenceSeed
+    )
+    const autoSkuEntries = Object.entries(autoSkuByVariantKey)
+
+    if (autoSkuEntries.length === 0) return
+
+    setVariantValues((previous) => {
+      let changed = false
+      const next: Record<string, VariantValues> = { ...previous }
+
+      autoSkuEntries.forEach(([variantKey, sku]) => {
+        const current = normalizeVariantValues(next[variantKey])
+        if (current.sku === sku) return
+
+        next[variantKey] = {
+          ...current,
+          sku,
+        }
+        changed = true
+      })
+
+      return changed ? next : previous
+    })
+  }, [
+    excludedVariantKeys,
+    form.nombre,
+    isAutoSkuEnabled,
+    nextAutoSkuSequenceSeed,
+    selectedColors,
+    selectedTallas,
+    variantValues,
+  ])
 
   const variantRows = useMemo<VariantRow[]>(() => {
     const rows: VariantRow[] = []
@@ -705,40 +1008,24 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
           talla,
           sku: values.sku,
           precio: values.precio,
-          ofertaActiva: values.ofertaActiva,
-          precioOferta: values.precioOferta,
-          ofertaInicio: values.ofertaInicio,
-          ofertaFin: values.ofertaFin,
+          precioMayor: values.precioMayor,
           stock: values.stock,
+          readonlyOffer: variantReadonlyOffers[key] ?? null,
         })
       })
     })
 
     return rows
-  }, [excludedVariantKeys, selectedColors, selectedTallas, variantValues])
+  }, [excludedVariantKeys, selectedColors, selectedTallas, variantReadonlyOffers, variantValues])
 
   const handleVariantFieldChange = useCallback(
-    (key: string, field: keyof VariantValues, value: string) => {
+    (key: string, field: VariantEditableField, value: string) => {
+      if (field === "sku" && isAutoSkuEnabled) {
+        return
+      }
+
       setVariantValues((previous) => {
         const current = normalizeVariantValues(previous[key])
-
-        if (field === "precioOferta") {
-          if (value.trim() === "") {
-            return {
-              ...previous,
-              [key]: clearVariantOffer(current),
-            }
-          }
-
-          return {
-            ...previous,
-            [key]: {
-              ...current,
-              ofertaActiva: true,
-              precioOferta: value,
-            },
-          }
-        }
 
         return {
           ...previous,
@@ -749,15 +1036,19 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
         }
       })
     },
-    []
+    [isAutoSkuEnabled]
   )
 
-  const handleApplyVariantFieldToAll = useCallback(
-    (field: keyof VariantValues, value: string) => {
-      if (variantRows.length === 0) return
+  const handleAutoSkuToggle = useCallback((enabled: boolean) => {
+    setIsAutoSkuEnabled(enabled)
+  }, [])
 
-      const isOfferField = field === "precioOferta"
-      const isOfferScheduleField = field === "ofertaInicio" || field === "ofertaFin"
+  const handleApplyVariantFieldToAll = useCallback(
+    (
+      field: Extract<VariantEditableField, "precio" | "precioMayor" | "stock">,
+      value: string
+    ) => {
+      if (variantRows.length === 0) return
 
       setVariantValues((previous) => {
         const next = { ...previous }
@@ -765,23 +1056,6 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
 
         variantRows.forEach((variant) => {
           const current = normalizeVariantValues(next[variant.key])
-
-          if (isOfferScheduleField && current.precioOferta.trim() === "") {
-            return
-          }
-
-          if (isOfferField) {
-            next[variant.key] =
-              value.trim() === ""
-                ? clearVariantOffer(current)
-                : {
-                    ...current,
-                    ofertaActiva: true,
-                    precioOferta: value,
-                  }
-            changed = true
-            return
-          }
 
           next[variant.key] = {
             ...current,
@@ -795,29 +1069,6 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
     },
     [variantRows]
   )
-
-  const handleOffersEnabledChange = useCallback((enabled: boolean) => {
-    setOffersEnabled(enabled)
-
-    if (enabled) return
-
-    setVariantValues((previous) => {
-      let changed = false
-      const next: Record<string, VariantValues> = {}
-
-      for (const [key, value] of Object.entries(previous)) {
-        if (!value.ofertaActiva && value.precioOferta.trim() === "") {
-          next[key] = value
-          continue
-        }
-
-        changed = true
-        next[key] = clearVariantOffer(value)
-      }
-
-      return changed ? next : previous
-    })
-  }, [])
 
   const removeVariantFromDraft = useCallback(
     (key: string) => {
@@ -858,6 +1109,21 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
             continue
           }
           next[variantKey] = variantValue
+        }
+
+        return changed ? next : previous
+      })
+
+      setVariantReadonlyOffers((previous) => {
+        let changed = false
+        const next: Record<string, VariantReadonlyOfferInfo | null> = {}
+
+        for (const [variantKey, offerInfo] of Object.entries(previous)) {
+          if (!remainingVariantKeys.has(variantKey)) {
+            changed = true
+            continue
+          }
+          next[variantKey] = offerInfo
         }
 
         return changed ? next : previous
@@ -962,6 +1228,26 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
     setForm((previous) => ({ ...previous, descripcion: value }))
   }, [])
 
+  const handleCreateCategoria = useCallback(
+    async (payload: CategoriaCreateRequest) => {
+      const result = await createCategoriaAndReturn(payload)
+      if (!result.success) return false
+
+      if (result.categoria) {
+        setForm((previous) => ({
+          ...previous,
+          idCategoria: result.categoria?.idCategoria ?? previous.idCategoria,
+        }))
+        setSearchCategoria("")
+      } else {
+        setSearchCategoria(payload.nombreCategoria.trim())
+      }
+
+      return true
+    },
+    [createCategoriaAndReturn, setSearchCategoria]
+  )
+
   const [isSaving, setIsSaving] = useState(false)
 
   const saveProducto = useCallback(async () => {
@@ -1002,17 +1288,72 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
       return false
     }
 
+    let autoSkuByVariantKeyForSave: Record<string, string> = {}
+
+    if (isAutoSkuEnabled) {
+      try {
+        const nextSequence = await loadNextAutoSkuSequence()
+        autoSkuByVariantKeyForSave = buildAutoSkuByVariantKey(
+          selectedColors,
+          selectedTallas,
+          new Set(excludedVariantKeys),
+          nombre,
+          variantValues,
+          nextSequence
+        )
+
+        const autoSkuEntries = Object.entries(autoSkuByVariantKeyForSave)
+        if (autoSkuEntries.length > 0) {
+          setVariantValues((previous) => {
+            let changed = false
+            const next = { ...previous }
+
+            autoSkuEntries.forEach(([variantKey, sku]) => {
+              const current = normalizeVariantValues(next[variantKey])
+              if (current.sku === sku) return
+
+              next[variantKey] = {
+                ...current,
+                sku,
+              }
+              changed = true
+            })
+
+            return changed ? next : previous
+          })
+        }
+      } catch (requestError) {
+        const message =
+          requestError instanceof Error
+            ? requestError.message
+            : "No se pudo validar la secuencia de SKU"
+        toast.error(message)
+        return false
+      }
+    }
+
     const variantes: ProductoVarianteCreateRequest[] = []
     const seenSkus = new Set<string>()
+    const effectiveVariantRows = variantRows.map((variant) => ({
+      ...variant,
+      sku: autoSkuByVariantKeyForSave[variant.key] ?? variant.sku,
+    }))
 
-    for (const variant of variantRows) {
-      const sku = variant.sku.trim()
-      if (sku === "") {
+    for (const variant of effectiveVariantRows) {
+      const draftState = getVariantDraftState(variant)
+
+      if (draftState.isEmpty) {
+        continue
+      }
+
+      if (draftState.missingFields.length > 0) {
         toast.error(
-          `El SKU es obligatorio para la variante ${variant.color.nombre}/${variant.talla.nombre}`
+          `Falta agregar ${formatRequiredFields(draftState.missingFields)} para la variante ${variant.color.nombre}/${variant.talla.nombre}`
         )
         return false
       }
+
+      const sku = draftState.sku
 
       const normalizedSku = sku.toUpperCase()
       if (seenSkus.has(normalizedSku)) {
@@ -1021,7 +1362,7 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
       }
       seenSkus.add(normalizedSku)
 
-      const precio = parsePrecio(variant.precio)
+      const precio = parsePrecio(draftState.precio)
       if (precio === null) {
         toast.error(
           `Precio invalido para la variante ${variant.color.nombre}/${variant.talla.nombre}`
@@ -1029,71 +1370,25 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
         return false
       }
 
-      const precioOferta = offersEnabled && variant.ofertaActiva
-        ? parsePrecioOferta(variant.precioOferta)
-        : null
-      if (offersEnabled && variant.ofertaActiva && precioOferta === null) {
+      const precioMayorResult = parsePrecioMayor(draftState.precioMayor)
+      if (precioMayorResult.invalid) {
         toast.error(
-          `Debe ingresar un precio oferta valido para ${variant.color.nombre}/${variant.talla.nombre}`
-        )
-        return false
-      }
-
-      const ofertaInicio = precioOferta !== null
-        ? normalizarFechaHoraLocal(variant.ofertaInicio)
-        : ""
-      const ofertaFin = precioOferta !== null
-        ? normalizarFechaHoraLocal(variant.ofertaFin)
-        : ""
-
-      if (precioOferta === null && (ofertaInicio !== "" || ofertaFin !== "")) {
-        toast.error(
-          `No puede registrar ofertaInicio/ofertaFin sin precioOferta para ${variant.color.nombre}/${variant.talla.nombre}`
-        )
-        return false
-      }
-
-      if ((ofertaInicio === "") !== (ofertaFin === "")) {
-        toast.error(
-          `Debe enviar ofertaInicio y ofertaFin juntas para ${variant.color.nombre}/${variant.talla.nombre}`
-        )
-        return false
-      }
-
-      const ofertaInicioPayload =
-        ofertaInicio !== "" ? convertirFechaHoraLocalParaBackend(ofertaInicio) : null
-      const ofertaFinPayload =
-        ofertaFin !== "" ? convertirFechaHoraLocalParaBackend(ofertaFin) : null
-
-      if (
-        (ofertaInicio !== "" && !ofertaInicioPayload) ||
-        (ofertaFin !== "" && !ofertaFinPayload)
-      ) {
-        toast.error(
-          `La vigencia de oferta no tiene un formato valido para ${variant.color.nombre}/${variant.talla.nombre}`
+          `Precio por mayor invalido para la variante ${variant.color.nombre}/${variant.talla.nombre}`
         )
         return false
       }
 
       if (
-        ofertaInicioPayload !== null &&
-        ofertaFinPayload !== null &&
-        ofertaFinPayload <= ofertaInicioPayload
+        precioMayorResult.value !== null &&
+        precioMayorResult.value >= precio
       ) {
         toast.error(
-          `ofertaFin debe ser mayor a ofertaInicio para ${variant.color.nombre}/${variant.talla.nombre}`
+          `El precio por mayor debe ser menor al precio regular para la variante ${variant.color.nombre}/${variant.talla.nombre}`
         )
         return false
       }
 
-      if (precioOferta !== null && precioOferta >= precio) {
-        toast.error(
-          `El precio oferta debe ser menor al precio regular para ${variant.color.nombre}/${variant.talla.nombre}`
-        )
-        return false
-      }
-
-      const stock = parseStock(variant.stock)
+      const stock = parseStock(draftState.stock)
       if (stock === null) {
         toast.error(
           `Stock invalido para la variante ${variant.color.nombre}/${variant.talla.nombre}`
@@ -1106,15 +1401,23 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
         tallaId: variant.talla.idTalla,
         sku,
         precio,
-        ...(precioOferta !== null ? { precioOferta } : {}),
-        ...(ofertaInicioPayload !== null && ofertaFinPayload !== null
-          ? {
-              ofertaInicio: ofertaInicioPayload,
-              ofertaFin: ofertaFinPayload,
-            }
+        ...(precioMayorResult.value !== null
+          ? { precioMayor: precioMayorResult.value }
           : {}),
         stock,
+        ...(variant.readonlyOffer
+          ? {
+              precioOferta: variant.readonlyOffer.precioOferta,
+              ofertaInicio: variant.readonlyOffer.ofertaInicio,
+              ofertaFin: variant.readonlyOffer.ofertaFin,
+            }
+          : {}),
       })
+    }
+
+    if (variantes.length === 0) {
+      toast.error("Debe registrar al menos una variante con SKU, precio y stock")
+      return false
     }
 
     setIsSaving(true)
@@ -1264,14 +1567,17 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
     form.descripcion,
     form.idCategoria,
     form.nombre,
+    excludedVariantKeys,
     isEditing,
+    isAutoSkuEnabled,
     isSaving,
+    loadNextAutoSkuSequence,
     mediaByColor,
-    offersEnabled,
     productoId,
     selectedColors,
     selectedSucursalId,
-    selectedTallas.length,
+    selectedTallas,
+    variantValues,
     variantRows,
   ])
 
@@ -1370,19 +1676,22 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
     mediaByColor,
     replaceMediaByColor,
     variantRows,
-    offersEnabled,
     deletingVariantKeys,
+    isAutoSkuEnabled,
     totalSelectedMedia,
     setFocusedColorId,
     handleSucursalChange,
     handleCategoriaChange,
     handleNombreChange,
     handleDescripcionChange,
+    handleCreateCategoria,
+    handleCreateColor,
+    handleCreateTalla,
     toggleColorSelection,
     toggleTallaSelection,
+    handleAutoSkuToggle,
     handleVariantFieldChange,
     handleApplyVariantFieldToAll,
-    handleOffersEnabledChange,
     handleRemoveVariant,
     saveProducto,
   }

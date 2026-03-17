@@ -1,22 +1,12 @@
-import type { TipoComprobante, VentaDetalleResponse } from "@/lib/types/venta"
+import type { MonedaCodigo, SunatEstado, TipoComprobante } from "@/lib/types/venta"
 
 export type TipoDescuentoCotizacion = "MONTO" | "PORCENTAJE" | (string & {})
-export type EstadoCotizacion =
-  | "BORRADOR"
-  | "ENVIADA"
-  | "APROBADA"
-  | "ACEPTADA"
-  | "RECHAZADA"
-  | "VENCIDA"
-  | "CONVERTIDA"
-  | (string & {})
+export const COTIZACION_ESTADOS = ["ACTIVA", "CONVERTIDA"] as const
+export const COTIZACION_ESTADOS_EDITABLES = ["ACTIVA"] as const
 
-export type EstadoCotizacionEditable =
-  | "BORRADOR"
-  | "ENVIADA"
-  | "APROBADA"
-  | "RECHAZADA"
-  | "VENCIDA"
+export type EstadoCotizacionBase = (typeof COTIZACION_ESTADOS)[number]
+export type EstadoCotizacion = EstadoCotizacionBase | (string & {})
+export type EstadoCotizacionEditable = (typeof COTIZACION_ESTADOS_EDITABLES)[number]
 
 export interface CotizacionDetalleRequest {
   idProductoVariante: number
@@ -28,11 +18,12 @@ export interface CotizacionDetalleRequest {
 export interface CotizacionCreateRequest {
   idSucursal: number
   idCliente: number
-  estado?: EstadoCotizacion | null
-  fechaVencimiento: string
-  descuentoTotal: number | null
-  tipoDescuento: TipoDescuentoCotizacion | null
-  observacion: string | null
+  serie?: string | null
+  correlativo?: number | null
+  igvPorcentaje?: number | null
+  descuentoTotal?: number | null
+  tipoDescuento?: TipoDescuentoCotizacion | null
+  observacion?: string | null
   detalles: CotizacionDetalleRequest[]
 }
 
@@ -62,7 +53,6 @@ export interface CotizacionDetalleResponse {
 export interface CotizacionResponse {
   idCotizacion: number
   fecha: string
-  fechaVencimiento: string
   serie: string
   correlativo: number
   igvPorcentaje: number
@@ -85,7 +75,7 @@ export interface CotizacionResponse {
 export interface CotizacionConvertirPagoRequest {
   idMetodoPago: number
   monto: number
-  referencia: string | null
+  codigoOperacion: string | null
 }
 
 export interface CotizacionConvertirVentaRequest {
@@ -93,18 +83,45 @@ export interface CotizacionConvertirVentaRequest {
   pagos: CotizacionConvertirPagoRequest[]
 }
 
+export interface CotizacionConvertirVentaDetalle {
+  descripcion: string
+  unidadMedida: string
+  codigoTipoAfectacionIgv: string
+  igvDetalle: number
+  totalDetalle: number
+}
+
+export interface CotizacionConvertirVentaPago {
+  idMetodoPago: number
+  monto: number
+  codigoOperacion: string | null
+}
+
+export interface CotizacionConvertirVentaResumen {
+  idVenta: number
+  tipoComprobante: TipoComprobante
+  serie: string
+  correlativo: number
+  moneda: MonedaCodigo
+  sunatEstado: SunatEstado | null
+  detalles: CotizacionConvertirVentaDetalle[]
+  pagos: CotizacionConvertirVentaPago[]
+}
+
 export interface CotizacionConvertirVentaResponse {
   message: string
   idCotizacion: number
   estadoCotizacion: EstadoCotizacion
   idVenta: number
-  venta: VentaDetalleResponse
+  venta: CotizacionConvertirVentaResumen
+  sunatEstado?: SunatEstado | null
+  sunatAutoDispatchTriggered?: boolean
+  sunatAutoDispatchError?: string | null
 }
 
 export interface CotizacionHistorial {
   idCotizacion: number
   fecha: string
-  fechaVencimiento: string
   serie: string
   correlativo: number
   total: number

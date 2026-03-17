@@ -10,6 +10,11 @@ import { VentasHistorialTable } from "@/components/ventas/historial/VentasHistor
 import { useVentaReporteExcel } from "@/lib/hooks/useVentaReporteExcel"
 import { useVentaDetalle } from "@/lib/hooks/useVentaDetalle"
 import { useVentasHistorial } from "@/lib/hooks/useVentasHistorial"
+import {
+  downloadVentaDocument,
+  getVentaDownloadConfig,
+  openVentaDocument,
+} from "@/lib/venta-documents"
 import type { VentaHistorialFilters } from "@/lib/types/venta"
 
 function getTodayDateValue(): string {
@@ -38,6 +43,9 @@ export function VentasHistorialPage() {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const [filters, setFilters] = useState<VentaHistorialFilters>(DEFAULT_FILTERS)
+  const [openingPdfVentaId, setOpeningPdfVentaId] = useState<number | null>(null)
+  const [downloadingPdfVentaId, setDownloadingPdfVentaId] = useState<number | null>(null)
+  const [openingTicketVentaId, setOpeningTicketVentaId] = useState<number | null>(null)
   const {
     ventas,
     page,
@@ -56,6 +64,8 @@ export function VentasHistorialPage() {
     error: detailError,
     openVentaDetalle,
     retryVentaDetalle,
+    retrySunatVenta,
+    retryingSunat,
     closeVentaDetalle,
   } = useVentaDetalle()
   const { isExporting, exportReporteExcel } = useVentaReporteExcel()
@@ -129,6 +139,51 @@ export function VentasHistorialPage() {
     await exportReporteExcel({ periodo: filters.periodo })
   }
 
+  const handleOpenPdf = async (ventaId: number) => {
+    setOpeningPdfVentaId(ventaId)
+    const result = await openVentaDocument(getVentaDownloadConfig("comprobante", { idVenta: ventaId }))
+
+    if (result.ok) {
+      toast.success(result.message)
+    } else {
+      toast.error(result.message)
+    }
+
+    setOpeningPdfVentaId((current) => (current === ventaId ? null : current))
+  }
+
+  const handleDownloadPdf = async (ventaId: number) => {
+    setDownloadingPdfVentaId(ventaId)
+
+    const config = getVentaDownloadConfig("comprobante", { idVenta: ventaId })
+    const result = await downloadVentaDocument({
+      ...config,
+      disposition: "download",
+      successMessage: "Comprobante descargado correctamente.",
+    })
+
+    if (result.ok) {
+      toast.success(result.message)
+    } else {
+      toast.error(result.message)
+    }
+
+    setDownloadingPdfVentaId((current) => (current === ventaId ? null : current))
+  }
+
+  const handleOpenTicket = async (ventaId: number) => {
+    setOpeningTicketVentaId(ventaId)
+    const result = await openVentaDocument(getVentaDownloadConfig("ticket", { idVenta: ventaId }))
+
+    if (result.ok) {
+      toast.success(result.message)
+    } else {
+      toast.error(result.message)
+    }
+
+    setOpeningTicketVentaId((current) => (current === ventaId ? null : current))
+  }
+
   return (
     <div className="space-y-4">
       <VentasHistorialFilters
@@ -159,6 +214,18 @@ export function VentasHistorialPage() {
         onViewDetail={(venta) => {
           void openVentaDetalle(venta.idVenta)
         }}
+        onOpenPdf={(venta) => {
+          void handleOpenPdf(venta.idVenta)
+        }}
+        onDownloadPdf={(venta) => {
+          void handleDownloadPdf(venta.idVenta)
+        }}
+        onOpenTicket={(venta) => {
+          void handleOpenTicket(venta.idVenta)
+        }}
+        openingPdfVentaId={openingPdfVentaId}
+        downloadingPdfVentaId={downloadingPdfVentaId}
+        openingTicketVentaId={openingTicketVentaId}
       />
 
       <VentaDetalleModal
@@ -169,6 +236,14 @@ export function VentasHistorialPage() {
         onRetry={() => {
           void retryVentaDetalle()
         }}
+        onRetrySunat={async () => {
+          const result = await retrySunatVenta()
+          if (result.ok) {
+            await refreshVentas()
+          }
+          return result
+        }}
+        retryingSunat={retryingSunat}
         onOpenChange={(open) => {
           if (!open) {
             closeVentaDetalle()

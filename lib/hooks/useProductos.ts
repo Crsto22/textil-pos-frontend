@@ -102,6 +102,8 @@ function normalizeProductoResumen(producto: Producto | ProductoResumen): Product
               nombre: talla.nombre,
               sku: typeof talla.sku === "string" ? talla.sku : null,
               precio: typeof talla.precio === "number" ? talla.precio : null,
+              precioMayor:
+                typeof talla.precioMayor === "number" ? talla.precioMayor : null,
               precioOferta:
                 typeof talla.precioOferta === "number" ? talla.precioOferta : null,
               ofertaInicio:
@@ -123,7 +125,7 @@ function normalizeProductoResumen(producto: Producto | ProductoResumen): Product
   }
 }
 
-export function useProductos() {
+export function useProductos(enabled = true) {
   const { isLoading: isAuthLoading, user } = useAuth()
 
   const [productos, setProductos] = useState<ProductoResumen[]>([])
@@ -279,12 +281,12 @@ export function useProductos() {
   }, [idCategoriaFilter, idColorFilter])
 
   useEffect(() => {
-    if (isAuthLoading || isSearchMode) return
+    if (!enabled || isAuthLoading || isSearchMode) return
     fetchProductos(page)
-  }, [fetchProductos, isAuthLoading, isSearchMode, page])
+  }, [enabled, fetchProductos, isAuthLoading, isSearchMode, page])
 
   useEffect(() => {
-    if (isAuthLoading) return
+    if (!enabled || isAuthLoading) return
 
     if (!isSearchMode) {
       setSearchResults([])
@@ -294,7 +296,16 @@ export function useProductos() {
     }
 
     fetchBuscar(debouncedSearch, searchPage)
-  }, [debouncedSearch, fetchBuscar, isAuthLoading, isSearchMode, searchPage])
+  }, [debouncedSearch, enabled, fetchBuscar, isAuthLoading, isSearchMode, searchPage])
+
+  useEffect(() => {
+    if (enabled) return
+
+    listAbortRef.current?.abort()
+    searchAbortRef.current?.abort()
+    setLoading(false)
+    setSearching(false)
+  }, [enabled])
 
   useEffect(() => {
     return () => {

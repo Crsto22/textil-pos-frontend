@@ -1,27 +1,37 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth/auth-context"
+import { hasAccess, getDefaultRoute } from "@/lib/auth/permissions"
 import { LoaderOverlay } from "@/components/ui/loader-overlay"
 import { useEffect, type ReactNode } from "react"
 import { Sidebar } from "@/components/Sidebar"
 import { Header } from "@/components/Header"
 
 export default function ProtectedLayout({ children }: { children: ReactNode }) {
-  const { isAuthenticated, isLoading } = useAuth()
+  const { user, isAuthenticated, isLoading } = useAuth()
   const router = useRouter()
+  const pathname = usePathname()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.replace("/")
+      return
     }
-  }, [isLoading, isAuthenticated, router])
+
+    if (!isLoading && isAuthenticated && user) {
+      if (!hasAccess(user.rol, pathname)) {
+        router.replace(getDefaultRoute(user.rol))
+      }
+    }
+  }, [isLoading, isAuthenticated, user, pathname, router])
 
   if (isLoading) return <LoaderOverlay />
   if (!isAuthenticated) return null
+  if (user && !hasAccess(user.rol, pathname)) return <LoaderOverlay /> // Optional check to prevent rendering flash before redirect
 
   return (
     <>

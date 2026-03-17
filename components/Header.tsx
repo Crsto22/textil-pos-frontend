@@ -16,6 +16,7 @@ const pageTitles: Record<string, string> = {
     "/ventas/cotizacion": "Cotizacion",
     "/ventas/cotizacion/historial": "Historial de Cotizacion",
     "/ventas/historial": "Historial de Ventas",
+    "/ventas/pagos": "Pagos",
     "/productos": "Productos",
     "/productos/nuevo": "Nuevo Producto",
     "/productos/carga-masiva": "Carga Masiva de Productos",

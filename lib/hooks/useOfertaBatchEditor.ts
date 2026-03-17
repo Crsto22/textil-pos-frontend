@@ -5,8 +5,10 @@ import { toast } from "sonner"
 
 import {
   buildOfertaBatchDraftItem,
+  createOfertaBulkFormDraft,
   createOfertaFormDraft,
   patchOfertasLote,
+  resolveOfertaPriceFromMode,
 } from "@/lib/oferta-batch"
 import { authFetch } from "@/lib/auth/auth-fetch"
 import {
@@ -18,7 +20,11 @@ import {
   parseProductoDetalleResponse,
   sortProductoDetalleVariantes,
 } from "@/lib/producto-detalle"
-import type { OfertaFormDraft } from "@/lib/types/oferta"
+import type {
+  OfertaBatchSchedulePreset,
+  OfertaBulkFormDraft,
+  OfertaFormDraft,
+} from "@/lib/types/oferta"
 import type {
   PageResponse,
   ProductoDetalleResponse,
@@ -55,6 +61,131 @@ function getErrorMessage(payload: unknown, fallbackMessage: string) {
   return fallbackMessage
 }
 
+function pad2(value: number): string {
+  return String(value).padStart(2, "0")
+}
+
+function toDateTimeLocalInputValue(value: Date): string {
+  return [
+    value.getFullYear(),
+    pad2(value.getMonth() + 1),
+    pad2(value.getDate()),
+  ].join("-") + `T${pad2(value.getHours())}:${pad2(value.getMinutes())}`
+}
+
+function buildDateRangeFromPreset(
+  preset: OfertaBatchSchedulePreset
+): Pick<OfertaFormDraft, "ofertaInicioInput" | "ofertaFinInput"> {
+  const now = new Date()
+  now.setSeconds(0, 0)
+
+  const end = new Date(now)
+
+  switch (preset) {
+    case "HOY":
+      end.setHours(23, 59, 0, 0)
+      break
+    case "TRES_DIAS":
+      end.setDate(end.getDate() + 3)
+      end.setHours(23, 59, 0, 0)
+      break
+    case "SIETE_DIAS":
+      end.setDate(end.getDate() + 7)
+      end.setHours(23, 59, 0, 0)
+      break
+    default:
+      return {
+        ofertaInicioInput: "",
+        ofertaFinInput: "",
+      }
+  }
+
+  return {
+    ofertaInicioInput: toDateTimeLocalInputValue(now),
+    ofertaFinInput: toDateTimeLocalInputValue(end),
+  }
+}
+
+function getVariantContextLabel(variant: ProductoDetalleVariante) {
+  return `${variant.colorNombre} / ${variant.tallaNombre}`
+}
+
+function parseDraftPrice(value: string): number | null {
+  const normalizedValue = value.trim().replace(",", ".")
+  if (normalizedValue === "") return null
+
+  const parsedValue = Number(normalizedValue)
+  return Number.isFinite(parsedValue) ? parsedValue : null
+}
+
+function calculateDiscountPercent(
+  precioBase: number,
+  precioOferta: number | null
+): number | null {
+  if (
+    !Number.isFinite(precioBase) ||
+    precioBase <= 0 ||
+    precioOferta === null ||
+    precioOferta <= 0 ||
+    precioOferta >= precioBase
+  ) {
+    return null
+  }
+
+  return Math.max(0, Math.round(((precioBase - precioOferta) / precioBase) * 100))
+}
+
+type DraftValidationResult = ReturnType<typeof buildOfertaBatchDraftItem>
+
+interface OfertaBatchPreviewItem {
+  variant: ProductoDetalleVariante
+  imageUrl: string | null
+  draft: OfertaFormDraft
+  validationResult: DraftValidationResult
+  previewOfferPrice: number | null
+}
+
+interface OfertaBatchTableItem {
+  variant: ProductoDetalleVariante
+  imageUrl: string | null
+  draft: OfertaFormDraft
+  selected: boolean
+  previewOfferPrice: number | null
+  discountPercent: number | null
+  validationResult: DraftValidationResult | null
+}
+
+function ensureDraftMapEntry(
+  previous: Record<number, OfertaFormDraft>,
+  variant: ProductoDetalleVariante
+) {
+  if (previous[variant.idProductoVariante]) {
+    return previous
+  }
+
+  return {
+    ...previous,
+    [variant.idProductoVariante]: createOfertaFormDraft(),
+  }
+}
+
+function buildEffectiveDraft(
+  draft: OfertaFormDraft,
+  bulkForm: OfertaBulkFormDraft
+): OfertaFormDraft {
+  return {
+    precioOfertaInput: draft.precioOfertaInput,
+    ofertaInicioInput:
+      draft.ofertaInicioInput.trim() !== ""
+        ? draft.ofertaInicioInput
+        : bulkForm.ofertaInicioInput,
+    ofertaFinInput:
+      draft.ofertaFinInput.trim() !== ""
+        ? draft.ofertaFinInput
+        : bulkForm.ofertaFinInput,
+  }
+}
+
 export function useOfertaBatchEditor() {
   const [productQuery, setProductQuery] = useState("")
   const debouncedProductQuery = useDebouncedValue(productQuery, SEARCH_DEBOUNCE_MS)
@@ -67,10 +198,15 @@ export function useOfertaBatchEditor() {
   const [loadingVariants, setLoadingVariants] = useState(false)
   const [variantsError, setVariantsError] = useState<string | null>(null)
   const [variantQuery, setVariantQuery] = useState("")
-  const [selectedVariantId, setSelectedVariantId] = useState("")
-
-  const [form, setForm] = useState<OfertaFormDraft>(() => createOfertaFormDraft())
+  const [selectedVariantIds, setSelectedVariantIds] = useState<number[]>([])
+  const [draftsByVariantId, setDraftsByVariantId] = useState<
+    Record<number, OfertaFormDraft>
+  >({})
+  const [bulkForm, setBulkForm] = useState<OfertaBulkFormDraft>(() =>
+    createOfertaBulkFormDraft()
+  )
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [showValidationFeedback, setShowValidationFeedback] = useState(false)
   const [saving, setSaving] = useState(false)
 
   const productAbortRef = useRef<AbortController | null>(null)
@@ -140,7 +276,9 @@ export function useOfertaBatchEditor() {
       setProductDetail(null)
       setVariantsError(null)
       setLoadingVariants(false)
-      setSelectedVariantId("")
+      setSelectedVariantIds([])
+      setDraftsByVariantId({})
+      setShowValidationFeedback(false)
       return
     }
 
@@ -151,7 +289,9 @@ export function useOfertaBatchEditor() {
     const loadVariants = async () => {
       setLoadingVariants(true)
       setVariantsError(null)
-      setSelectedVariantId("")
+      setSelectedVariantIds([])
+      setDraftsByVariantId({})
+      setShowValidationFeedback(false)
       setProductDetail(null)
 
       try {
@@ -202,11 +342,6 @@ export function useOfertaBatchEditor() {
     }
   }, [selectedProduct])
 
-  const variants = useMemo<ProductoDetalleVariante[]>(
-    () => sortProductoDetalleVariantes(productDetail?.variantes ?? []),
-    [productDetail]
-  )
-
   useEffect(() => {
     return () => {
       productAbortRef.current?.abort()
@@ -214,27 +349,15 @@ export function useOfertaBatchEditor() {
     }
   }, [])
 
-  const selectedVariant = useMemo(
-    () =>
-      variants.find(
-        (variant) => variant.idProductoVariante === Number(selectedVariantId)
-      ) ?? null,
-    [selectedVariantId, variants]
+  const variants = useMemo<ProductoDetalleVariante[]>(
+    () => sortProductoDetalleVariantes(productDetail?.variantes ?? []),
+    [productDetail]
   )
 
-  const selectedVariantImageUrl = useMemo(
-    () => getPrimaryImageUrlForVariant(productDetail?.imagenes ?? [], selectedVariant),
-    [productDetail, selectedVariant]
+  const selectedVariantIdSet = useMemo(
+    () => new Set(selectedVariantIds),
+    [selectedVariantIds]
   )
-
-  useEffect(() => {
-    if (selectedVariant) {
-      setForm(createOfertaFormDraft(selectedVariant))
-      return
-    }
-
-    setForm(createOfertaFormDraft())
-  }, [selectedVariant])
 
   const filteredVariants = useMemo(() => {
     const normalizedQuery = variantQuery.trim().toLowerCase()
@@ -254,6 +377,116 @@ export function useOfertaBatchEditor() {
     )
   }, [variantQuery, variants])
 
+  const allFilteredSelected = useMemo(
+    () =>
+      filteredVariants.length > 0 &&
+      filteredVariants.every((variant) =>
+        selectedVariantIdSet.has(variant.idProductoVariante)
+      ),
+    [filteredVariants, selectedVariantIdSet]
+  )
+
+  const selectedVariants = useMemo(
+    () =>
+      variants.filter((variant) =>
+        selectedVariantIdSet.has(variant.idProductoVariante)
+      ),
+    [selectedVariantIdSet, variants]
+  )
+
+  const tableItems = useMemo<OfertaBatchTableItem[]>(() => {
+    return filteredVariants.map((variant) => {
+      const rawDraft =
+        draftsByVariantId[variant.idProductoVariante] ?? createOfertaFormDraft()
+      const draft = buildEffectiveDraft(rawDraft, bulkForm)
+      const selected = selectedVariantIdSet.has(variant.idProductoVariante)
+      const imageUrl = getPrimaryImageUrlForVariant(productDetail?.imagenes ?? [], variant)
+      const validationResult =
+        selectedProduct && selected
+          ? buildOfertaBatchDraftItem({
+              productoId: selectedProduct.idProducto,
+              productoNombre: selectedProduct.nombre,
+              variante: variant,
+              form: draft,
+              imageUrl,
+            })
+          : null
+      const previewOfferPrice =
+        selected && draft.precioOfertaInput.trim() !== ""
+          ? parseDraftPrice(draft.precioOfertaInput)
+          : null
+
+      return {
+        variant,
+        imageUrl,
+        draft,
+        selected,
+        previewOfferPrice,
+        discountPercent: calculateDiscountPercent(variant.precio, previewOfferPrice),
+        validationResult,
+      }
+    })
+  }, [
+    bulkForm,
+    draftsByVariantId,
+    filteredVariants,
+    productDetail,
+    selectedProduct,
+    selectedVariantIdSet,
+  ])
+
+  const previewItems = useMemo<OfertaBatchPreviewItem[]>(() => {
+    if (!selectedProduct) return []
+
+    return tableItems.flatMap((tableItem) => {
+      if (!tableItem.selected || !tableItem.validationResult) {
+        return []
+      }
+
+      const imageUrl = getPrimaryImageUrlForVariant(
+        productDetail?.imagenes ?? [],
+        tableItem.variant
+      )
+
+      return [
+        {
+          variant: tableItem.variant,
+          imageUrl,
+          draft: tableItem.draft,
+          validationResult: tableItem.validationResult,
+          previewOfferPrice: tableItem.previewOfferPrice,
+        },
+      ]
+    })
+  }, [productDetail, selectedProduct, tableItems])
+
+  const previewStats = useMemo(() => {
+    let invalid = 0
+    let create = 0
+    let update = 0
+
+    for (const previewItem of previewItems) {
+      if (!previewItem.validationResult.ok) {
+        invalid += 1
+        continue
+      }
+
+      if (previewItem.validationResult.item.modo === "ACTUALIZAR") {
+        update += 1
+      } else {
+        create += 1
+      }
+    }
+
+    return {
+      total: previewItems.length,
+      invalid,
+      create,
+      update,
+      valid: previewItems.length - invalid,
+    }
+  }, [previewItems])
+
   const handleProductSelect = useCallback(
     (value: string) => {
       const nextProduct =
@@ -264,28 +497,126 @@ export function useOfertaBatchEditor() {
 
       setSelectedProduct(nextProduct)
       setVariantQuery("")
+      setSelectedVariantIds([])
+      setDraftsByVariantId({})
+      setShowValidationFeedback(false)
       setSubmitError(null)
     },
     [products, selectedProduct]
   )
 
-  const handleVariantSelect = useCallback((value: string) => {
-    setSelectedVariantId(value)
+  const toggleVariantSelection = useCallback(
+    (idProductoVariante: number) => {
+      const targetVariant =
+        variants.find(
+          (variant) => variant.idProductoVariante === idProductoVariante
+        ) ?? null
+      if (!targetVariant) return
+
+      setSelectedVariantIds((previous) =>
+        previous.includes(idProductoVariante)
+          ? previous.filter((id) => id !== idProductoVariante)
+          : [...previous, idProductoVariante]
+      )
+      setDraftsByVariantId((previous) => ensureDraftMapEntry(previous, targetVariant))
+      setShowValidationFeedback(false)
+      setSubmitError(null)
+    },
+    [variants]
+  )
+
+  const toggleSelectAllFilteredVariants = useCallback(() => {
+    if (filteredVariants.length === 0) return
+
+    setSelectedVariantIds((previous) => {
+      if (
+        filteredVariants.every((variant) =>
+          previous.includes(variant.idProductoVariante)
+        )
+      ) {
+        return previous.filter(
+          (id) =>
+            !filteredVariants.some(
+              (variant) => variant.idProductoVariante === id
+            )
+        )
+      }
+
+      const nextIds = new Set(previous)
+      filteredVariants.forEach((variant) => {
+        nextIds.add(variant.idProductoVariante)
+      })
+      return Array.from(nextIds)
+    })
+
+    setDraftsByVariantId((previous) => {
+      let next = previous
+
+      filteredVariants.forEach((variant) => {
+        next = ensureDraftMapEntry(next, variant)
+      })
+
+      return next
+    })
+    setShowValidationFeedback(false)
+    setSubmitError(null)
+  }, [filteredVariants])
+
+  const clearSelectedVariants = useCallback(() => {
+    setSelectedVariantIds([])
+    setShowValidationFeedback(false)
     setSubmitError(null)
   }, [])
 
-  const updateFormField = useCallback(
-    (field: keyof OfertaFormDraft, value: string) => {
-      setForm((previous) => ({
+  const updateBulkFormField = useCallback(
+    (field: keyof OfertaBulkFormDraft, value: string) => {
+      setBulkForm((previous) => ({
         ...previous,
         [field]: value,
+        ...(field === "ofertaInicioInput" || field === "ofertaFinInput"
+          ? { schedulePreset: "PERSONALIZADO" as const }
+          : {}),
       }))
       setSubmitError(null)
     },
     []
   )
 
-  const saveOffer = useCallback(async () => {
+  const applySchedulePreset = useCallback((preset: OfertaBatchSchedulePreset) => {
+    setBulkForm((previous) => ({
+      ...previous,
+      schedulePreset: preset,
+      ...(preset === "PERSONALIZADO" ? {} : buildDateRangeFromPreset(preset)),
+    }))
+    setShowValidationFeedback(false)
+    setSubmitError(null)
+  }, [])
+
+  const updateVariantDraftField = useCallback(
+    (
+      idProductoVariante: number,
+      field: keyof OfertaFormDraft,
+      value: string
+    ) => {
+      const targetVariant =
+        variants.find(
+          (variant) => variant.idProductoVariante === idProductoVariante
+        ) ?? null
+      if (!targetVariant) return
+
+      setDraftsByVariantId((previous) => ({
+        ...(ensureDraftMapEntry(previous, targetVariant) ?? previous),
+        [idProductoVariante]: {
+          ...(previous[idProductoVariante] ?? createOfertaFormDraft()),
+          [field]: value,
+        },
+      }))
+      setSubmitError(null)
+    },
+    [variants]
+  )
+
+  const applyBulkToSelected = useCallback(() => {
     if (!selectedProduct) {
       const message = "Debe seleccionar un producto."
       setSubmitError(message)
@@ -293,38 +624,114 @@ export function useOfertaBatchEditor() {
       return false
     }
 
-    if (!selectedVariant) {
-      const message = "Debe seleccionar una variante."
+    if (selectedVariants.length === 0) {
+      const message = "Debe seleccionar al menos una variante."
       setSubmitError(message)
       toast.error(message)
       return false
     }
 
-    const result = buildOfertaBatchDraftItem({
-      productoId: selectedProduct.idProducto,
-      productoNombre: selectedProduct.nombre,
-      variante: selectedVariant,
-      form,
-      imageUrl: selectedVariantImageUrl,
-    })
+    const nextDrafts: Record<number, OfertaFormDraft> = {}
 
-    if (!result.ok) {
-      setSubmitError(result.message)
-      toast.error(result.message)
+    for (const variant of selectedVariants) {
+      const priceResult = resolveOfertaPriceFromMode(
+        variant.precio,
+        bulkForm.priceMode,
+        bulkForm.priceInput
+      )
+
+      if (!priceResult.ok) {
+        const message = `${priceResult.message} (${getVariantContextLabel(variant)}).`
+        setSubmitError(message)
+        toast.error(message)
+        return false
+      }
+
+      nextDrafts[variant.idProductoVariante] = {
+        precioOfertaInput: String(priceResult.value),
+        ofertaInicioInput: bulkForm.ofertaInicioInput,
+        ofertaFinInput: bulkForm.ofertaFinInput,
+      }
+    }
+
+    setDraftsByVariantId((previous) => ({
+      ...previous,
+      ...nextDrafts,
+    }))
+    setShowValidationFeedback(false)
+    setSubmitError(null)
+    toast.success(
+      selectedVariants.length === 1
+        ? "Regla aplicada a 1 variante."
+        : `Regla aplicada a ${selectedVariants.length} variantes.`
+    )
+    return true
+  }, [bulkForm, selectedProduct, selectedVariants])
+
+  const saveOffers = useCallback(async () => {
+    if (!selectedProduct) {
+      const message = "Debe seleccionar un producto."
+      setSubmitError(message)
+      toast.error(message)
       return false
     }
+
+    if (previewItems.length === 0) {
+      const message = "Debe seleccionar al menos una variante para guardar."
+      setSubmitError(message)
+      toast.error(message)
+      return false
+    }
+
+    setShowValidationFeedback(true)
+
+    const invalidPreviews = previewItems.filter(
+      (
+        previewItem
+      ): previewItem is OfertaBatchPreviewItem & {
+        validationResult: Extract<DraftValidationResult, { ok: false }>
+      } => !previewItem.validationResult.ok
+    )
+
+    if (invalidPreviews.length > 0) {
+      const onlyDateErrors = invalidPreviews.every((previewItem) =>
+        previewItem.validationResult.message.includes(
+          "Debe completar fecha de inicio y fecha de fin"
+        )
+      )
+      const sampleLabels = invalidPreviews
+        .slice(0, 3)
+        .map((previewItem) => getVariantContextLabel(previewItem.variant))
+        .join(", ")
+      const message =
+        onlyDateErrors
+          ? "Antes de publicar, completa la fecha de inicio y fin para las variantes seleccionadas."
+          : invalidPreviews.length === 1
+          ? invalidPreviews[0].validationResult.message
+          : `Hay ${invalidPreviews.length} variantes con errores. Revisa: ${sampleLabels}.`
+
+      setSubmitError(message)
+      toast.error(message)
+      return false
+    }
+
+    const items = previewItems.flatMap((previewItem) => {
+      if (!previewItem.validationResult.ok) return []
+
+      return [
+        {
+          idProductoVariante: previewItem.variant.idProductoVariante,
+          precioOferta: previewItem.validationResult.item.precioOferta,
+          ofertaInicio: previewItem.validationResult.item.ofertaInicio,
+          ofertaFin: previewItem.validationResult.item.ofertaFin,
+        },
+      ]
+    })
 
     setSaving(true)
     setSubmitError(null)
 
-    const patchResult = await patchOfertasLote([
-      {
-        idProductoVariante: result.item.idProductoVariante,
-        precioOferta: result.item.precioOferta,
-        ofertaInicio: result.item.ofertaInicio,
-        ofertaFin: result.item.ofertaFin,
-      },
-    ])
+    const patchResult = await patchOfertasLote(items)
 
     setSaving(false)
 
@@ -334,35 +741,45 @@ export function useOfertaBatchEditor() {
       return false
     }
 
+    const itemMap = new Map(
+      items.map((item) => [item.idProductoVariante, item] as const)
+    )
+
     setProductDetail((previous) => {
       if (!previous) return previous
 
       return {
         ...previous,
-        variantes: previous.variantes.map((variant) =>
-          variant.idProductoVariante === result.item.idProductoVariante
-            ? {
-                ...variant,
-                precioOferta: result.item.precioOferta,
-                ofertaInicio: result.item.ofertaInicio,
-                ofertaFin: result.item.ofertaFin,
-              }
-            : variant
-        ),
+        variantes: previous.variantes.map((variant) => {
+          const appliedOffer = itemMap.get(variant.idProductoVariante)
+          if (!appliedOffer) return variant
+
+          return {
+            ...variant,
+            precioOferta: appliedOffer.precioOferta,
+            ofertaInicio: appliedOffer.ofertaInicio,
+            ofertaFin: appliedOffer.ofertaFin,
+          }
+        }),
       }
     })
 
-    setSelectedVariantId("")
+    setProductQuery("")
+    setProducts([])
+    setSelectedProduct(null)
     setVariantQuery("")
-    setForm(createOfertaFormDraft())
+    setBulkForm(createOfertaBulkFormDraft())
+    setSelectedVariantIds([])
+    setDraftsByVariantId({})
+    setShowValidationFeedback(false)
     setSubmitError(null)
     toast.success(
-      result.item.modo === "ACTUALIZAR"
-        ? "Oferta actualizada correctamente."
-        : "Oferta creada correctamente."
+      items.length === 1
+        ? "Oferta guardada correctamente."
+        : `${items.length} ofertas guardadas correctamente.`
     )
     return true
-  }, [form, selectedProduct, selectedVariant, selectedVariantImageUrl])
+  }, [previewItems, selectedProduct])
 
   return {
     productQuery,
@@ -370,22 +787,31 @@ export function useOfertaBatchEditor() {
     loadingProducts,
     productsError,
     selectedProduct,
-    variants,
     filteredVariants,
     loadingVariants,
     variantsError,
     variantQuery,
-    selectedVariantId,
-    selectedVariant,
-    selectedVariantImageUrl,
-    form,
+    selectedVariantIds,
+    selectedVariantIdSet,
+    selectedVariants,
+    allFilteredSelected,
+    bulkForm,
+    tableItems,
+    previewItems,
+    previewStats,
+    showValidationFeedback,
     submitError,
     saving,
     setProductQuery,
     setVariantQuery,
     handleProductSelect,
-    handleVariantSelect,
-    updateFormField,
-    saveOffer,
+    toggleVariantSelection,
+    toggleSelectAllFilteredVariants,
+    clearSelectedVariants,
+    updateBulkFormField,
+    applySchedulePreset,
+    updateVariantDraftField,
+    applyBulkToSelected,
+    saveOffers,
   }
 }

@@ -86,7 +86,7 @@ export function CotizacionDetalleModal({
                 </div>
               </header>
 
-              <div className="grid gap-4 border-b px-5 py-4 md:grid-cols-2 xl:grid-cols-4">
+              <div className="grid gap-4 border-b px-5 py-4 md:grid-cols-2 xl:grid-cols-3">
                 <p className="flex items-center gap-2 text-sm">
                   <UserIcon className="h-4 w-4 text-muted-foreground" />
                   <span className="font-medium">Cliente:</span>
@@ -96,10 +96,6 @@ export function CotizacionDetalleModal({
                   <CalendarDaysIcon className="h-4 w-4 text-muted-foreground" />
                   <span className="font-medium">Fecha:</span>
                   <span>{formatFechaHora(detalle.fecha)}</span>
-                </p>
-                <p className="text-sm">
-                  <span className="font-medium">Vigencia:</span>{" "}
-                  <span>{formatFechaHora(detalle.fechaVencimiento)}</span>
                 </p>
                 <p className="text-sm">
                   <span className="font-medium">Sucursal:</span>{" "}

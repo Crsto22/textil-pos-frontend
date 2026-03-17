@@ -1,4 +1,5 @@
 const ESTADO_CLASSES: Record<string, string> = {
+  ACTIVA: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
   EMITIDA: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
   COMPLETADA:
     "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
@@ -13,6 +14,19 @@ const ESTADO_CLASSES: Record<string, string> = {
   RECHAZADA: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400",
 }
 
+const SUNAT_ESTADO_CLASSES: Record<string, string> = {
+  ACEPTADO:
+    "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+  PENDIENTE:
+    "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+  ENVIADO: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+  OBSERVADO:
+    "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
+  RECHAZADO: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400",
+  ERROR: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400",
+  NO_APLICA: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+}
+
 export function getEstadoBadgeClass(estado: string): string {
   const key = estado.trim().toUpperCase()
   return (
@@ -21,10 +35,18 @@ export function getEstadoBadgeClass(estado: string): string {
   )
 }
 
-export function formatMonto(value: number): string {
+export function getSunatBadgeClass(estado: string | null | undefined): string {
+  const key = (estado ?? "").trim().toUpperCase()
+  return (
+    SUNAT_ESTADO_CLASSES[key] ??
+    "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+  )
+}
+
+export function formatMonto(value: number, currency = "PEN"): string {
   return new Intl.NumberFormat("es-PE", {
     style: "currency",
-    currency: "PEN",
+    currency,
     minimumFractionDigits: 2,
   }).format(value)
 }

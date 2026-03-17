@@ -1,4 +1,4 @@
-import { memo } from "react"
+import { memo, type ReactNode } from "react"
 import Link from "next/link"
 import {
   ArchiveBoxIcon,
@@ -16,42 +16,54 @@ export type ProductosViewMode = "cards" | "table"
 interface ProductosHeaderProps {
   viewMode: ProductosViewMode
   onViewModeChange: (nextMode: ProductosViewMode) => void
+  showViewModeToggle?: boolean
+  leftSlot?: ReactNode
 }
 
-function ProductosHeaderComponent({ viewMode, onViewModeChange }: ProductosHeaderProps) {
+function ProductosHeaderComponent({
+  viewMode,
+  onViewModeChange,
+  showViewModeToggle = true,
+  leftSlot = null,
+}: ProductosHeaderProps) {
   return (
     <div className="flex w-full items-center justify-between gap-3">
-      <div className="inline-flex items-center gap-1 rounded-2xl border border-border bg-muted/30 p-1">
-        <button
-          type="button"
-          title="Mostrar por cards"
-          aria-label="Mostrar por cards"
-          onClick={() => onViewModeChange("cards")}
-          aria-pressed={viewMode === "cards"}
-          className={cn(
-            "inline-flex h-9 w-9 items-center justify-center rounded-xl border transition-colors",
-            viewMode === "cards"
-              ? "border-border bg-background text-foreground shadow-sm"
-              : "border-transparent bg-transparent text-muted-foreground hover:bg-background/80 hover:text-foreground"
-          )}
-        >
-          <Squares2X2Icon className="h-5 w-5" />
-        </button>
-        <button
-          type="button"
-          title="Mostrar en tabla"
-          aria-label="Mostrar en tabla"
-          onClick={() => onViewModeChange("table")}
-          aria-pressed={viewMode === "table"}
-          className={cn(
-            "inline-flex h-9 w-9 items-center justify-center rounded-xl border transition-colors",
-            viewMode === "table"
-              ? "border-border bg-background text-foreground shadow-sm"
-              : "border-transparent bg-transparent text-muted-foreground hover:bg-background/80 hover:text-foreground"
-          )}
-        >
-          <ListBulletIcon className="h-5 w-5" />
-        </button>
+      <div className="flex flex-wrap items-center gap-3">
+        {leftSlot}
+        {showViewModeToggle && (
+          <div className="inline-flex items-center gap-1 rounded-2xl border border-border bg-muted/30 p-1">
+            <button
+              type="button"
+              title="Mostrar por cards"
+              aria-label="Mostrar por cards"
+              onClick={() => onViewModeChange("cards")}
+              aria-pressed={viewMode === "cards"}
+              className={cn(
+                "inline-flex h-9 w-9 items-center justify-center rounded-xl border transition-colors",
+                viewMode === "cards"
+                  ? "border-border bg-background text-foreground shadow-sm"
+                  : "border-transparent bg-transparent text-muted-foreground hover:bg-background/80 hover:text-foreground"
+              )}
+            >
+              <Squares2X2Icon className="h-5 w-5" />
+            </button>
+            <button
+              type="button"
+              title="Mostrar en tabla"
+              aria-label="Mostrar en tabla"
+              onClick={() => onViewModeChange("table")}
+              aria-pressed={viewMode === "table"}
+              className={cn(
+                "inline-flex h-9 w-9 items-center justify-center rounded-xl border transition-colors",
+                viewMode === "table"
+                  ? "border-border bg-background text-foreground shadow-sm"
+                  : "border-transparent bg-transparent text-muted-foreground hover:bg-background/80 hover:text-foreground"
+              )}
+            >
+              <ListBulletIcon className="h-5 w-5" />
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">

@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 
+import {
+  getProxyHeaders,
+  normalizeCotizacionWritePayload,
+  parseBackendBody,
+} from "../_helpers"
+
 const BACKEND_URL = process.env.BACKEND_URL
 
 export async function POST(request: NextRequest) {
@@ -8,25 +14,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "BACKEND_URL no configurado" }, { status: 500 })
     }
 
-    const authHeader = request.headers.get("authorization")
-    const headers: HeadersInit = { "Content-Type": "application/json" }
-    if (authHeader) {
-      headers["Authorization"] = authHeader
-    }
-
-    let body: string
-    try {
-      body = JSON.stringify(await request.json())
-    } catch {
-      return NextResponse.json({ message: "Body invalido o vacio" }, { status: 400 })
+    const requestPayload = await request.json().catch(() => null)
+    const normalizedPayload = normalizeCotizacionWritePayload(requestPayload)
+    if (!normalizedPayload.ok) {
+      return NextResponse.json({ message: normalizedPayload.message }, { status: 400 })
     }
 
     let backendRes: Response
     try {
       backendRes = await fetch(`${BACKEND_URL}/api/cotizacion/insertar`, {
         method: "POST",
-        headers,
-        body,
+        headers: getProxyHeaders(request, { includeJsonContentType: true }),
+        body: JSON.stringify(normalizedPayload.data),
       })
     } catch {
       return NextResponse.json(
@@ -35,21 +34,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const text = await backendRes.text()
-    let data: Record<string, unknown> = {}
-    try {
-      data = JSON.parse(text)
-    } catch {
-      data = { message: text || "Error desconocido" }
-    }
+    const { data, message } = await parseBackendBody(backendRes, "Error al registrar cotizacion")
 
     if (!backendRes.ok) {
-      const message =
-        typeof data.message === "string"
-          ? data.message
-          : typeof data.error === "string"
-            ? data.error
-            : "Error al registrar cotizacion"
       return NextResponse.json({ message }, { status: backendRes.status })
     }
 

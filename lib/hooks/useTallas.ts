@@ -46,6 +46,53 @@ function isAbortError(error: unknown) {
   return error instanceof DOMException && error.name === "AbortError"
 }
 
+function isTallaEntity(value: unknown): value is Talla {
+  if (!value || typeof value !== "object") return false
+
+  return (
+    "idTalla" in value &&
+    typeof value.idTalla === "number" &&
+    "nombre" in value &&
+    typeof value.nombre === "string" &&
+    "estado" in value &&
+    typeof value.estado === "string"
+  )
+}
+
+function getTallaFromCreatePayload(payload: unknown): Talla | null {
+  if (isTallaEntity(payload)) return payload
+  if (!payload || typeof payload !== "object") return null
+
+  const payloadRecord = payload as Record<string, unknown>
+
+  for (const key of ["talla", "data", "payload", "result"]) {
+    const candidate = payloadRecord[key]
+    if (isTallaEntity(candidate)) {
+      return candidate
+    }
+  }
+
+  return null
+}
+
+function normalizeName(value: string) {
+  return value.trim().toLocaleLowerCase()
+}
+
+function findExactTallaMatch(tallas: Talla[], nombre: string) {
+  const normalizedNombre = normalizeName(nombre)
+  if (!normalizedNombre) return null
+
+  return (
+    tallas.find((talla) => normalizeName(talla.nombre) === normalizedNombre) ?? null
+  )
+}
+
+interface CreateTallaResult {
+  success: boolean
+  talla: Talla | null
+}
+
 export function useTallas() {
   const { isLoading: isAuthLoading } = useAuth()
 
@@ -219,8 +266,31 @@ export function useTallas() {
     await fetchTallas(page)
   }, [debouncedSearch, fetchBuscar, fetchTallas, isSearchMode, page, searchPage])
 
-  const createTalla = useCallback(
-    async (payload: TallaCreateRequest) => {
+  const findTallaByName = useCallback(async (nombre: string) => {
+    const trimmedNombre = nombre.trim()
+    if (!trimmedNombre) return null
+
+    try {
+      const params = new URLSearchParams({
+        q: trimmedNombre,
+        page: "0",
+      })
+
+      const response = await authFetch(`/api/talla/buscar?${params.toString()}`)
+      const data = await parseJsonSafe(response)
+      if (!response.ok) return null
+
+      const pageData = data as PageResponse<Talla> | null
+      const content = Array.isArray(pageData?.content) ? pageData.content : []
+
+      return findExactTallaMatch(content, trimmedNombre) ?? null
+    } catch {
+      return null
+    }
+  }, [])
+
+  const createTallaAndReturn = useCallback(
+    async (payload: TallaCreateRequest): Promise<CreateTallaResult> => {
       try {
         const response = await authFetch("/api/talla/insertar", {
           method: "POST",
@@ -234,21 +304,34 @@ export function useTallas() {
           const message = getErrorMessage(response.status, data?.message)
           setError(message)
           toast.error(message)
-          return false
+          return { success: false, talla: null }
         }
 
         toast.success("Talla creada exitosamente")
         await refreshCurrentView()
-        return true
+        return {
+          success: true,
+          talla:
+            getTallaFromCreatePayload(data) ??
+            (await findTallaByName(payload.nombre)),
+        }
       } catch (requestError) {
         const message =
           requestError instanceof Error ? requestError.message : "Error inesperado"
         setError(message)
         toast.error(message)
-        return false
+        return { success: false, talla: null }
       }
     },
-    [refreshCurrentView]
+    [findTallaByName, refreshCurrentView]
+  )
+
+  const createTalla = useCallback(
+    async (payload: TallaCreateRequest) => {
+      const result = await createTallaAndReturn(payload)
+      return result.success
+    },
+    [createTallaAndReturn]
   )
 
   const deleteTalla = useCallback(
@@ -373,6 +456,7 @@ export function useTallas() {
     fetchTallas,
     fetchBuscar,
     refreshCurrentView,
+    createTallaAndReturn,
     createTalla,
     updateTalla,
     deleteTalla,

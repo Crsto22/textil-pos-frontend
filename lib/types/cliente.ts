@@ -80,6 +80,17 @@ export interface ClienteCreateRequest {
     idSucursal: number | null
 }
 
+export interface ClienteCreatePrefill {
+    tipoDocumento?: TipoDocumento
+    nroDocumento?: string
+    nombres?: string
+    telefono?: string
+    correo?: string
+    direccion?: string
+    idSucursal?: number | null
+    autoLookup?: boolean
+}
+
 export interface ClienteUpdateRequest {
     tipoDocumento: string
     nroDocumento: string

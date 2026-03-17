@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 
 import {
   Dialog,
@@ -19,23 +19,34 @@ interface ColorCreateDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onCreate: (payload: ColorCreateRequest) => Promise<boolean>
+  initialNombre?: string
+  initialCodigo?: string
 }
 
 export function ColorCreateDialog({
   open,
   onOpenChange,
   onCreate,
+  initialNombre = "",
+  initialCodigo = "#000000",
 }: ColorCreateDialogProps) {
-  const [nombre, setNombre] = useState("")
-  const [codigo, setCodigo] = useState("#000000")
+  const [nombre, setNombre] = useState(initialNombre)
+  const [codigo, setCodigo] = useState(initialCodigo)
   const [isSaving, setIsSaving] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+
+    setNombre(initialNombre)
+    setCodigo(initialCodigo)
+  }, [initialCodigo, initialNombre, open])
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (isSaving) return
     onOpenChange(nextOpen)
     if (!nextOpen) {
-      setNombre("")
-      setCodigo("#000000")
+      setNombre(initialNombre)
+      setCodigo(initialCodigo)
     }
   }
 

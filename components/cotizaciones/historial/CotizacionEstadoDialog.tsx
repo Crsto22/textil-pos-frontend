@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useMemo, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -10,22 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import type { CotizacionHistorial, CotizacionEstadoUpdateRequest } from "@/lib/types/cotizacion"
-
-const ESTADO_OPTIONS: Array<{ value: CotizacionEstadoUpdateRequest["estado"]; label: string }> = [
-  { value: "BORRADOR", label: "Borrador" },
-  { value: "ENVIADA", label: "Enviada" },
-  { value: "APROBADA", label: "Aprobada" },
-  { value: "RECHAZADA", label: "Rechazada" },
-  { value: "VENCIDA", label: "Vencida" },
-]
 
 interface CotizacionEstadoDialogProps {
   open: boolean
@@ -40,15 +25,12 @@ export function CotizacionEstadoDialog({
   onOpenChange,
   onSubmit,
 }: CotizacionEstadoDialogProps) {
-  const [estado, setEstado] = useState<CotizacionEstadoUpdateRequest["estado"]>("BORRADOR")
   const [submitting, setSubmitting] = useState(false)
-
-  useEffect(() => {
-    if (!open || !target) return
-    const estadoActual = target.estado.trim().toUpperCase()
-    const option = ESTADO_OPTIONS.find((item) => item.value === estadoActual)
-    setEstado(option?.value ?? "BORRADOR")
-  }, [open, target])
+  const normalizedEstado = useMemo(
+    () => target?.estado.trim().toUpperCase() ?? "",
+    [target?.estado]
+  )
+  const canReactivate = normalizedEstado.length > 0 && !["ACTIVA", "CONVERTIDA"].includes(normalizedEstado)
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (submitting) return
@@ -56,10 +38,10 @@ export function CotizacionEstadoDialog({
   }
 
   const handleSubmit = async () => {
-    if (!target) return
+    if (!target || !canReactivate) return
     setSubmitting(true)
     try {
-      const success = await onSubmit(target.idCotizacion, estado)
+      const success = await onSubmit(target.idCotizacion, "ACTIVA")
       if (success) {
         onOpenChange(false)
       }
@@ -72,33 +54,18 @@ export function CotizacionEstadoDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md" showCloseButton={!submitting}>
         <DialogHeader>
-          <DialogTitle>Cambiar estado</DialogTitle>
+          <DialogTitle>Reactivar cotizacion</DialogTitle>
           <DialogDescription>
-            Actualiza el estado de la cotizacion{" "}
+            {canReactivate ? "Confirma si deseas volver a dejar en ACTIVA la cotizacion" : "La cotizacion"}{" "}
             <span className="font-semibold text-foreground">
               {target ? `#${target.idCotizacion}` : ""}
             </span>
-            .
+            {canReactivate ? "." : " ya no requiere este cambio."}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-foreground">Nuevo estado</label>
-          <Select
-            value={estado}
-            onValueChange={(value) => setEstado(value as CotizacionEstadoUpdateRequest["estado"])}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Selecciona un estado" />
-            </SelectTrigger>
-            <SelectContent>
-              {ESTADO_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="rounded-lg border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+          El sistema solo permite reactivar cotizaciones con el estado <span className="font-semibold text-foreground">ACTIVA</span>. Las cotizaciones convertidas permanecen en <span className="font-semibold text-foreground">CONVERTIDA</span>.
         </div>
 
         <DialogFooter>
@@ -107,8 +74,8 @@ export function CotizacionEstadoDialog({
               Cancelar
             </Button>
           </DialogClose>
-          <Button type="button" onClick={handleSubmit} disabled={submitting}>
-            {submitting ? "Guardando..." : "Guardar estado"}
+          <Button type="button" onClick={handleSubmit} disabled={submitting || !canReactivate}>
+            {submitting ? "Reactivando..." : "Marcar como ACTIVA"}
           </Button>
         </DialogFooter>
       </DialogContent>

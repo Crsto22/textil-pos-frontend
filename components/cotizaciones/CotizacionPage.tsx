@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type React
 import { useRouter } from "next/navigation"
 import {
   ArrowPathIcon,
-  CalendarDaysIcon,
   CheckCircleIcon,
   CubeIcon,
   ExclamationTriangleIcon,
@@ -14,7 +13,9 @@ import {
 import { toast } from "sonner"
 
 import { ProductosPagination } from "@/components/productos/ProductosPagination"
+import { ClienteCreateDialog } from "@/components/clientes/modals/ClienteCreateDialog"
 import { formatMonedaPen } from "@/components/productos/productos.utils"
+import CatalogViewToggle from "@/components/ventas/CatalogViewToggle"
 import CategoryFilter from "@/components/ventas/CategoryFilter"
 import CartItem, { type CartItemData } from "@/components/ventas/CartItem"
 import ClientSelect, { type ClientSelection } from "@/components/ventas/ClientSelect"
@@ -24,14 +25,29 @@ import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
 import { Textarea } from "@/components/ui/textarea"
 import { useAuth } from "@/lib/auth/auth-context"
 import { authFetch } from "@/lib/auth/auth-fetch"
+import {
+  buildCatalogVariantItems,
+  buildCatalogVariantCartSelection,
+  matchesCatalogVariantItem,
+  type CatalogVariantItem,
+  type CatalogVariantSelection,
+  type CatalogViewMode,
+} from "@/lib/catalog-view"
+import { useCatalogoVariantes } from "@/lib/hooks/useCatalogoVariantes"
+import { useCatalogViewMode } from "@/lib/hooks/useCatalogViewMode"
+import { useClienteCreate } from "@/lib/hooks/useClienteCreate"
 import { useProductos } from "@/lib/hooks/useProductos"
 import { useSucursalOptions } from "@/lib/hooks/useSucursalOptions"
+import { getSucursalAvatarColor, getSucursalInitials } from "@/lib/sucursal"
 import type { CotizacionCreateRequest, CotizacionResponse } from "@/lib/types/cotizacion"
 import type { Categoria, PageResponse as CategoriaPageResponse } from "@/lib/types/categoria"
+import type { Cliente, ClienteCreatePrefill } from "@/lib/types/cliente"
 import type { Color, PageResponse as ColorPageResponse } from "@/lib/types/color"
 import type { ProductoResumen } from "@/lib/types/producto"
 
 const DEFAULT_CLIENT: ClientSelection = { idCliente: null, nombre: "Cliente Generico" }
+const DEFAULT_COTIZACION_SERIE = "COT"
+const DEFAULT_IGV_PORCENTAJE = 18
 
 type DiscountMode = "none" | "percent" | "amount"
 
@@ -74,32 +90,9 @@ async function parseJsonSafe(response: Response) {
   return response.json().catch(() => null)
 }
 
-function getDefaultValidityDate() {
-  const date = new Date()
-  date.setDate(date.getDate() + 7)
-  return date.toISOString().slice(0, 10)
-}
-
 function parseDiscountValue(value: string) {
   const parsed = Number(value.replace(",", "."))
   return Number.isFinite(parsed) ? parsed : 0
-}
-
-function toEndOfDayIso(value: string) {
-  return `${value}T23:59:59`
-}
-
-function toDateInputValue(value: string | null | undefined) {
-  if (typeof value !== "string" || value.trim().length === 0) return ""
-
-  if (value.length >= 10) {
-    return value.slice(0, 10)
-  }
-
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) return ""
-  const timezoneOffsetMs = parsed.getTimezoneOffset() * 60_000
-  return new Date(parsed.getTime() - timezoneOffsetMs).toISOString().slice(0, 10)
 }
 
 function formatRegisteredQuoteCode(serie: string | null | undefined, correlativo: number | null | undefined) {
@@ -142,23 +135,6 @@ function mapCategoryFilters(payload: unknown): CategoryFilterOption[] {
       id: categoria.idCategoria,
       name: categoria.nombreCategoria?.trim() || `Categoria #${categoria.idCategoria}`,
     }))
-}
-
-function getValidityMeta(value: string) {
-  if (!value) return { label: "Define vigencia", tone: "text-amber-600 dark:text-amber-400", invalid: true }
-
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const target = new Date(`${value}T00:00:00`)
-  if (Number.isNaN(target.getTime())) {
-    return { label: "Fecha invalida", tone: "text-rose-600 dark:text-rose-400", invalid: true }
-  }
-
-  const diff = Math.round((target.getTime() - today.getTime()) / 86400000)
-  if (diff < 0) return { label: "Vencida", tone: "text-rose-600 dark:text-rose-400", invalid: true }
-  if (diff === 0) return { label: "Vence hoy", tone: "text-amber-600 dark:text-amber-400", invalid: false }
-  if (diff === 1) return { label: "Vence manana", tone: "text-blue-600 dark:text-blue-400", invalid: false }
-  return { label: `${diff} dias de vigencia`, tone: "text-emerald-600 dark:text-emerald-400", invalid: false }
 }
 
 function resolveDiscountMode(cotizacion: CotizacionResponse): DiscountMode {
@@ -204,32 +180,53 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
   const isAdmin = user?.rol === "ADMINISTRADOR"
   const userHasSucursal = hasValidSucursalId(user?.idSucursal)
   const isEditing = typeof cotizacionId === "number" && cotizacionId > 0
+  const [catalogViewMode, setCatalogViewMode] = useCatalogViewMode()
+  const isVariantView = catalogViewMode === "variantes"
 
   const {
-    search,
-    setSearch,
-    idCategoriaFilter,
-    idColorFilter,
-    setIdCategoriaFilter,
-    setIdColorFilter,
+    search: searchProductos,
+    setSearch: setSearchProductos,
+    idCategoriaFilter: idCategoriaFilterProductos,
+    idColorFilter: idColorFilterProductos,
+    setIdCategoriaFilter: setIdCategoriaFilterProductos,
+    setIdColorFilter: setIdColorFilterProductos,
     displayedProductos,
-    displayedTotalElements,
-    displayedTotalPages,
-    displayedPage,
-    displayedLoading,
-    setDisplayedPage,
-    error: errorProductos,
-    refreshCurrentView,
-  } = useProductos()
+    displayedTotalElements: displayedTotalElementsProductos,
+    displayedTotalPages: displayedTotalPagesProductos,
+    displayedPage: displayedPageProductos,
+    displayedLoading: displayedLoadingProductos,
+    setDisplayedPage: setDisplayedPageProductos,
+    error: errorProductosListado,
+    refreshCurrentView: refreshProductosView,
+  } = useProductos(!isVariantView)
+  const {
+    search: searchVariantes,
+    setSearch: setSearchVariantes,
+    idCategoriaFilter: idCategoriaFilterVariantes,
+    idColorFilter: idColorFilterVariantes,
+    setIdCategoriaFilter: setIdCategoriaFilterVariantes,
+    setIdColorFilter: setIdColorFilterVariantes,
+    displayedCatalogVariants,
+    displayedTotalElements: displayedTotalElementsVariantes,
+    displayedTotalPages: displayedTotalPagesVariantes,
+    displayedPage: displayedPageVariantes,
+    displayedLoading: displayedLoadingVariantes,
+    setDisplayedPage: setDisplayedPageVariantes,
+    error: errorVariantesListado,
+    refreshCurrentView: refreshVariantesView,
+  } = useCatalogoVariantes(isVariantView)
 
   const [cart, setCart] = useState<CartItemData[]>([])
   const [selectedClient, setSelectedClient] = useState<ClientSelection>(DEFAULT_CLIENT)
+  const [clientCreatePrefill, setClientCreatePrefill] = useState<ClienteCreatePrefill | null>(null)
+  const [isClientCreateOpen, setIsClientCreateOpen] = useState(false)
   const [selectedSucursalId, setSelectedSucursalId] = useState<number | null>(null)
-  const [validUntil, setValidUntil] = useState(getDefaultValidityDate)
   const [discountMode, setDiscountMode] = useState<DiscountMode>("none")
   const [discountValue, setDiscountValue] = useState("")
   const [notes, setNotes] = useState("")
   const [modalProduct, setModalProduct] = useState<ProductoResumen | null>(null)
+  const [modalVariantSelection, setModalVariantSelection] =
+    useState<CatalogVariantSelection | null>(null)
   const [cotizacionError, setCotizacionError] = useState<string | null>(null)
   const [submittingCotizacion, setSubmittingCotizacion] = useState(false)
   const [loadingCotizacion, setLoadingCotizacion] = useState(isEditing)
@@ -249,6 +246,9 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
     searchSucursal,
     setSearchSucursal,
   } = useSucursalOptions(isAdmin)
+  const { createCliente } = useClienteCreate({
+    successMessage: "Cliente creado y seleccionado",
+  })
 
   const defaultAdminSucursalId =
     isAdmin && hasValidSucursalId(user?.idSucursal) ? user.idSucursal : null
@@ -261,7 +261,12 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
     () =>
       hasSelectedSucursal &&
       !sucursalOptions.some((option) => option.value === String(effectiveSelectedSucursalId))
-        ? [{ value: String(effectiveSelectedSucursalId), label: `Sucursal #${effectiveSelectedSucursalId}` }, ...sucursalOptions]
+        ? [{
+            value: String(effectiveSelectedSucursalId),
+            label: `Sucursal #${effectiveSelectedSucursalId}`,
+            avatarText: getSucursalInitials("Sucursal"),
+            avatarClassName: getSucursalAvatarColor(effectiveSelectedSucursalId),
+          }, ...sucursalOptions]
         : sucursalOptions,
     [effectiveSelectedSucursalId, hasSelectedSucursal, sucursalOptions]
   )
@@ -320,13 +325,10 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
           nombre: cotizacion.nombreCliente?.trim() || DEFAULT_CLIENT.nombre,
         })
         setSelectedSucursalId(cotizacion.idSucursal ?? null)
-        setValidUntil(toDateInputValue(cotizacion.fechaVencimiento) || getDefaultValidityDate())
         setDiscountMode(resolveDiscountMode(cotizacion))
         setDiscountValue(resolveDiscountValue(cotizacion))
         setNotes(cotizacion.observacion ?? "")
         setCart(mapCotizacionToCart(cotizacion))
-        setModalProduct(null)
-
         if (locked) {
           setCotizacionError("La cotizacion convertida no se puede editar.")
         } else {
@@ -415,6 +417,26 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
 
   const safeCategoryPage = Math.max(0, Math.min(categoryPage, Math.max(0, categoryTotalPages - 1)))
   const safeColorPage = Math.max(0, Math.min(colorPage, Math.max(0, colorTotalPages - 1)))
+  const productViewVariantItems = useMemo(
+    () => buildCatalogVariantItems(displayedProductos),
+    [displayedProductos]
+  )
+  const search = isVariantView ? searchVariantes : searchProductos
+  const idCategoriaFilter = isVariantView ? idCategoriaFilterVariantes : idCategoriaFilterProductos
+  const idColorFilter = isVariantView ? idColorFilterVariantes : idColorFilterProductos
+  const displayedTotalElements = isVariantView
+    ? displayedTotalElementsVariantes
+    : displayedTotalElementsProductos
+  const displayedTotalPages = isVariantView
+    ? displayedTotalPagesVariantes
+    : displayedTotalPagesProductos
+  const displayedPage = isVariantView ? displayedPageVariantes : displayedPageProductos
+  const displayedLoading = isVariantView ? displayedLoadingVariantes : displayedLoadingProductos
+  const errorProductos = isVariantView ? errorVariantesListado : errorProductosListado
+  const refreshCurrentView = isVariantView ? refreshVariantesView : refreshProductosView
+  const visibleCatalogCount = isVariantView
+    ? displayedCatalogVariants.length
+    : displayedProductos.length
   const totalItems = cart.reduce((sum, item) => sum + item.cantidad, 0)
   const subtotal = cart.reduce((sum, item) => sum + item.precio * item.cantidad, 0)
   const parsedDiscountValue = parseDiscountValue(discountValue)
@@ -428,7 +450,6 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
     return 0
   }, [discountMode, parsedDiscountValue, subtotal])
   const total = Math.max(0, subtotal - discountAmount)
-  const validityMeta = getValidityMeta(validUntil)
   const payloadDiscountValue = useMemo(() => {
     if (discountMode === "percent") {
       return Math.min(100, Math.max(0, parsedDiscountValue))
@@ -446,26 +467,75 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
   const generationIssues = useMemo(() => [
     ...(loadingCotizacion ? ["Cargando cotizacion..."] : []),
     ...(editingLocked ? ["La cotizacion convertida no se puede editar"] : []),
-    ...(cart.length === 0 ? ["Agrega al menos un producto a la cotizacion"] : []),
+    ...(cart.length === 0 ? ["Agrega al menos una variante a la cotizacion"] : []),
     ...(resolvedSucursalId === null ? [isAdmin ? "Selecciona una sucursal" : "Tu usuario no tiene sucursal asignada"] : []),
     ...(selectedClient.idCliente === null ? ["Selecciona un cliente real"] : []),
-    ...(validityMeta.invalid ? ["Define una vigencia valida"] : []),
-  ], [cart.length, editingLocked, isAdmin, loadingCotizacion, resolvedSucursalId, selectedClient.idCliente, validityMeta.invalid])
+  ], [cart.length, editingLocked, isAdmin, loadingCotizacion, resolvedSucursalId, selectedClient.idCliente])
   const canGenerate = generationIssues.length === 0
 
   const clearCotizacionError = useCallback(() => {
     setCotizacionError(null)
   }, [])
 
+  const handleSearchChange = useCallback(
+    (value: string) => {
+      if (isVariantView) {
+        setSearchVariantes(value)
+        return
+      }
+
+      setSearchProductos(value)
+    },
+    [isVariantView, setSearchProductos, setSearchVariantes]
+  )
+
+  const handleCategoriaFilterChange = useCallback(
+    (value: number | null) => {
+      if (isVariantView) {
+        setIdCategoriaFilterVariantes(value)
+        return
+      }
+
+      setIdCategoriaFilterProductos(value)
+    },
+    [
+      isVariantView,
+      setIdCategoriaFilterProductos,
+      setIdCategoriaFilterVariantes,
+    ]
+  )
+
+  const handleColorFilterChange = useCallback(
+    (value: number | null) => {
+      if (isVariantView) {
+        setIdColorFilterVariantes(value)
+        return
+      }
+
+      setIdColorFilterProductos(value)
+    },
+    [isVariantView, setIdColorFilterProductos, setIdColorFilterVariantes]
+  )
+
+  const handleDisplayedPageChange = useCallback(
+    (value: number | ((previous: number) => number)) => {
+      if (isVariantView) {
+        setDisplayedPageVariantes(value)
+        return
+      }
+
+      setDisplayedPageProductos(value)
+    },
+    [isVariantView, setDisplayedPageProductos, setDisplayedPageVariantes]
+  )
+
   const resetQuoteForm = useCallback(() => {
     setCart([])
     setSelectedClient(DEFAULT_CLIENT)
     setSelectedSucursalId(null)
-    setValidUntil(getDefaultValidityDate())
     setDiscountMode("none")
     setDiscountValue("")
     setNotes("")
-    setModalProduct(null)
     setCotizacionError(null)
   }, [])
 
@@ -474,14 +544,33 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
     clearCotizacionError()
   }, [clearCotizacionError])
 
-  const handleSucursalChange = useCallback((value: string) => {
-    const parsedValue = Number(value)
-    setSelectedSucursalId(Number.isFinite(parsedValue) && parsedValue > 0 ? parsedValue : null)
+  const handleClientCreateOpenChange = useCallback((open: boolean) => {
+    setIsClientCreateOpen(open)
+    if (!open) {
+      setClientCreatePrefill(null)
+    }
+  }, [])
+
+  const handleClientCreateRequest = useCallback((prefill: ClienteCreatePrefill) => {
+    setClientCreatePrefill({
+      ...prefill,
+      idSucursal: resolvedSucursalId,
+    })
+    setIsClientCreateOpen(true)
+    clearCotizacionError()
+  }, [clearCotizacionError, resolvedSucursalId])
+
+  const handleClientCreated = useCallback((client: Cliente) => {
+    setSelectedClient({
+      idCliente: client.idCliente,
+      nombre: client.nombres,
+    })
     clearCotizacionError()
   }, [clearCotizacionError])
 
-  const handleValidUntilChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
-    setValidUntil(event.target.value)
+  const handleSucursalChange = useCallback((value: string) => {
+    const parsedValue = Number(value)
+    setSelectedSucursalId(Number.isFinite(parsedValue) && parsedValue > 0 ? parsedValue : null)
     clearCotizacionError()
   }, [clearCotizacionError])
 
@@ -503,12 +592,27 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
     clearCotizacionError()
   }, [clearCotizacionError])
 
-  const openModal = useCallback((producto: ProductoResumen) => {
-    setModalProduct(producto)
+  const closeModal = useCallback(() => {
+    setModalProduct(null)
+    setModalVariantSelection(null)
   }, [])
 
+  const openProductModal = useCallback((producto: ProductoResumen) => {
+    setModalVariantSelection(null)
+    setModalProduct(producto)
+    clearCotizacionError()
+  }, [clearCotizacionError])
+
   const handleEditItem = useCallback((item: CartItemData) => {
-    const producto = displayedProductos.find((candidate) => candidate.idProducto === item.id)
+    const matchedVariant =
+      displayedCatalogVariants.find((variant) => matchesCatalogVariantItem(item, variant)) ??
+      productViewVariantItems.find((variant) => matchesCatalogVariantItem(item, variant)) ??
+      null
+    const producto =
+      displayedProductos.find((candidate) => candidate.idProducto === item.id) ??
+      matchedVariant?.product ??
+      null
+
     if (!producto) {
       setCotizacionError("No se encontro el producto para editar la variante.")
       return
@@ -520,13 +624,18 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
           return current.varianteId !== item.varianteId
         }
 
-        return !(current.id === item.id && current.talla === item.talla && current.color === item.color)
+        return !(
+          current.id === item.id &&
+          current.talla === item.talla &&
+          current.color === item.color
+        )
       })
     )
 
+    setModalVariantSelection(matchedVariant?.selection ?? null)
     setModalProduct(producto)
     clearCotizacionError()
-  }, [clearCotizacionError, displayedProductos])
+  }, [clearCotizacionError, displayedCatalogVariants, displayedProductos, productViewVariantItems])
 
   const addVariantToCart = useCallback((variant: SelectedVariant) => {
     setCart((previous) => {
@@ -534,21 +643,57 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
       if (index >= 0) {
         return previous.map((item, idx) =>
           idx === index
-            ? { ...item, cantidad: item.cantidad + variant.cantidad, precio: variant.precio, imageUrl: variant.imageUrl ?? item.imageUrl ?? null }
+            ? {
+                ...item,
+                cantidad: item.cantidad + variant.cantidad,
+                precio: variant.precio,
+                imageUrl: variant.imageUrl ?? item.imageUrl ?? null,
+              }
             : item
         )
       }
 
-      return [...previous, {
-        id: variant.id,
-        varianteId: variant.varianteId,
-        nombre: variant.nombre,
-        precio: variant.precio,
-        cantidad: variant.cantidad,
-        talla: variant.talla,
-        color: variant.color,
-        imageUrl: variant.imageUrl ?? null,
-      }]
+      return [
+        ...previous,
+        {
+          id: variant.id,
+          varianteId: variant.varianteId,
+          nombre: variant.nombre,
+          precio: variant.precio,
+          cantidad: variant.cantidad,
+          talla: variant.talla,
+          color: variant.color,
+          imageUrl: variant.imageUrl ?? null,
+        },
+      ]
+    })
+
+    clearCotizacionError()
+  }, [clearCotizacionError])
+
+  const handleSelectCatalogVariant = useCallback((variant: CatalogVariantItem) => {
+    if (!variant.variantId || variant.variantId <= 0) {
+      setCotizacionError("La variante seleccionada no tiene un identificador valido.")
+      return
+    }
+
+    const nextItem = buildCatalogVariantCartSelection(variant)
+
+    setCart((previous) => {
+      const index = previous.findIndex((item) => item.varianteId === nextItem.varianteId)
+      if (index >= 0) {
+        return previous.map((item, idx) =>
+          idx === index
+            ? {
+                ...item,
+                cantidad: item.cantidad + 1,
+                imageUrl: item.imageUrl ?? nextItem.imageUrl ?? null,
+              }
+            : item
+        )
+      }
+
+      return [...previous, nextItem]
     })
 
     clearCotizacionError()
@@ -614,8 +759,9 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
     const payload: CotizacionCreateRequest = {
       idSucursal: resolvedSucursalId,
       idCliente: selectedClient.idCliente,
-      estado: isEditing ? loadedCotizacion?.estado ?? null : undefined,
-      fechaVencimiento: toEndOfDayIso(validUntil),
+      serie: loadedCotizacion?.serie?.trim() || DEFAULT_COTIZACION_SERIE,
+      correlativo: isEditing ? loadedCotizacion?.correlativo : undefined,
+      igvPorcentaje: loadedCotizacion?.igvPorcentaje ?? DEFAULT_IGV_PORCENTAJE,
       descuentoTotal: payloadDiscountValue,
       tipoDescuento: payloadDiscountType,
       observacion: notes.trim().length > 0 ? notes.trim() : null,
@@ -692,10 +838,11 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
     router,
     selectedClient.idCliente,
     submittingCotizacion,
-    validUntil,
     cotizacionId,
     isEditing,
-    loadedCotizacion?.estado,
+    loadedCotizacion?.correlativo,
+    loadedCotizacion?.igvPorcentaje,
+    loadedCotizacion?.serie,
   ])
 
   if (isEditing && loadingCotizacion) {
@@ -711,20 +858,42 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
 
   return (
     <>
-      <ProductModal product={modalProduct} onClose={() => setModalProduct(null)} onConfirm={addVariantToCart} />
+      <ProductModal
+        product={modalProduct}
+        initialSelection={modalVariantSelection}
+        onClose={closeModal}
+        onConfirm={addVariantToCart}
+      />
+      <ClienteCreateDialog
+        open={isClientCreateOpen}
+        onOpenChange={handleClientCreateOpenChange}
+        onCreate={createCliente}
+        prefill={clientCreatePrefill}
+        onCreated={handleClientCreated}
+      />
 
       <div className="flex h-[calc(100vh-7rem)] min-h-0 gap-5">
         <div className="flex min-h-0 min-w-0 flex-[7] flex-col gap-3">
           <div className="flex shrink-0 flex-col gap-3">
-            <div className="relative">
-              <MagnifyingGlassIcon className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Buscar por nombre, SKU o categoria..."
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-sm shadow-sm transition-all placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800"
-              />
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="relative flex-1">
+                <MagnifyingGlassIcon className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder={
+                    isVariantView
+                      ? "Buscar por SKU, nombre, color o talla..."
+                      : "Buscar por nombre, SKU o categoria..."
+                  }
+                  value={search}
+                  onChange={(event) => handleSearchChange(event.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-sm shadow-sm transition-all placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800"
+                />
+              </div>
+
+              <div className="flex items-center justify-end">
+                <CatalogViewToggle value={catalogViewMode} onChange={setCatalogViewMode} />
+              </div>
             </div>
 
             <div className="rounded-xl border border-slate-100 bg-white px-3.5 py-3 shadow-sm dark:border-slate-700/60 dark:bg-slate-800/60">
@@ -732,9 +901,9 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
                 categories={categoriasDisponibles}
                 colors={coloresDisponibles}
                 activeCategoryId={idCategoriaFilter}
-                onCategoryChange={setIdCategoriaFilter}
+                onCategoryChange={handleCategoriaFilterChange}
                 activeColorId={idColorFilter}
-                onColorChange={setIdColorFilter}
+                onColorChange={handleColorFilterChange}
                 categoryPage={safeCategoryPage}
                 categoryTotalPages={categoryTotalPages}
                 onCategoryNextPage={() => {
@@ -755,7 +924,7 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
             </div>
 
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Mostrando {displayedProductos.length} producto(s) en esta pagina.
+              Mostrando {visibleCatalogCount} {isVariantView ? "variante(s)" : "producto(s)"} en esta pagina.
             </p>
           </div>
 
@@ -771,10 +940,31 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
                 <p className="text-sm font-semibold text-slate-500">{errorProductos}</p>
                 <button onClick={() => void refreshCurrentView()} className="text-xs text-blue-500 hover:underline">Reintentar</button>
               </div>
+            ) : isVariantView ? (
+              displayedCatalogVariants.length > 0 ? (
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
+                  {displayedCatalogVariants.map((variant) => (
+                    <ProductCard
+                      key={variant.key}
+                      product={variant.product}
+                      onAdd={() => handleSelectCatalogVariant(variant)}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="flex h-full flex-col items-center justify-center py-24 text-center">
+                  <CubeIcon className="mb-3 h-12 w-12 text-slate-200 dark:text-slate-700" />
+                  <p className="text-sm font-semibold text-slate-400">Sin resultados</p>
+                </div>
+              )
             ) : displayedProductos.length > 0 ? (
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
                 {displayedProductos.map((producto) => (
-                  <ProductCard key={producto.idProducto} product={producto} onAdd={openModal} />
+                  <ProductCard
+                    key={producto.idProducto}
+                    product={producto}
+                    onAdd={openProductModal}
+                  />
                 ))}
               </div>
             ) : (
@@ -789,21 +979,22 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
                 totalElements={displayedTotalElements}
                 totalPages={displayedTotalPages}
                 page={displayedPage}
-                onPageChange={setDisplayedPage}
+                onPageChange={handleDisplayedPageChange}
+                itemLabel={isVariantView ? "variantes" : "productos"}
               />
             )}
           </div>
         </div>
 
-        <div className="flex min-h-0 min-w-[320px] max-w-[390px] flex-[3.2] flex-col gap-2">
+        <div className="flex min-h-0 min-w-[340px] max-w-[450px] flex-[3.4] flex-col gap-2">
           <div className="py-1">
             <h2 className="text-sm font-semibold text-slate-900 dark:text-white">
               {isEditing ? "Editar Cotizacion" : "Cotizacion"}
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">
               {isEditing
-                ? "Actualiza cliente, sucursal, productos y condiciones."
-                : "Selecciona cliente, sucursal, productos y condiciones."}
+                ? "Actualiza cliente, sucursal, productos y observaciones."
+                : "Selecciona cliente, sucursal, productos y observaciones."}
             </p>
           </div>
 
@@ -836,14 +1027,18 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
             <div className="flex items-center gap-2">
               <SectionLabel>Cliente</SectionLabel>
               <div className="flex-1">
-                <ClientSelect selected={selectedClient} onSelect={handleClientSelect} />
+                <ClientSelect
+                  selected={selectedClient}
+                  onSelect={handleClientSelect}
+                  onCreateClientRequest={handleClientCreateRequest}
+                />
               </div>
             </div>
           </div>
 
           <Card className="flex min-h-0 flex-1 flex-col">
             <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-4 pb-3 pt-3.5 dark:border-slate-700/60">
-              <SectionLabel>Productos Cotizados</SectionLabel>
+              <SectionLabel>Variantes Cotizadas</SectionLabel>
               <span className={["rounded-full px-2 py-0.5 text-[10px] font-bold", totalItems > 0 ? "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400" : "bg-slate-100 text-slate-400 dark:bg-slate-700"].join(" ")}>{totalItems} {totalItems === 1 ? "item" : "items"}</span>
             </div>
 
@@ -851,7 +1046,7 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
               {cart.length === 0 ? (
                 <div className="flex h-full flex-col items-center justify-center gap-2 py-8 text-center">
                   <ShoppingBagIcon className="h-9 w-9 text-slate-200 dark:text-slate-700" />
-                  <p className="max-w-[180px] text-xs font-medium leading-snug text-slate-400 dark:text-slate-600">Agrega productos para armar la propuesta comercial.</p>
+                  <p className="max-w-[180px] text-xs font-medium leading-snug text-slate-400 dark:text-slate-600">Agrega variantes para armar la propuesta comercial.</p>
                 </div>
               ) : (
                 cart.map((item, index) => (
@@ -871,14 +1066,6 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
           <Card className="p-3.5">
             <SectionLabel>Condiciones</SectionLabel>
             <div className="mt-3 space-y-3">
-              <label className="space-y-1.5">
-                <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Vigencia</span>
-                <div className="relative">
-                  <CalendarDaysIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  <input type="date" value={validUntil} onChange={handleValidUntilChange} className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-sm text-slate-700 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" />
-                </div>
-              </label>
-
               <div className="grid grid-cols-3 gap-2">
                 {[{ value: "none", label: "Sin desc." }, { value: "percent", label: "%" }, { value: "amount", label: "S/" }].map((option) => (
                   <button key={option.value} type="button" onClick={() => handleDiscountModeChange(option.value as DiscountMode)} className={["rounded-xl border px-2 py-2 text-xs font-semibold transition-colors", discountMode === option.value ? "border-blue-500 bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400" : "border-slate-200 text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"].join(" ")}>{option.label}</button>

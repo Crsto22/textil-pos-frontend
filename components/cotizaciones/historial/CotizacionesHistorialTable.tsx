@@ -1,3 +1,9 @@
+import {
+  ArrowPathIcon,
+  ArrowTopRightOnSquareIcon,
+  DocumentArrowDownIcon,
+} from "@heroicons/react/24/outline"
+
 import type { CotizacionHistorial } from "@/lib/types/cotizacion"
 import {
   formatComprobante,
@@ -16,9 +22,13 @@ interface CotizacionesHistorialTableProps {
   onRetry: () => void
   onPageChange: (nextPage: number) => void
   onViewDetail: (cotizacion: CotizacionHistorial) => void
+  onOpenPdf: (cotizacion: CotizacionHistorial) => void
+  onDownloadPdf: (cotizacion: CotizacionHistorial) => void
   onEdit: (cotizacion: CotizacionHistorial) => void
   onChangeStatus: (cotizacion: CotizacionHistorial) => void
   onConvert: (cotizacion: CotizacionHistorial) => void
+  openingPdfCotizacionId: number | null
+  downloadingPdfCotizacionId: number | null
 }
 
 export function CotizacionesHistorialTable({
@@ -31,19 +41,23 @@ export function CotizacionesHistorialTable({
   onRetry,
   onPageChange,
   onViewDetail,
+  onOpenPdf,
+  onDownloadPdf,
   onEdit,
   onChangeStatus,
   onConvert,
+  openingPdfCotizacionId,
+  downloadingPdfCotizacionId,
 }: CotizacionesHistorialTableProps) {
   const canGoPrev = page > 0
   const canGoNext = page + 1 < totalPages
 
-  const canEdit = (estado: string) => estado.trim().toUpperCase() !== "CONVERTIDA"
-  const canChangeStatus = (estado: string) => estado.trim().toUpperCase() !== "CONVERTIDA"
-  const canConvert = (estado: string) => {
+  const canEdit = (estado: string) => estado.trim().toUpperCase() === "ACTIVA"
+  const canChangeStatus = (estado: string) => {
     const normalizedEstado = estado.trim().toUpperCase()
-    return !["CONVERTIDA", "RECHAZADA", "VENCIDA"].includes(normalizedEstado)
+    return normalizedEstado.length > 0 && !["ACTIVA", "CONVERTIDA"].includes(normalizedEstado)
   }
+  const canConvert = (estado: string) => estado.trim().toUpperCase() === "ACTIVA"
 
   return (
     <section className="space-y-3 rounded-2xl border bg-card p-4 shadow-sm">
@@ -61,7 +75,7 @@ export function CotizacionesHistorialTable({
       )}
 
       <div className="hidden overflow-x-auto lg:block">
-        <table className="w-full min-w-[980px] text-sm">
+        <table className="w-full min-w-[1080px] text-sm">
           <thead>
             <tr className="border-b bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
               <th className="px-3 py-3 text-left">Fecha</th>
@@ -70,7 +84,6 @@ export function CotizacionesHistorialTable({
               <th className="px-3 py-3 text-left">Usuario</th>
               <th className="px-3 py-3 text-left">Sucursal</th>
               <th className="px-3 py-3 text-center">Items</th>
-              <th className="px-3 py-3 text-left">Vence</th>
               <th className="px-3 py-3 text-right">Total</th>
               <th className="px-3 py-3 text-center">Estado</th>
               <th className="px-3 py-3 text-center">Acciones</th>
@@ -79,13 +92,13 @@ export function CotizacionesHistorialTable({
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={10} className="px-3 py-14 text-center text-sm text-muted-foreground">
+                <td colSpan={9} className="px-3 py-14 text-center text-sm text-muted-foreground">
                   Cargando cotizaciones...
                 </td>
               </tr>
             ) : cotizaciones.length === 0 ? (
               <tr>
-                <td colSpan={10} className="px-3 py-14 text-center text-sm text-muted-foreground">
+                <td colSpan={9} className="px-3 py-14 text-center text-sm text-muted-foreground">
                   Sin cotizaciones para los filtros seleccionados
                 </td>
               </tr>
@@ -103,7 +116,6 @@ export function CotizacionesHistorialTable({
                   <td className="px-3 py-3 text-muted-foreground">{cotizacion.nombreUsuario || "Sin usuario"}</td>
                   <td className="px-3 py-3 text-muted-foreground">{cotizacion.nombreSucursal || "Sin sucursal"}</td>
                   <td className="px-3 py-3 text-center font-semibold">{cotizacion.items}</td>
-                  <td className="px-3 py-3 text-muted-foreground">{formatFechaHora(cotizacion.fechaVencimiento)}</td>
                   <td className="px-3 py-3 text-right font-semibold">{formatMonto(cotizacion.total)}</td>
                   <td className="px-3 py-3 text-center">
                     <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${getEstadoBadgeClass(cotizacion.estado)}`}>
@@ -112,6 +124,40 @@ export function CotizacionesHistorialTable({
                   </td>
                   <td className="px-3 py-3">
                     <div className="flex flex-wrap items-center justify-center gap-2">
+                      <button
+                        type="button"
+                        title="Ver comprobante PDF"
+                        aria-label={`Ver comprobante PDF de la cotizacion ${formatComprobante(cotizacion)}`}
+                        onClick={() => onOpenPdf(cotizacion)}
+                        disabled={
+                          openingPdfCotizacionId === cotizacion.idCotizacion ||
+                          downloadingPdfCotizacionId === cotizacion.idCotizacion
+                        }
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-blue-300 bg-blue-50 text-blue-700 transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-blue-700/50 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/35"
+                      >
+                        {openingPdfCotizacionId === cotizacion.idCotizacion ? (
+                          <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        title="Descargar comprobante PDF"
+                        aria-label={`Descargar comprobante PDF de la cotizacion ${formatComprobante(cotizacion)}`}
+                        onClick={() => onDownloadPdf(cotizacion)}
+                        disabled={
+                          openingPdfCotizacionId === cotizacion.idCotizacion ||
+                          downloadingPdfCotizacionId === cotizacion.idCotizacion
+                        }
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-300 bg-red-50 text-red-700 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-700/50 dark:bg-red-900/20 dark:text-red-300 dark:hover:bg-red-900/35"
+                      >
+                        {downloadingPdfCotizacionId === cotizacion.idCotizacion ? (
+                          <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <DocumentArrowDownIcon className="h-4 w-4" />
+                        )}
+                      </button>
                       <button
                         type="button"
                         onClick={() => onViewDetail(cotizacion)}
@@ -127,14 +173,15 @@ export function CotizacionesHistorialTable({
                       >
                         Editar
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => onChangeStatus(cotizacion)}
-                        disabled={!canChangeStatus(cotizacion.estado)}
-                        className="inline-flex rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-                      >
-                        Estado
-                      </button>
+                      {canChangeStatus(cotizacion.estado) && (
+                        <button
+                          type="button"
+                          onClick={() => onChangeStatus(cotizacion)}
+                          className="inline-flex rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                        >
+                          Reactivar
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => onConvert(cotizacion)}
@@ -195,12 +242,42 @@ export function CotizacionesHistorialTable({
                   <p className="text-muted-foreground">Usuario</p>
                   <p className="font-semibold">{cotizacion.nombreUsuario || "Sin usuario"}</p>
                 </div>
-                <div className="rounded-lg bg-muted/40 p-2">
-                  <p className="text-muted-foreground">Vence</p>
-                  <p className="font-semibold">{formatFechaHora(cotizacion.fechaVencimiento)}</p>
-                </div>
               </div>
               <div className="mt-3 flex flex-wrap justify-end gap-2">
+                <button
+                  type="button"
+                  title="Ver comprobante PDF"
+                  aria-label={`Ver comprobante PDF de la cotizacion ${formatComprobante(cotizacion)}`}
+                  onClick={() => onOpenPdf(cotizacion)}
+                  disabled={
+                    openingPdfCotizacionId === cotizacion.idCotizacion ||
+                    downloadingPdfCotizacionId === cotizacion.idCotizacion
+                  }
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-blue-300 bg-blue-50 text-blue-700 transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-blue-700/50 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/35"
+                >
+                  {openingPdfCotizacionId === cotizacion.idCotizacion ? (
+                    <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  title="Descargar comprobante PDF"
+                  aria-label={`Descargar comprobante PDF de la cotizacion ${formatComprobante(cotizacion)}`}
+                  onClick={() => onDownloadPdf(cotizacion)}
+                  disabled={
+                    openingPdfCotizacionId === cotizacion.idCotizacion ||
+                    downloadingPdfCotizacionId === cotizacion.idCotizacion
+                  }
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-300 bg-red-50 text-red-700 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-700/50 dark:bg-red-900/20 dark:text-red-300 dark:hover:bg-red-900/35"
+                >
+                  {downloadingPdfCotizacionId === cotizacion.idCotizacion ? (
+                    <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <DocumentArrowDownIcon className="h-4 w-4" />
+                  )}
+                </button>
                 <button
                   type="button"
                   onClick={() => onViewDetail(cotizacion)}
@@ -216,14 +293,15 @@ export function CotizacionesHistorialTable({
                 >
                   Editar
                 </button>
-                <button
-                  type="button"
-                  onClick={() => onChangeStatus(cotizacion)}
-                  disabled={!canChangeStatus(cotizacion.estado)}
-                  className="inline-flex rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-                >
-                  Estado
-                </button>
+                {canChangeStatus(cotizacion.estado) && (
+                  <button
+                    type="button"
+                    onClick={() => onChangeStatus(cotizacion)}
+                    className="inline-flex rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                  >
+                    Reactivar
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => onConvert(cotizacion)}

@@ -12,13 +12,18 @@ import {
 } from "@heroicons/react/24/outline"
 
 import { formatMonedaPen } from "@/components/productos/productos.utils"
+import { PriceSelectorDropdown } from "@/components/ventas/PriceSelectorDropdown"
 import { authFetch } from "@/lib/auth/auth-fetch"
 import {
   ofertaEstaVigente,
-  obtenerPrecioAplicadoOferta,
   obtenerTextoExpiracionOferta,
   tienePrecioOfertaValido,
 } from "@/lib/oferta-utils"
+import type { CatalogVariantSelection } from "@/lib/catalog-view"
+import type {
+  VentaLineaPrecioOption,
+  VentaLineaPrecioTipo,
+} from "@/lib/types/venta-price"
 import type {
   ProductoDetalleResponse,
   ProductoResumen,
@@ -141,16 +146,67 @@ function getStockLevelClass(stock: number): string {
   return "bg-rose-500"
 }
 
+function buildVariantPriceOptions(
+  variant: ProductoDetalleResponse["variantes"][number] | null,
+  currentDate: Date
+): VentaLineaPrecioOption[] {
+  if (!variant) return []
+
+  const options: VentaLineaPrecioOption[] = [
+    {
+      type: "normal",
+      label: "Precio Unidad",
+      precio: variant.precio,
+      description: "Precio regular",
+    },
+  ]
+
+  if (
+    typeof variant.precioOferta === "number" &&
+    tienePrecioOfertaValido(variant) &&
+    ofertaEstaVigente(variant, currentDate)
+  ) {
+    options.push({
+      type: "oferta",
+      label: "Precio Oferta",
+      precio: variant.precioOferta,
+      description: obtenerTextoExpiracionOferta(variant, currentDate) ?? "Oferta vigente",
+    })
+  }
+
+  if (
+    typeof variant.precioMayor === "number" &&
+    Number.isFinite(variant.precioMayor) &&
+    variant.precioMayor > 0
+  ) {
+    options.push({
+      type: "mayor",
+      label: "Precio por Mayor",
+      precio: variant.precioMayor,
+      description: "Precio por mayor",
+    })
+  }
+
+  return options
+}
+
+function getDefaultPriceType(options: VentaLineaPrecioOption[]): VentaLineaPrecioTipo {
+  return options.some((option) => option.type === "oferta") ? "oferta" : "normal"
+}
+
 export interface SelectedVariant {
   id: number
   varianteId: number
   nombre: string
   precio: number
+  precioSeleccionado: VentaLineaPrecioTipo
+  preciosDisponibles: VentaLineaPrecioOption[]
   talla: string
   tallaId: number
   color: string
   colorId: number
   cantidad: number
+  stockDisponible: number | null
   sku: string
   imageUrl?: string | null
 }
@@ -159,15 +215,22 @@ interface ProductModalProps {
   product: ProductoResumen | null
   onClose: () => void
   onConfirm: (variant: SelectedVariant) => void
+  initialSelection?: CatalogVariantSelection | null
 }
 
-export default function ProductModal({ product, onClose, onConfirm }: ProductModalProps) {
+export default function ProductModal({
+  product,
+  onClose,
+  onConfirm,
+  initialSelection = null,
+}: ProductModalProps) {
   const [detalle, setDetalle] = useState<ProductoDetalleResponse | null>(null)
   const [detalleLoading, setDetalleLoading] = useState(false)
   const [detalleError, setDetalleError] = useState<string | null>(null)
 
   const [selectedColorId, setSelectedColorId] = useState<number | null>(null)
   const [selectedTallaId, setSelectedTallaId] = useState<number | null>(null)
+  const [selectedPriceType, setSelectedPriceType] = useState<VentaLineaPrecioTipo>("normal")
   const [cantidad, setCantidad] = useState(1)
   const [currentImgIdx, setCurrentImgIdx] = useState(0)
   const [offerClock, setOfferClock] = useState(() => Date.now())
@@ -192,6 +255,7 @@ export default function ProductModal({ product, onClose, onConfirm }: ProductMod
       setDetalleLoading(false)
       setSelectedColorId(null)
       setSelectedTallaId(null)
+      setSelectedPriceType("normal")
       setCantidad(1)
       setCurrentImgIdx(0)
       return
@@ -204,6 +268,7 @@ export default function ProductModal({ product, onClose, onConfirm }: ProductMod
     setDetalleLoading(true)
     setSelectedColorId(null)
     setSelectedTallaId(null)
+    setSelectedPriceType("normal")
     setCantidad(1)
     setCurrentImgIdx(0)
 
@@ -268,12 +333,19 @@ export default function ProductModal({ product, onClose, onConfirm }: ProductMod
     }
 
     setSelectedColorId((previous) => {
+      if (
+        initialSelection &&
+        colorOptions.some((color) => color.colorId === initialSelection.colorId)
+      ) {
+        return initialSelection.colorId
+      }
+
       if (previous !== null && colorOptions.some((color) => color.colorId === previous)) {
         return previous
       }
       return colorOptions[0].colorId
     })
-  }, [colorOptions, product])
+  }, [colorOptions, initialSelection, product])
 
   const variantesPorColor = useMemo(() => {
     if (!detalle || selectedColorId === null) return []
@@ -292,7 +364,19 @@ export default function ProductModal({ product, onClose, onConfirm }: ProductMod
       return
     }
 
+    const preferredTallaId =
+      initialSelection && selectedColorId === initialSelection.colorId
+        ? initialSelection.tallaId
+        : null
+
     setSelectedTallaId((previous) => {
+      if (
+        preferredTallaId !== null &&
+        variantesPorColor.some((variante) => variante.tallaId === preferredTallaId)
+      ) {
+        return preferredTallaId
+      }
+
       if (
         previous !== null &&
         variantesPorColor.some(
@@ -309,7 +393,7 @@ export default function ProductModal({ product, onClose, onConfirm }: ProductMod
       return firstAvailable?.tallaId ?? variantesPorColor[0].tallaId
     })
     setCantidad(1)
-  }, [product, selectedColorId, variantesPorColor])
+  }, [initialSelection, product, selectedColorId, variantesPorColor])
 
   const selectedColor = useMemo(
     () => colorOptions.find((color) => color.colorId === selectedColorId) ?? null,
@@ -320,6 +404,48 @@ export default function ProductModal({ product, onClose, onConfirm }: ProductMod
     () =>
       variantesPorColor.find((variante) => variante.tallaId === selectedTallaId) ?? null,
     [selectedTallaId, variantesPorColor]
+  )
+
+  const currentOfferDate = useMemo(() => new Date(offerClock), [offerClock])
+
+  const availablePriceOptions = useMemo(
+    () => buildVariantPriceOptions(selectedVariante, currentOfferDate),
+    [currentOfferDate, selectedVariante]
+  )
+
+  const defaultPriceType = useMemo(
+    () => getDefaultPriceType(availablePriceOptions),
+    [availablePriceOptions]
+  )
+
+  useEffect(() => {
+    if (!selectedVariante) {
+      setSelectedPriceType("normal")
+      return
+    }
+
+    setSelectedPriceType(defaultPriceType)
+  }, [defaultPriceType, selectedVariante])
+
+  useEffect(() => {
+    if (availablePriceOptions.length === 0) {
+      setSelectedPriceType("normal")
+      return
+    }
+
+    setSelectedPriceType((previous) =>
+      availablePriceOptions.some((option) => option.type === previous)
+        ? previous
+        : defaultPriceType
+    )
+  }, [availablePriceOptions, defaultPriceType])
+
+  const selectedPriceOption = useMemo(
+    () =>
+      availablePriceOptions.find((option) => option.type === selectedPriceType) ??
+      availablePriceOptions[0] ??
+      null,
+    [availablePriceOptions, selectedPriceType]
   )
 
   const galleryImages = useMemo(() => {
@@ -377,8 +503,6 @@ export default function ProductModal({ product, onClose, onConfirm }: ProductMod
 
   if (!product) return null
 
-  const currentOfferDate = new Date(offerClock)
-
   const canConfirm =
     selectedVariante !== null &&
     selectedVariante.estado === "ACTIVO" &&
@@ -386,23 +510,17 @@ export default function ProductModal({ product, onClose, onConfirm }: ProductMod
     cantidad > 0 &&
     cantidad <= selectedVariante.stock
 
-  const selectedVarianteOfferCopy =
-    selectedVariante !== null
-      ? obtenerTextoExpiracionOferta(selectedVariante, currentOfferDate)
-      : null
-  const selectedVarianteHasOfferApplied =
-    selectedVariante !== null &&
-    tienePrecioOfertaValido(selectedVariante) &&
-    ofertaEstaVigente(selectedVariante, currentOfferDate)
-
   const displayPrice =
-    selectedVariante !== null
-      ? obtenerPrecioAplicadoOferta(selectedVariante, currentOfferDate)
-      : (product.precioMin ?? 0)
+    selectedPriceOption?.precio ?? selectedVariante?.precio ?? product.precioMin ?? 0
+  const showBasePriceReference =
+    selectedVariante !== null &&
+    selectedPriceOption !== null &&
+    selectedPriceOption.type !== "normal" &&
+    selectedVariante.precio > displayPrice
   const subtotal = displayPrice * cantidad
 
   const handleConfirm = () => {
-    if (!canConfirm || !selectedVariante || !selectedColor) return
+    if (!canConfirm || !selectedVariante || !selectedColor || !selectedPriceOption) return
 
     const selectedImageUrl = galleryImages[currentImgIdx] ?? galleryImages[0] ?? null
 
@@ -410,13 +528,16 @@ export default function ProductModal({ product, onClose, onConfirm }: ProductMod
       id: product.idProducto,
       varianteId: selectedVariante.idProductoVariante,
       nombre: detalle?.producto.nombre ?? product.nombre,
+      precio: selectedPriceOption.precio,
+      precioSeleccionado: selectedPriceOption.type,
+      preciosDisponibles: availablePriceOptions,
       talla: selectedVariante.tallaNombre,
       tallaId: selectedVariante.tallaId,
       color: selectedColor.nombre,
       colorId: selectedColor.colorId,
       cantidad,
+      stockDisponible: selectedVariante.stock,
       sku: selectedVariante.sku,
-      precio: displayPrice,
       imageUrl: selectedImageUrl,
     })
     onClose()
@@ -576,19 +697,28 @@ export default function ProductModal({ product, onClose, onConfirm }: ProductMod
                   )}
                 </div>
 
-                {selectedVariante && selectedVarianteHasOfferApplied && (
-                    <p className="pt-1 text-sm font-semibold text-slate-500 line-through dark:text-slate-400">
-                      {formatMonedaPen(selectedVariante.precio)}
-                    </p>
-                  )}
-                <p className="text-2xl font-extrabold text-blue-600 dark:text-blue-400">
-                  {formatMonedaPen(displayPrice)}
-                </p>
-                {selectedVarianteOfferCopy && (
-                  <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
-                    {selectedVarianteOfferCopy}
+                {showBasePriceReference && selectedVariante && (
+                  <p className="pt-1 text-sm font-semibold text-slate-500 line-through dark:text-slate-400">
+                    {formatMonedaPen(selectedVariante.precio)}
                   </p>
                 )}
+                <div className="flex items-center gap-2 pt-0.5">
+                  <p className="text-2xl font-extrabold text-blue-600 dark:text-blue-400">
+                    {formatMonedaPen(displayPrice)}
+                  </p>
+                  <PriceSelectorDropdown
+                    options={availablePriceOptions}
+                    selectedType={selectedPriceType}
+                    onSelect={setSelectedPriceType}
+                    triggerLabel="Seleccionar precio para esta variante"
+                    align="start"
+                  />
+                </div>
+                {selectedPriceOption?.description ? (
+                  <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                    {selectedPriceOption.description}
+                  </p>
+                ) : null}
               </div>
 
               {detalleError && (

@@ -41,7 +41,6 @@ function normalizeCotizacion(value: unknown): CotizacionHistorial | null {
   return {
     idCotizacion,
     fecha: typeof item.fecha === "string" ? item.fecha : "",
-    fechaVencimiento: typeof item.fechaVencimiento === "string" ? item.fechaVencimiento : "",
     serie: typeof item.serie === "string" ? item.serie : "",
     correlativo: Number(item.correlativo) || 0,
     total: Number(item.total) || 0,

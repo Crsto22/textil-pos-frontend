@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 
@@ -10,13 +10,19 @@ import { CotizacionEstadoDialog } from "@/components/cotizaciones/historial/Coti
 import { CotizacionesHistorialFilters } from "@/components/cotizaciones/historial/CotizacionesHistorialFilters"
 import { CotizacionesHistorialTable } from "@/components/cotizaciones/historial/CotizacionesHistorialTable"
 import { authFetch } from "@/lib/auth/auth-fetch"
+import {
+  downloadCotizacionDocument,
+  getCotizacionDownloadConfig,
+  openCotizacionDocument,
+} from "@/lib/cotizacion-documents"
 import { useCotizacionDetalle } from "@/lib/hooks/useCotizacionDetalle"
 import { useCotizacionesHistorial } from "@/lib/hooks/useCotizacionesHistorial"
-import type {
-  CotizacionConvertirVentaResponse,
-  CotizacionHistorial,
-  CotizacionHistorialFilters,
-  CotizacionEstadoUpdateRequest,
+import {
+  COTIZACION_ESTADOS,
+  type CotizacionConvertirVentaResponse,
+  type CotizacionHistorial,
+  type CotizacionHistorialFilters,
+  type CotizacionEstadoUpdateRequest,
 } from "@/lib/types/cotizacion"
 
 function getTodayDateValue(): string {
@@ -26,6 +32,7 @@ function getTodayDateValue(): string {
 }
 
 const TODAY_DATE = getTodayDateValue()
+const ESTADO_OPTIONS = [...COTIZACION_ESTADOS]
 
 const DEFAULT_FILTERS: CotizacionHistorialFilters = {
   search: "",
@@ -44,6 +51,8 @@ export function CotizacionesHistorialPage() {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const [filters, setFilters] = useState<CotizacionHistorialFilters>(DEFAULT_FILTERS)
+  const [openingPdfCotizacionId, setOpeningPdfCotizacionId] = useState<number | null>(null)
+  const [downloadingPdfCotizacionId, setDownloadingPdfCotizacionId] = useState<number | null>(null)
   const [estadoDialogOpen, setEstadoDialogOpen] = useState(false)
   const [estadoTarget, setEstadoTarget] = useState<CotizacionHistorial | null>(null)
   const [convertDialogOpen, setConvertDialogOpen] = useState(false)
@@ -80,14 +89,6 @@ export function CotizacionesHistorialPage() {
     router.replace(pathname, { scroll: false })
   }, [openCotizacionDetalle, pathname, router, searchParams])
 
-  const estadoOptions = useMemo(() => {
-    const values = new Set<string>()
-    cotizaciones.forEach((cotizacion) => {
-      if (cotizacion.estado?.trim()) values.add(cotizacion.estado.trim().toUpperCase())
-    })
-    return Array.from(values).sort((a, b) => a.localeCompare(b))
-  }, [cotizaciones])
-
   const handleFiltersChange = (next: CotizacionHistorialFilters) => {
     setFilters(next)
   }
@@ -120,7 +121,7 @@ export function CotizacionesHistorialPage() {
         return false
       }
 
-      toast.success("Estado de cotizacion actualizado.")
+      toast.success("Cotizacion reactivada.")
       await refreshCotizaciones()
 
       if (detailOpen && detalle?.idCotizacion === idCotizacion) {
@@ -146,11 +147,43 @@ export function CotizacionesHistorialPage() {
     }
   }
 
+  const handleOpenPdf = async (idCotizacion: number) => {
+    setOpeningPdfCotizacionId(idCotizacion)
+    const result = await openCotizacionDocument(getCotizacionDownloadConfig(idCotizacion))
+
+    if (result.ok) {
+      toast.success(result.message)
+    } else {
+      toast.error(result.message)
+    }
+
+    setOpeningPdfCotizacionId((current) => (current === idCotizacion ? null : current))
+  }
+
+  const handleDownloadPdf = async (idCotizacion: number) => {
+    setDownloadingPdfCotizacionId(idCotizacion)
+
+    const config = getCotizacionDownloadConfig(idCotizacion)
+    const result = await downloadCotizacionDocument({
+      ...config,
+      disposition: "download",
+      successMessage: "Comprobante de cotizacion descargado correctamente.",
+    })
+
+    if (result.ok) {
+      toast.success(result.message)
+    } else {
+      toast.error(result.message)
+    }
+
+    setDownloadingPdfCotizacionId((current) => (current === idCotizacion ? null : current))
+  }
+
   return (
     <div className="space-y-4">
       <CotizacionesHistorialFilters
         filters={filters}
-        estadoOptions={estadoOptions}
+        estadoOptions={ESTADO_OPTIONS}
         totalShown={cotizaciones.length}
         pageElements={numberOfElements}
         totalElements={totalElements}
@@ -172,17 +205,28 @@ export function CotizacionesHistorialPage() {
         onViewDetail={(cotizacion) => {
           void openCotizacionDetalle(cotizacion.idCotizacion)
         }}
+        onOpenPdf={(cotizacion) => {
+          void handleOpenPdf(cotizacion.idCotizacion)
+        }}
+        onDownloadPdf={(cotizacion) => {
+          void handleDownloadPdf(cotizacion.idCotizacion)
+        }}
         onEdit={(cotizacion) => {
-          if (cotizacion.estado.trim().toUpperCase() === "CONVERTIDA") {
-            toast.error("La cotizacion convertida no se puede editar.")
+          if (cotizacion.estado.trim().toUpperCase() !== "ACTIVA") {
+            toast.error("Solo las cotizaciones activas se pueden editar.")
             return
           }
 
           router.push(`/ventas/cotizacion/${cotizacion.idCotizacion}/editar`)
         }}
         onChangeStatus={(cotizacion) => {
-          if (cotizacion.estado.trim().toUpperCase() === "CONVERTIDA") {
-            toast.error("La cotizacion convertida no puede cambiar de estado.")
+          const normalizedEstado = cotizacion.estado.trim().toUpperCase()
+          if (normalizedEstado === "CONVERTIDA") {
+            toast.error("La cotizacion convertida no puede reactivarse.")
+            return
+          }
+          if (normalizedEstado === "ACTIVA") {
+            toast.error("La cotizacion ya se encuentra activa.")
             return
           }
 
@@ -191,18 +235,20 @@ export function CotizacionesHistorialPage() {
         }}
         onConvert={(cotizacion) => {
           const normalizedEstado = cotizacion.estado.trim().toUpperCase()
-          if (normalizedEstado === "CONVERTIDA") {
-            toast.error("La cotizacion ya fue convertida a venta.")
-            return
-          }
-          if (normalizedEstado === "RECHAZADA" || normalizedEstado === "VENCIDA") {
-            toast.error("La cotizacion no se puede convertir en su estado actual.")
+          if (normalizedEstado !== "ACTIVA") {
+            toast.error(
+              normalizedEstado === "CONVERTIDA"
+                ? "La cotizacion ya fue convertida a venta."
+                : "Solo las cotizaciones activas se pueden convertir a venta."
+            )
             return
           }
 
           setConvertTarget(cotizacion)
           setConvertDialogOpen(true)
         }}
+        openingPdfCotizacionId={openingPdfCotizacionId}
+        downloadingPdfCotizacionId={downloadingPdfCotizacionId}
       />
 
       <CotizacionDetalleModal

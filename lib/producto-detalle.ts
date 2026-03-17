@@ -141,6 +141,7 @@ export function parseProductoDetalleVariante(value: unknown): ProductoDetalleVar
       pickString(talla, ["nombre"]) ||
       pickString(payload, ["talla"], tallaId > 0 ? `Talla #${tallaId}` : "Sin talla"),
     precio: pickNumber(payload, ["precio", "precioUnitario"]),
+    precioMayor: pickNullableNumber(payload, ["precioMayor"]),
     precioOferta: pickNullableNumber(payload, ["precioOferta"]),
     ofertaInicio: pickNullableString(payload, ["ofertaInicio"]),
     ofertaFin: pickNullableString(payload, ["ofertaFin"]),

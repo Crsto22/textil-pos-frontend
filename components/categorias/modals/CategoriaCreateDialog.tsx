@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 
 import {
   Dialog,
@@ -22,6 +22,10 @@ interface CategoriaCreateDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onCreate: (payload: CategoriaCreateRequest) => Promise<boolean>
+  initialNombreCategoria?: string
+  initialDescripcion?: string
+  initialIdSucursal?: number | null
+  lockSucursalSelection?: boolean
 }
 
 function hasValidSucursalId(idSucursal?: number | null): idSucursal is number {
@@ -32,16 +36,27 @@ export function CategoriaCreateDialog({
   open,
   onOpenChange,
   onCreate,
+  initialNombreCategoria = "",
+  initialDescripcion = "",
+  initialIdSucursal = null,
+  lockSucursalSelection = false,
 }: CategoriaCreateDialogProps) {
   const { user } = useAuth()
   const isAdmin = user?.rol === "ADMINISTRADOR"
   const userHasSucursal = hasValidSucursalId(user?.idSucursal)
 
-  const [form, setForm] = useState<CategoriaCreateRequest>(() => ({
-    nombreCategoria: "",
-    descripcion: "",
-    idSucursal: isAdmin ? null : user?.idSucursal ?? null,
-  }))
+  const buildInitialForm = useCallback(
+    (): CategoriaCreateRequest => ({
+      nombreCategoria: initialNombreCategoria,
+      descripcion: initialDescripcion,
+      idSucursal: isAdmin
+        ? (hasValidSucursalId(initialIdSucursal) ? initialIdSucursal : null)
+        : user?.idSucursal ?? null,
+    }),
+    [initialDescripcion, initialIdSucursal, initialNombreCategoria, isAdmin, user?.idSucursal]
+  )
+
+  const [form, setForm] = useState<CategoriaCreateRequest>(buildInitialForm)
   const [isSaving, setIsSaving] = useState(false)
 
   const {
@@ -72,15 +87,27 @@ export function CategoriaCreateDialog({
   const isCreateValid =
     form.nombreCategoria.trim() !== "" && (!isAdmin || hasValidSucursal)
 
+  useEffect(() => {
+    if (!open) return
+
+    setForm(buildInitialForm())
+    setSearchSucursal("")
+  }, [
+    buildInitialForm,
+    initialDescripcion,
+    initialIdSucursal,
+    initialNombreCategoria,
+    isAdmin,
+    open,
+    setSearchSucursal,
+    user?.idSucursal,
+  ])
+
   const handleOpenChange = (nextOpen: boolean) => {
     if (isSaving) return
     onOpenChange(nextOpen)
     if (!nextOpen) {
-      setForm({
-        nombreCategoria: "",
-        descripcion: "",
-        idSucursal: isAdmin ? null : user?.idSucursal ?? null,
-      })
+      setForm(buildInitialForm())
       setSearchSucursal("")
     }
   }
@@ -173,6 +200,7 @@ export function CategoriaCreateDialog({
                   searchPlaceholder="Buscar sucursal..."
                   emptyMessage="No se encontraron sucursales"
                   loading={loadingSucursales}
+                  disabled={lockSucursalSelection}
                 />
                 {errorSucursales && (
                   <p className="text-xs text-red-500">{errorSucursales}</p>

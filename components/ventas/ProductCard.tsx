@@ -38,6 +38,11 @@ function getSkuCount(product: ProductoResumen): number {
   return skuSet.size
 }
 
+function getSingleVariant(product: ProductoResumen): ProductoResumenTalla | null {
+  const allVariants = product.colores.flatMap((color) => color.tallas)
+  return allVariants.length === 1 ? allVariants[0] ?? null : null
+}
+
 function isVariantInStock(talla: ProductoResumenTalla): boolean {
   const estado = String(talla.estado ?? "ACTIVO").trim().toUpperCase()
   if (estado !== "ACTIVO") return false
@@ -52,6 +57,32 @@ function isVariantInStock(talla: ProductoResumenTalla): boolean {
 function getPrecioAplicado(talla: ProductoResumenTalla): number | null {
   if (typeof talla.precio !== "number") return null
   return obtenerPrecioAplicadoOferta(talla)
+}
+
+function getVariantStockBadgeClass(talla: ProductoResumenTalla | null) {
+  if (!talla) {
+    return "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+  }
+
+  const estado = String(talla.estado ?? "ACTIVO").trim().toUpperCase()
+  if (estado !== "ACTIVO") {
+    return "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+  }
+
+  const stock = typeof talla.stock === "number" ? talla.stock : null
+  if (stock === null) {
+    return "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+  }
+
+  if (stock <= 0) {
+    return "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
+  }
+
+  if (stock <= 5) {
+    return "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+  }
+
+  return "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
 }
 
 export default function ProductCard({ product, onAdd }: ProductCardProps) {
@@ -79,6 +110,10 @@ export default function ProductCard({ product, onAdd }: ProductCardProps) {
   const visibleTallas = (selectedColor?.tallas ?? []).slice(0, 4)
   const hiddenTallas = Math.max(0, (selectedColor?.tallas?.length ?? 0) - visibleTallas.length)
   const skuCount = getSkuCount(product)
+  const singleVariant = getSingleVariant(product)
+  const showSingleVariantStock = singleVariant !== null
+  const singleVariantStock =
+    typeof singleVariant?.stock === "number" ? singleVariant.stock : null
 
   const selectedColorTallas = selectedColor?.tallas ?? []
   const selectedColorDiscountedRegularPrices = selectedColorTallas
@@ -148,7 +183,18 @@ export default function ProductCard({ product, onAdd }: ProductCardProps) {
                   ? "Stock parcial"
                   : "Activo"}
           </span>
-          <span className="text-muted-foreground">SKUs: {skuCount}</span>
+          {showSingleVariantStock ? (
+            <span
+              className={cn(
+                "inline-flex rounded-full px-2 py-0.5",
+                getVariantStockBadgeClass(singleVariant)
+              )}
+            >
+              Stock: {singleVariantStock ?? "-"}
+            </span>
+          ) : (
+            <span className="text-muted-foreground">SKUs: {skuCount}</span>
+          )}
         </div>
 
         <div>

@@ -45,11 +45,16 @@ function normalizeVenta(value: unknown): VentaHistorial | null {
     idVenta,
     fecha: typeof item.fecha === "string" ? item.fecha : "",
     tipoComprobante:
-      typeof item.tipoComprobante === "string" ? item.tipoComprobante : "TICKET",
+      typeof item.tipoComprobante === "string" ? item.tipoComprobante : "NOTA DE VENTA",
     serie: typeof item.serie === "string" ? item.serie : "",
     correlativo: Number(item.correlativo) || 0,
+    moneda: typeof item.moneda === "string" && item.moneda.trim() ? item.moneda : "PEN",
     total: Number(item.total) || 0,
     estado: typeof item.estado === "string" ? item.estado : "DESCONOCIDO",
+    sunatEstado:
+      typeof item.sunatEstado === "string" && item.sunatEstado.trim()
+        ? item.sunatEstado
+        : null,
     idCliente: Number.isFinite(Number(item.idCliente)) ? Number(item.idCliente) : null,
     nombreCliente: typeof item.nombreCliente === "string" ? item.nombreCliente : "Sin cliente",
     idUsuario: Number.isFinite(Number(item.idUsuario)) ? Number(item.idUsuario) : null,

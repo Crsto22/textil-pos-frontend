@@ -21,10 +21,27 @@ export interface ProductoVarianteOfertaLoteRequest {
   items: ProductoVarianteOfertaLoteItemRequest[]
 }
 
+export type OfertaBatchPriceMode =
+  | "PRECIO_FIJO"
+  | "DESCUENTO_PORCENTAJE"
+  | "DESCUENTO_MONTO"
+
+export type OfertaBatchSchedulePreset =
+  | "PERSONALIZADO"
+  | "HOY"
+  | "TRES_DIAS"
+  | "SIETE_DIAS"
+
 export interface OfertaFormDraft {
   precioOfertaInput: string
   ofertaInicioInput: string
   ofertaFinInput: string
+}
+
+export interface OfertaBulkFormDraft extends OfertaFormDraft {
+  priceMode: OfertaBatchPriceMode
+  priceInput: string
+  schedulePreset: OfertaBatchSchedulePreset
 }
 
 export interface OfertaBatchDraftItem extends ProductoVarianteOfertaLoteItemRequest {

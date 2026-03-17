@@ -27,14 +27,18 @@ export interface MediaItem {
   idColorImagen?: number
 }
 
+export interface VariantReadonlyOfferInfo {
+  precioBase: number
+  precioOferta: number
+  ofertaInicio: string | null
+  ofertaFin: string | null
+}
+
 export interface VariantValues {
   idProductoVariante?: number | null
   sku: string
   precio: string
-  ofertaActiva: boolean
-  precioOferta: string
-  ofertaInicio: string
-  ofertaFin: string
+  precioMayor: string
   stock: string
 }
 
@@ -45,9 +49,9 @@ export interface VariantRow {
   talla: Talla
   sku: string
   precio: string
-  ofertaActiva: boolean
-  precioOferta: string
-  ofertaInicio: string
-  ofertaFin: string
+  precioMayor: string
   stock: string
+  readonlyOffer?: VariantReadonlyOfferInfo | null
 }
+
+export type VariantEditableField = "sku" | "precio" | "precioMayor" | "stock"

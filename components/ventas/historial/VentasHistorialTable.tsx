@@ -1,9 +1,17 @@
+import {
+  ArrowPathIcon,
+  ArrowTopRightOnSquareIcon,
+  DocumentArrowDownIcon,
+  TicketIcon,
+} from "@heroicons/react/24/outline"
+
 import type { VentaHistorial } from "@/lib/types/venta"
 import {
   formatComprobante,
   formatFechaHora,
   formatMonto,
   getEstadoBadgeClass,
+  getSunatBadgeClass,
 } from "@/components/ventas/historial/historial.utils"
 
 interface VentasHistorialTableProps {
@@ -16,6 +24,12 @@ interface VentasHistorialTableProps {
   onRetry: () => void
   onPageChange: (nextPage: number) => void
   onViewDetail: (venta: VentaHistorial) => void
+  onOpenPdf: (venta: VentaHistorial) => void
+  onDownloadPdf: (venta: VentaHistorial) => void
+  onOpenTicket: (venta: VentaHistorial) => void
+  openingPdfVentaId: number | null
+  downloadingPdfVentaId: number | null
+  openingTicketVentaId: number | null
 }
 
 export function VentasHistorialTable({
@@ -28,6 +42,12 @@ export function VentasHistorialTable({
   onRetry,
   onPageChange,
   onViewDetail,
+  onOpenPdf,
+  onDownloadPdf,
+  onOpenTicket,
+  openingPdfVentaId,
+  downloadingPdfVentaId,
+  openingTicketVentaId,
 }: VentasHistorialTableProps) {
   const canGoPrev = page > 0
   const canGoNext = page + 1 < totalPages
@@ -95,22 +115,79 @@ export function VentasHistorialTable({
                       {venta.pagos}
                     </span>
                   </td>
-                  <td className="px-3 py-3 text-right font-semibold">{formatMonto(venta.total)}</td>
-                  <td className="px-3 py-3 text-center">
-                    <span
-                      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${getEstadoBadgeClass(venta.estado)}`}
-                    >
-                      {venta.estado}
-                    </span>
+                  <td className="px-3 py-3 text-right font-semibold">
+                    {formatMonto(venta.total, venta.moneda)}
                   </td>
                   <td className="px-3 py-3 text-center">
-                    <button
-                      type="button"
-                      onClick={() => onViewDetail(venta)}
-                      className="inline-flex rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-                    >
-                      Detalle
-                    </button>
+                    <div className="flex flex-col items-center gap-1">
+                      <span
+                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${getEstadoBadgeClass(venta.estado)}`}
+                      >
+                        {venta.estado}
+                      </span>
+                      <span
+                        className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${getSunatBadgeClass(venta.sunatEstado)}`}
+                      >
+                        SUNAT {venta.sunatEstado || "N/A"}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-3 py-3 text-center">
+                    <div className="flex items-center justify-center gap-2">
+                      <button
+                        type="button"
+                        title="Abrir ticket"
+                        aria-label={`Abrir ticket de la venta ${formatComprobante(venta)}`}
+                        onClick={() => onOpenTicket(venta)}
+                        disabled={openingTicketVentaId === venta.idVenta}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-amber-300 bg-amber-50 text-amber-700 transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-amber-700/50 dark:bg-amber-900/20 dark:text-amber-300 dark:hover:bg-amber-900/35"
+                      >
+                        {openingTicketVentaId === venta.idVenta ? (
+                          <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <TicketIcon className="h-4 w-4" />
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        title="Abrir PDF"
+                        aria-label={`Abrir PDF de la venta ${formatComprobante(venta)}`}
+                        onClick={() => onOpenPdf(venta)}
+                        disabled={
+                          openingPdfVentaId === venta.idVenta || downloadingPdfVentaId === venta.idVenta
+                        }
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-blue-300 bg-blue-50 text-blue-700 transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-blue-700/50 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/35"
+                      >
+                        {openingPdfVentaId === venta.idVenta ? (
+                          <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        title="Descargar PDF"
+                        aria-label={`Descargar PDF de la venta ${formatComprobante(venta)}`}
+                        onClick={() => onDownloadPdf(venta)}
+                        disabled={
+                          openingPdfVentaId === venta.idVenta || downloadingPdfVentaId === venta.idVenta
+                        }
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-300 bg-red-50 text-red-700 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-700/50 dark:bg-red-900/20 dark:text-red-300 dark:hover:bg-red-900/35"
+                      >
+                        {downloadingPdfVentaId === venta.idVenta ? (
+                          <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <DocumentArrowDownIcon className="h-4 w-4" />
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onViewDetail(venta)}
+                        className="inline-flex rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                      >
+                        Detalle
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))
@@ -152,7 +229,7 @@ export function VentasHistorialTable({
                 </div>
                 <div className="rounded-lg bg-muted/40 p-2">
                   <p className="text-muted-foreground">Total</p>
-                  <p className="font-semibold">{formatMonto(venta.total)}</p>
+                  <p className="font-semibold">{formatMonto(venta.total, venta.moneda)}</p>
                 </div>
                 <div className="rounded-lg bg-muted/40 p-2">
                   <p className="text-muted-foreground">Sucursal</p>
@@ -170,8 +247,58 @@ export function VentasHistorialTable({
                   <p className="text-muted-foreground">Pagos</p>
                   <p className="font-semibold">{venta.pagos}</p>
                 </div>
+                <div className="rounded-lg bg-muted/40 p-2">
+                  <p className="text-muted-foreground">SUNAT</p>
+                  <p className="font-semibold">{venta.sunatEstado || "N/A"}</p>
+                </div>
               </div>
-              <div className="mt-3 flex justify-end">
+              <div className="mt-3 flex justify-end gap-2">
+                <button
+                  type="button"
+                  title="Abrir ticket"
+                  aria-label={`Abrir ticket de la venta ${formatComprobante(venta)}`}
+                  onClick={() => onOpenTicket(venta)}
+                  disabled={openingTicketVentaId === venta.idVenta}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-amber-300 bg-amber-50 text-amber-700 transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-amber-700/50 dark:bg-amber-900/20 dark:text-amber-300 dark:hover:bg-amber-900/35"
+                >
+                  {openingTicketVentaId === venta.idVenta ? (
+                    <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <TicketIcon className="h-4 w-4" />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  title="Abrir PDF"
+                  aria-label={`Abrir PDF de la venta ${formatComprobante(venta)}`}
+                  onClick={() => onOpenPdf(venta)}
+                  disabled={
+                    openingPdfVentaId === venta.idVenta || downloadingPdfVentaId === venta.idVenta
+                  }
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-blue-300 bg-blue-50 text-blue-700 transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-blue-700/50 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/35"
+                >
+                  {openingPdfVentaId === venta.idVenta ? (
+                    <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  title="Descargar PDF"
+                  aria-label={`Descargar PDF de la venta ${formatComprobante(venta)}`}
+                  onClick={() => onDownloadPdf(venta)}
+                  disabled={
+                    openingPdfVentaId === venta.idVenta || downloadingPdfVentaId === venta.idVenta
+                  }
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-300 bg-red-50 text-red-700 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-700/50 dark:bg-red-900/20 dark:text-red-300 dark:hover:bg-red-900/35"
+                >
+                  {downloadingPdfVentaId === venta.idVenta ? (
+                    <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <DocumentArrowDownIcon className="h-4 w-4" />
+                  )}
+                </button>
                 <button
                   type="button"
                   onClick={() => onViewDetail(venta)}

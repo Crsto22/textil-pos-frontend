@@ -6,6 +6,8 @@ import {
 } from "@/lib/oferta-utils"
 import type {
   OfertaBatchDraftItem,
+  OfertaBatchPriceMode,
+  OfertaBulkFormDraft,
   OfertaFormDraft,
   ProductoVarianteOfertaLoteItemRequest,
 } from "@/lib/types/oferta"
@@ -33,6 +35,79 @@ export function createOfertaFormDraft(
       source && typeof source.precioOferta === "number" ? String(source.precioOferta) : "",
     ofertaInicioInput: convertirFechaHoraLocalParaInput(source?.ofertaInicio),
     ofertaFinInput: convertirFechaHoraLocalParaInput(source?.ofertaFin),
+  }
+}
+
+export function createOfertaBulkFormDraft(
+  source?: Partial<Pick<OfertaBulkFormDraft, "priceMode" | "priceInput" | "schedulePreset">>
+): OfertaBulkFormDraft {
+  return {
+    priceMode: source?.priceMode ?? "PRECIO_FIJO",
+    priceInput: source?.priceInput ?? "",
+    schedulePreset: source?.schedulePreset ?? "PERSONALIZADO",
+    ...createOfertaFormDraft(),
+  }
+}
+
+function roundCurrency(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100
+}
+
+export function resolveOfertaPriceFromMode(
+  precioBase: number,
+  mode: OfertaBatchPriceMode,
+  rawValue: string
+): { ok: true; value: number } | { ok: false; message: string } {
+  if (!Number.isFinite(precioBase) || precioBase <= 0) {
+    return {
+      ok: false,
+      message: "La variante seleccionada no tiene un precio regular valido.",
+    }
+  }
+
+  const parsedValue = parsePrecioOfertaInput(rawValue)
+  if (parsedValue === null) {
+    return {
+      ok: false,
+      message: "Debe ingresar un valor numerico valido para aplicar la oferta.",
+    }
+  }
+
+  let precioOferta = parsedValue
+
+  if (mode === "DESCUENTO_PORCENTAJE") {
+    if (parsedValue >= 100) {
+      return {
+        ok: false,
+        message: "El porcentaje de descuento debe ser menor a 100.",
+      }
+    }
+    precioOferta = precioBase * (1 - parsedValue / 100)
+  }
+
+  if (mode === "DESCUENTO_MONTO") {
+    precioOferta = precioBase - parsedValue
+  }
+
+  precioOferta = roundCurrency(precioOferta)
+
+  if (precioOferta <= 0) {
+    return {
+      ok: false,
+      message: "El precio oferta resultante debe ser mayor a 0.",
+    }
+  }
+
+  if (precioOferta >= precioBase) {
+    return {
+      ok: false,
+      message: "El precio oferta resultante debe ser menor al precio regular.",
+    }
+  }
+
+  return {
+    ok: true,
+    value: precioOferta,
   }
 }
 

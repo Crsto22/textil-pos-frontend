@@ -4,9 +4,12 @@ import { useCallback, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { AlertTriangle, Loader2 } from "lucide-react"
 
-import { ProductoColorsCard } from "@/components/producto-nuevo/ProductoColorsCard"
+import {
+  ProductoAttributesSidebar,
+  type ProductoAttributeSidebarSection,
+} from "@/components/producto-nuevo/ProductoAttributesSidebar"
+import { CategoriaCreateDialog } from "@/components/categorias/modals/CategoriaCreateDialog"
 import { ProductoGeneralInfoCard } from "@/components/producto-nuevo/ProductoGeneralInfoCard"
-import { ProductoTallasCard } from "@/components/producto-nuevo/ProductoTallasCard"
 import { ProductoUnsavedChangesToast } from "@/components/producto-nuevo/ProductoUnsavedChangesToast"
 import { ProductoVariantMatrixCard } from "@/components/producto-nuevo/ProductoVariantMatrixCard"
 import { ProductoMediaSidebar } from "@/components/producto-nuevo/media/ProductoMediaSidebar"
@@ -16,10 +19,18 @@ interface ProductoCreatePageProps {
   productoId?: number | null
 }
 
+function hasValidId(value: number | null | undefined): value is number {
+  return typeof value === "number" && value > 0
+}
+
 export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProps) {
   const router = useRouter()
   const [isMediaSidebarOpen, setIsMediaSidebarOpen] = useState(false)
   const [mediaSidebarSession, setMediaSidebarSession] = useState(0)
+  const [isAttributesSidebarOpen, setIsAttributesSidebarOpen] = useState(false)
+  const [isCategoriaCreateDialogOpen, setIsCategoriaCreateDialogOpen] = useState(false)
+  const [attributeSidebarSection, setAttributeSidebarSection] =
+    useState<ProductoAttributeSidebarSection>("colors")
 
   const {
     user,
@@ -64,8 +75,8 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
     mediaByColor,
     replaceMediaByColor,
     variantRows,
-    offersEnabled,
     deletingVariantKeys,
+    isAutoSkuEnabled,
     totalSelectedMedia,
     setFocusedColorId,
     handleSucursalChange,
@@ -74,11 +85,14 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
     setSearchCategoria,
     handleNombreChange,
     handleDescripcionChange,
+    handleCreateCategoria,
+    handleCreateColor,
+    handleCreateTalla,
     toggleColorSelection,
     toggleTallaSelection,
+    handleAutoSkuToggle,
     handleVariantFieldChange,
     handleApplyVariantFieldToAll,
-    handleOffersEnabledChange,
     handleRemoveVariant,
     saveProducto,
   } = useProductoCreate({ productoId })
@@ -91,6 +105,12 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
   const activePreviewImageUrl = activePreviewColorId
     ? (mediaByColor[activePreviewColorId]?.at(-1)?.previewUrl ?? null)
     : null
+
+  const canCreateCategoria = !isAdmin || hasValidId(form.idSucursal)
+  const categoriaCreateDisabledReason =
+    isAdmin && !hasValidId(form.idSucursal)
+      ? "Selecciona una sucursal antes de crear una categoria."
+      : null
 
   const hasUnsavedChanges = useMemo(() => {
     const hasTextInput =
@@ -111,9 +131,7 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
       (variant) =>
         variant.sku.trim() !== "" ||
         variant.precio.trim() !== "" ||
-        variant.precioOferta.trim() !== "" ||
-        variant.ofertaInicio.trim() !== "" ||
-        variant.ofertaFin.trim() !== "" ||
+        variant.precioMayor.trim() !== "" ||
         variant.stock.trim() !== ""
     )
 
@@ -122,7 +140,6 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
       hasSelectInput ||
       hasAttributesSelected ||
       hasMediaSelected ||
-      offersEnabled ||
       hasVariantValues
     )
   }, [
@@ -132,7 +149,6 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
     form.nombre,
     isAdmin,
     mediaByColor,
-    offersEnabled,
     selectedColorIds.length,
     selectedTallaIds.length,
     variantRows,
@@ -142,6 +158,21 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
     router.push("/productos")
     router.refresh()
   }, [router])
+
+  const handleOpenMediaSidebar = useCallback(() => {
+    setIsAttributesSidebarOpen(false)
+    setMediaSidebarSession((previous) => previous + 1)
+    setIsMediaSidebarOpen(true)
+  }, [])
+
+  const handleOpenAttributesSidebar = useCallback(
+    (section: ProductoAttributeSidebarSection) => {
+      setIsMediaSidebarOpen(false)
+      setAttributeSidebarSection(section)
+      setIsAttributesSidebarOpen(true)
+    },
+    []
+  )
 
   const handleSaveProducto = useCallback(async () => {
     const created = await saveProducto()
@@ -182,8 +213,8 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-6 xl:grid-cols-[520px_minmax(0,1fr)_320px]">
-        <div className="min-w-0">
+      <div className="grid items-start gap-6 xl:grid-cols-[520px_minmax(0,1fr)]">
+        <div className="min-w-0 xl:sticky xl:top-6 xl:self-start">
           <ProductoGeneralInfoCard
             isAdmin={isAdmin}
             nombreSucursal={user?.nombreSucursal}
@@ -202,19 +233,26 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
             variantRowsCount={variantRows.length}
             totalSelectedMedia={totalSelectedMedia}
             selectedColors={selectedColors}
+            selectedTallas={selectedTallas}
             activePreviewColorId={activePreviewColorId}
             activePreviewImageUrl={activePreviewImageUrl}
-            onOpenImages={() => {
-              setMediaSidebarSession((previous) => previous + 1)
-              setIsMediaSidebarOpen(true)
+            onOpenImages={handleOpenMediaSidebar}
+            onOpenColors={() => {
+              handleOpenAttributesSidebar("colors")
+            }}
+            onOpenTallas={() => {
+              handleOpenAttributesSidebar("tallas")
             }}
             onPreviewColorChange={setFocusedColorId}
             onSucursalChange={handleSucursalChange}
             onCategoriaChange={handleCategoriaChange}
+            onOpenCategoriaCreate={() => setIsCategoriaCreateDialogOpen(true)}
             onSearchSucursalChange={setSearchSucursal}
             onSearchCategoriaChange={setSearchCategoria}
             onNombreChange={handleNombreChange}
             onDescripcionChange={handleDescripcionChange}
+            canCreateCategoria={canCreateCategoria}
+            categoriaCreateDisabledReason={categoriaCreateDisabledReason}
           />
         </div>
 
@@ -222,48 +260,56 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
           <ProductoVariantMatrixCard
             hasSelectedColors={selectedColors.length > 0}
             hasSelectedTallas={selectedTallas.length > 0}
+            mediaByColor={mediaByColor}
             variantRows={variantRows}
-            offersEnabled={offersEnabled}
+            isAutoSkuEnabled={isAutoSkuEnabled}
+            onAutoSkuToggle={handleAutoSkuToggle}
             onVariantFieldChange={handleVariantFieldChange}
             onApplyVariantFieldToAll={handleApplyVariantFieldToAll}
-            onOffersEnabledChange={handleOffersEnabledChange}
             deletingVariantKeys={deletingVariantKeys}
             onRemoveVariant={handleRemoveVariant}
           />
         </div>
-
-        <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-1">
-          <ProductoColorsCard
-            availableColors={availableColors}
-            selectedColors={selectedColors}
-            selectedColorIds={selectedColorIds}
-            loadingColores={loadingColores}
-            errorColores={errorColores}
-            searchColor={searchColor}
-            onSearchColorChange={setSearchColor}
-            colorTotalElements={colorTotalElements}
-            colorTotalPages={colorTotalPages}
-            colorPage={colorPage}
-            onColorPageChange={setColorPage}
-            onToggleColorSelection={toggleColorSelection}
-          />
-
-          <ProductoTallasCard
-            availableTallas={availableTallas}
-            selectedTallas={selectedTallas}
-            selectedTallaIds={selectedTallaIds}
-            loadingTallas={loadingTallas}
-            errorTallas={errorTallas}
-            searchTalla={searchTalla}
-            onSearchTallaChange={setSearchTalla}
-            tallaTotalElements={tallaTotalElements}
-            tallaTotalPages={tallaTotalPages}
-            tallaPage={tallaPage}
-            onTallaPageChange={setTallaPage}
-            onToggleTallaSelection={toggleTallaSelection}
-          />
-        </div>
       </div>
+
+      <ProductoAttributesSidebar
+        open={isAttributesSidebarOpen}
+        activeSection={attributeSidebarSection}
+        selectedColorsCount={selectedColors.length}
+        selectedTallasCount={selectedTallas.length}
+        onOpenChange={setIsAttributesSidebarOpen}
+        onSectionChange={setAttributeSidebarSection}
+        colorPanelProps={{
+          availableColors,
+          selectedColors,
+          selectedColorIds,
+          loadingColores,
+          errorColores,
+          searchColor,
+          onSearchColorChange: setSearchColor,
+          colorTotalElements,
+          colorTotalPages,
+          colorPage,
+          onColorPageChange: setColorPage,
+          onCreateColor: handleCreateColor,
+          onToggleColorSelection: toggleColorSelection,
+        }}
+        tallaPanelProps={{
+          availableTallas,
+          selectedTallas,
+          selectedTallaIds,
+          loadingTallas,
+          errorTallas,
+          searchTalla,
+          onSearchTallaChange: setSearchTalla,
+          tallaTotalElements,
+          tallaTotalPages,
+          tallaPage,
+          onTallaPageChange: setTallaPage,
+          onCreateTalla: handleCreateTalla,
+          onToggleTallaSelection: toggleTallaSelection,
+        }}
+      />
 
       <ProductoMediaSidebar
         key={`producto-media-sidebar-${mediaSidebarSession}`}
@@ -274,6 +320,15 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
         onOpenChange={setIsMediaSidebarOpen}
         onFocusedColorChange={setFocusedColorId}
         onSaveMediaByColor={replaceMediaByColor}
+      />
+
+      <CategoriaCreateDialog
+        open={isCategoriaCreateDialogOpen}
+        onOpenChange={setIsCategoriaCreateDialogOpen}
+        onCreate={handleCreateCategoria}
+        initialNombreCategoria={searchCategoria.trim()}
+        initialIdSucursal={isAdmin ? form.idSucursal : user?.idSucursal ?? null}
+        lockSucursalSelection={canCreateCategoria}
       />
 
       <ProductoUnsavedChangesToast

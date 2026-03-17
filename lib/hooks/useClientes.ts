@@ -13,13 +13,13 @@ import { toast } from "sonner"
 
 import { useAuth } from "@/lib/auth/auth-context"
 import { authFetch } from "@/lib/auth/auth-fetch"
+import { useClienteCreate } from "@/lib/hooks/useClienteCreate"
 import {
     SEARCH_DEBOUNCE_MS,
     useDebouncedValue,
 } from "@/lib/hooks/useDebouncedValue"
 import type {
     Cliente,
-    ClienteCreateRequest,
     ClienteUpdateRequest,
 } from "@/lib/types/cliente"
 import type { PageResponse } from "@/lib/types/usuario"
@@ -197,38 +197,10 @@ export function useClientes() {
 
         await fetchClientes(page)
     }, [debouncedSearch, fetchBuscar, fetchClientes, isSearchMode, page, searchPage])
-
-    const createCliente = useCallback(
-        async (payload: ClienteCreateRequest) => {
-            try {
-                const response = await authFetch("/api/cliente/insertar", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(payload),
-                })
-
-                const data = await parseJsonSafe(response)
-
-                if (!response.ok) {
-                    const message = getErrorMessage(response.status, data?.message)
-                    setError(message)
-                    toast.error(message)
-                    return false
-                }
-
-                toast.success("Cliente creado exitosamente")
-                await refreshCurrentView()
-                return true
-            } catch (requestError) {
-                const message =
-                    requestError instanceof Error ? requestError.message : "Error inesperado"
-                setError(message)
-                toast.error(message)
-                return false
-            }
-        },
-        [refreshCurrentView]
-    )
+    const { createCliente } = useClienteCreate({
+        onCreated: refreshCurrentView,
+        onError: setError,
+    })
 
     const updateCliente = useCallback(
         async (id: number, payload: ClienteUpdateRequest) => {

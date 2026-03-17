@@ -43,7 +43,7 @@ export function CotizacionConvertirVentaDialog({
   const router = useRouter()
   const [selectedPayment, setSelectedPayment] = useState<PaymentKey | null>(null)
   const [selectedComprobanteId, setSelectedComprobanteId] = useState("")
-  const [reference, setReference] = useState("")
+  const [operationCode, setOperationCode] = useState("")
   const [requestError, setRequestError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -64,7 +64,7 @@ export function CotizacionConvertirVentaDialog({
     if (!open) return
     setSelectedPayment(null)
     setSelectedComprobanteId("")
-    setReference("")
+    setOperationCode("")
     setRequestError(null)
   }, [open, target?.idCotizacion])
 
@@ -109,7 +109,7 @@ export function CotizacionConvertirVentaDialog({
         {
           idMetodoPago: selectedMetodoPago.idMetodoPago,
           monto: Number(target.total.toFixed(2)),
-          referencia: reference.trim() || selectedMetodoPago.nombre,
+          codigoOperacion: operationCode.trim() || null,
         },
       ],
     }
@@ -140,7 +140,16 @@ export function CotizacionConvertirVentaDialog({
       }
 
       const payloadResponse = data as CotizacionConvertirVentaResponse
-      toast.success("Cotizacion convertida a venta.", {
+      const sunatEstado = payloadResponse.venta?.sunatEstado ?? payloadResponse.sunatEstado ?? null
+      const sunatAutoDispatchError = payloadResponse.sunatAutoDispatchError ?? null
+
+      toast.success(
+        sunatAutoDispatchError
+          ? "Cotizacion convertida. SUNAT requiere revision manual."
+          : sunatEstado
+            ? `Cotizacion convertida a venta - SUNAT ${sunatEstado}`
+            : payloadResponse.message || "Cotizacion convertida a venta.",
+        {
         action: {
           label: "Ver venta",
           onClick: () => {
@@ -148,6 +157,11 @@ export function CotizacionConvertirVentaDialog({
           },
         },
       })
+
+      if (sunatAutoDispatchError) {
+        toast.error(sunatAutoDispatchError)
+      }
+
       onConverted(payloadResponse)
       onOpenChange(false)
     } catch (requestError) {
@@ -232,15 +246,18 @@ export function CotizacionConvertirVentaDialog({
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="convertir-venta-referencia" className="text-sm font-medium text-foreground">
-              Referencia
+            <label
+              htmlFor="convertir-venta-codigo-operacion"
+              className="text-sm font-medium text-foreground"
+            >
+              Codigo de operacion
             </label>
             <input
-              id="convertir-venta-referencia"
+              id="convertir-venta-codigo-operacion"
               type="text"
-              value={reference}
-              onChange={(event) => setReference(event.target.value)}
-              placeholder="Opcional. Ej. Pago total"
+              value={operationCode}
+              onChange={(event) => setOperationCode(event.target.value)}
+              placeholder="Opcional. Ej. YAPE-938271"
               className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15"
             />
           </div>

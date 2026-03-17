@@ -1,17 +1,16 @@
 "use client"
 
-import { ArrowPathIcon, TrashIcon } from "@heroicons/react/24/outline"
+import { useState } from "react"
+import Image from "next/image"
+import { ArrowPathIcon, CubeIcon, TrashIcon } from "@heroicons/react/24/outline"
 
 import { ProductosPagination } from "@/components/productos/ProductosPagination"
-import { OfertaVariantCard } from "@/components/productos/ofertas/OfertaVariantCard"
+import { formatMonedaPen } from "@/components/productos/productos.utils"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import {
-  formatearRangoOferta,
-  normalizarFechaHoraLocal,
-  obtenerEstadoVigenciaOferta,
-} from "@/lib/oferta-utils"
+import { formatearRangoOferta, obtenerEstadoVigenciaOferta } from "@/lib/oferta-utils"
 import { useOfertasDisponibles } from "@/lib/hooks/useOfertasDisponibles"
+import { cn } from "@/lib/utils"
 
 interface OfertasRegistradasSectionProps {
   refreshToken: number
@@ -47,27 +46,65 @@ function getOfferStatusLabel(estado: ReturnType<typeof obtenerEstadoVigenciaOfer
   }
 }
 
-function formatOfferCardDate(value: string | null | undefined): string | null {
-  const normalizedValue = normalizarFechaHoraLocal(value)
-  if (normalizedValue === "") return null
-
-  const parsed = new Date(normalizedValue)
-  if (Number.isNaN(parsed.getTime())) return null
-
-  const parts = parsed
-    .toLocaleDateString("es-PE", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    })
-    .replaceAll(".", "")
-    .split(" ")
-
-  if (parts.length >= 2) {
-    parts[1] = parts[1].charAt(0).toUpperCase() + parts[1].slice(1)
+function getColorIndicatorStyle(colorHex: string) {
+  if (typeof colorHex === "string" && /^#[0-9a-f]{3,8}$/i.test(colorHex.trim())) {
+    return { backgroundColor: colorHex.trim() }
   }
 
-  return parts.join(" ")
+  return undefined
+}
+
+function hasFiniteStock(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value)
+}
+
+function getStockBadgeClassName(stock: number) {
+  if (stock <= 0) {
+    return "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300"
+  }
+
+  if (stock <= 5) {
+    return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300"
+  }
+
+  if (stock <= 15) {
+    return "border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-500/20 dark:bg-sky-500/10 dark:text-sky-300"
+  }
+
+  return "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300"
+}
+
+function OfertaRegistradaVariantPreview({
+  imageUrl,
+  productName,
+  colorName,
+  tallaName,
+}: {
+  imageUrl: string | null
+  productName: string
+  colorName: string
+  tallaName: string
+}) {
+  const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null)
+  const shouldRenderImage =
+    typeof imageUrl === "string" && imageUrl !== "" && imageUrl !== failedImageUrl
+
+  return (
+    <span className="relative inline-flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50 text-slate-400 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-500">
+      {shouldRenderImage ? (
+        <Image
+          src={imageUrl}
+          alt={`${productName} - ${colorName} - Talla ${tallaName}`}
+          fill
+          unoptimized
+          className="object-cover"
+          onError={() => setFailedImageUrl(imageUrl)}
+        />
+      ) : (
+        <CubeIcon className="h-5 w-5" />
+      )}
+    </span>
+  )
 }
 
 export function OfertasRegistradasSection({
@@ -169,34 +206,148 @@ export function OfertasRegistradasSection({
           No hay ofertas disponibles en esta pagina.
         </div>
       ) : (
-        <div className="grid gap-5 md:grid-cols-2 2xl:grid-cols-3">
-          {offers.map((offer) => {
-            const estadoOferta = obtenerEstadoVigenciaOferta(offer)
-            const selected = selectedIdSet.has(offer.idProductoVariante)
+        <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950">
+          <div className="overflow-x-auto">
+            <table className="min-w-[1180px] w-full border-separate border-spacing-0 text-sm">
+              <thead>
+                <tr className="text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:text-neutral-500">
+                  <th className="w-14 border-b border-slate-200 px-4 py-3 dark:border-neutral-800" />
+                  <th className="border-b border-slate-200 px-4 py-3 dark:border-neutral-800">
+                    Variante
+                  </th>
+                  <th className="border-b border-slate-200 px-4 py-3 dark:border-neutral-800">
+                    Color talla
+                  </th>
+                  <th className="border-b border-slate-200 px-4 py-3 dark:border-neutral-800">
+                    Sucursal
+                  </th>
+                  <th className="border-b border-slate-200 px-4 py-3 text-right dark:border-neutral-800">
+                    Precio
+                  </th>
+                  <th className="border-b border-slate-200 px-4 py-3 text-right dark:border-neutral-800">
+                    Oferta
+                  </th>
+                  <th className="border-b border-slate-200 px-4 py-3 dark:border-neutral-800">
+                    Stock
+                  </th>
+                  <th className="border-b border-slate-200 px-4 py-3 dark:border-neutral-800">
+                    Vigencia
+                  </th>
+                  <th className="border-b border-slate-200 px-4 py-3 dark:border-neutral-800">
+                    Estado
+                  </th>
+                </tr>
+              </thead>
 
-            return (
-              <OfertaVariantCard
-                key={offer.idProductoVariante}
-                productoNombre={offer.productoNombre}
-                colorNombre={offer.colorNombre}
-                tallaNombre={offer.tallaNombre}
-                sku={offer.sku || `Variante #${offer.idProductoVariante}`}
-                precio={offer.precio}
-                precioOferta={offer.precioOferta}
-                vigenciaLabel={formatearRangoOferta(offer.ofertaInicio, offer.ofertaFin)}
-                imageUrl={offer.imageUrl}
-                locationLabel={offer.sucursalNombre || "Sin sucursal"}
-                startLabel={formatOfferCardDate(offer.ofertaInicio)}
-                endLabel={formatOfferCardDate(offer.ofertaFin)}
-                selected={selected}
-                onSelect={() => toggleSelected(offer.idProductoVariante)}
-                primaryBadge={{
-                  label: getOfferStatusLabel(estadoOferta),
-                  className: getOfferStatusBadgeClassName(estadoOferta),
-                }}
-              />
-            )
-          })}
+              <tbody>
+                {offers.map((offer) => {
+                  const estadoOferta = obtenerEstadoVigenciaOferta(offer)
+                  const selected = selectedIdSet.has(offer.idProductoVariante)
+                  const colorDotStyle = getColorIndicatorStyle(offer.colorHex)
+
+                  return (
+                    <tr
+                      key={offer.idProductoVariante}
+                      className={cn(
+                        "transition-colors",
+                        selected
+                          ? "bg-amber-50/60 dark:bg-amber-500/5"
+                          : "bg-transparent"
+                      )}
+                    >
+                      <td className="border-b border-slate-200 px-4 py-3 align-top dark:border-neutral-800">
+                        <Checkbox
+                          checked={selected}
+                          onCheckedChange={() => toggleSelected(offer.idProductoVariante)}
+                          aria-label={`Seleccionar ${offer.sku || offer.idProductoVariante}`}
+                          className="mt-1 rounded-md"
+                        />
+                      </td>
+
+                      <td className="border-b border-slate-200 px-4 py-3 dark:border-neutral-800">
+                        <div className="flex items-center gap-3">
+                          <OfertaRegistradaVariantPreview
+                            imageUrl={offer.imageUrl}
+                            productName={offer.productoNombre}
+                            colorName={offer.colorNombre}
+                            tallaName={offer.tallaNombre}
+                          />
+
+                          <div className="min-w-0">
+                            <p className="truncate font-medium text-slate-900 dark:text-white">
+                              {offer.productoNombre}
+                            </p>
+                            <p className="mt-0.5 text-[11px] text-slate-400 dark:text-neutral-500">
+                              {offer.sku || `Variante #${offer.idProductoVariante}`}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="border-b border-slate-200 px-4 py-3 dark:border-neutral-800">
+                        <div className="flex flex-wrap gap-2">
+                          <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-2.5 py-1 text-xs text-slate-700 dark:border-neutral-800 dark:text-neutral-200">
+                            <span
+                              className="h-2.5 w-2.5 rounded-full"
+                              style={colorDotStyle}
+                            />
+                            {offer.colorNombre}
+                          </span>
+                          <span className="rounded-full border border-slate-200 px-2.5 py-1 text-xs text-slate-700 dark:border-neutral-800 dark:text-neutral-200">
+                            {offer.tallaNombre}
+                          </span>
+                        </div>
+                      </td>
+
+                      <td className="border-b border-slate-200 px-4 py-3 text-slate-600 dark:border-neutral-800 dark:text-neutral-300">
+                        {offer.sucursalNombre || "Sin sucursal"}
+                      </td>
+
+                      <td className="border-b border-slate-200 px-4 py-3 text-right font-semibold text-slate-900 dark:border-neutral-800 dark:text-white">
+                        {formatMonedaPen(offer.precio)}
+                      </td>
+
+                      <td className="border-b border-slate-200 px-4 py-3 text-right font-semibold text-amber-600 dark:border-neutral-800 dark:text-amber-300">
+                        {typeof offer.precioOferta === "number"
+                          ? formatMonedaPen(offer.precioOferta)
+                          : "-"}
+                      </td>
+
+                      <td className="border-b border-slate-200 px-4 py-3 dark:border-neutral-800">
+                        {hasFiniteStock(offer.stock) ? (
+                          <span
+                            className={cn(
+                              "inline-flex min-w-10 items-center justify-center rounded-full border px-2.5 py-1 text-xs font-semibold",
+                              getStockBadgeClassName(offer.stock)
+                            )}
+                          >
+                            {offer.stock}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-slate-400 dark:text-neutral-500">-</span>
+                        )}
+                      </td>
+
+                      <td className="border-b border-slate-200 px-4 py-3 text-slate-600 dark:border-neutral-800 dark:text-neutral-300">
+                        {formatearRangoOferta(offer.ofertaInicio, offer.ofertaFin)}
+                      </td>
+
+                      <td className="border-b border-slate-200 px-4 py-3 dark:border-neutral-800">
+                        <span
+                          className={cn(
+                            "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold",
+                            getOfferStatusBadgeClassName(estadoOferta)
+                          )}
+                        >
+                          {getOfferStatusLabel(estadoOferta)}
+                        </span>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

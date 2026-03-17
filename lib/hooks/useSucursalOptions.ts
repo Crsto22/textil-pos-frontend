@@ -4,10 +4,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { authFetch } from "@/lib/auth/auth-fetch"
 import {
+  getSucursalAvatarColor,
+  getSucursalInitials,
+  getSucursalLocationLabel,
+  normalizeSucursalPageResponse,
+} from "@/lib/sucursal"
+import {
   SEARCH_DEBOUNCE_MS,
   useDebouncedValue,
 } from "@/lib/hooks/useDebouncedValue"
-import type { PageResponse, Sucursal } from "@/lib/types/sucursal"
+import type { Sucursal } from "@/lib/types/sucursal"
 
 function isAbortError(error: unknown) {
   return error instanceof DOMException && error.name === "AbortError"
@@ -15,11 +21,6 @@ function isAbortError(error: unknown) {
 
 async function parseJsonSafe(response: Response) {
   return response.json().catch(() => null)
-}
-
-function toSucursalList(data: unknown): Sucursal[] {
-  const pageData = data as PageResponse<Sucursal> | null
-  return Array.isArray(pageData?.content) ? pageData.content : []
 }
 
 export function useSucursalOptions(enabled: boolean) {
@@ -52,7 +53,7 @@ export function useSucursalOptions(enabled: boolean) {
         return
       }
 
-      setSucursales(toSucursalList(data))
+      setSucursales(normalizeSucursalPageResponse(data).content)
     } catch (requestError) {
       if (isAbortError(requestError)) return
       const message =
@@ -90,7 +91,7 @@ export function useSucursalOptions(enabled: boolean) {
         return
       }
 
-      setSucursales(toSucursalList(data))
+      setSucursales(normalizeSucursalPageResponse(data).content)
     } catch (requestError) {
       if (isAbortError(requestError)) return
       const message =
@@ -143,7 +144,10 @@ export function useSucursalOptions(enabled: boolean) {
       (Array.isArray(sucursales) ? sucursales : []).map((sucursal) => ({
         value: String(sucursal.idSucursal),
         label: sucursal.nombre,
-        description: sucursal.nombreEmpresa,
+        description:
+          getSucursalLocationLabel(sucursal) || sucursal.nombreEmpresa,
+        avatarText: getSucursalInitials(sucursal.nombre),
+        avatarClassName: getSucursalAvatarColor(sucursal.idSucursal),
       })),
     [sucursales]
   )

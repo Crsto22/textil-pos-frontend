@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
+import { SucursalUbigeoFields } from "@/components/sucursales/modals/SucursalUbigeoFields"
 import { useEmpresaOptions } from "@/lib/hooks/useEmpresaOptions"
 import {
   emptyUpdate,
@@ -36,6 +37,8 @@ interface SucursalEditDialogProps {
 
 const phoneRegex = /^\d{7,15}$/
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const ubigeoRegex = /^\d{6}$/
+const sunatCodeRegex = /^\d{4}$/
 
 export function SucursalEditDialog({
   open,
@@ -57,6 +60,11 @@ export function SucursalEditDialog({
       direccion: sucursal.direccion,
       telefono: sucursal.telefono,
       correo: sucursal.correo,
+      ubigeo: sucursal.ubigeo,
+      departamento: sucursal.departamento,
+      provincia: sucursal.provincia,
+      distrito: sucursal.distrito,
+      codigoEstablecimientoSunat: sucursal.codigoEstablecimientoSunat,
       estado: sucursal.estado,
       idEmpresa: sucursal.idEmpresa,
     })
@@ -83,8 +91,13 @@ export function SucursalEditDialog({
     () =>
       form.nombre.trim() !== "" &&
       form.direccion.trim() !== "" &&
+      form.departamento.trim() !== "" &&
+      form.provincia.trim() !== "" &&
+      form.distrito.trim() !== "" &&
       phoneRegex.test(form.telefono) &&
       emailRegex.test(form.correo) &&
+      ubigeoRegex.test(form.ubigeo) &&
+      sunatCodeRegex.test(form.codigoEstablecimientoSunat) &&
       Number.isInteger(form.idEmpresa) &&
       form.idEmpresa > 0 &&
       hasEmpresaSeleccionada,
@@ -165,7 +178,7 @@ export function SucursalEditDialog({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="grid gap-2">
               <Label htmlFor="e-telefono-sucursal">Telefono</Label>
               <Input
@@ -184,6 +197,26 @@ export function SucursalEditDialog({
               )}
             </div>
 
+            <div className="grid gap-2">
+              <Label htmlFor="e-correo-sucursal">Correo</Label>
+              <Input
+                id="e-correo-sucursal"
+                type="email"
+                value={form.correo}
+                onChange={(event) =>
+                  setForm((previous) => ({
+                    ...previous,
+                    correo: event.target.value,
+                  }))
+                }
+              />
+              {form.correo.length > 0 && !emailRegex.test(form.correo) && (
+                <p className="text-xs text-red-500">Formato de correo invalido</p>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="grid gap-2">
               <Label htmlFor="e-empresa-sucursal">Empresa</Label>
               {loadingEmpresas ? (
@@ -232,25 +265,44 @@ export function SucursalEditDialog({
                 </Select>
               )}
             </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="e-codigo-sunat-sucursal">Codigo Establecimiento SUNAT</Label>
+              <Input
+                id="e-codigo-sunat-sucursal"
+                maxLength={4}
+                value={form.codigoEstablecimientoSunat}
+                onChange={(event) =>
+                  setForm((previous) => ({
+                    ...previous,
+                    codigoEstablecimientoSunat: event.target.value
+                      .replace(/\D/g, "")
+                      .slice(0, 4),
+                  }))
+                }
+              />
+              {form.codigoEstablecimientoSunat.length > 0 &&
+                !sunatCodeRegex.test(form.codigoEstablecimientoSunat) && (
+                  <p className="text-xs text-red-500">Debe tener exactamente 4 digitos</p>
+                )}
+            </div>
           </div>
 
-          <div className="grid gap-2">
-            <Label htmlFor="e-correo-sucursal">Correo</Label>
-            <Input
-              id="e-correo-sucursal"
-              type="email"
-              value={form.correo}
-              onChange={(event) =>
-                setForm((previous) => ({
-                  ...previous,
-                  correo: event.target.value,
-                }))
-              }
-            />
-            {form.correo.length > 0 && !emailRegex.test(form.correo) && (
-              <p className="text-xs text-red-500">Formato de correo invalido</p>
-            )}
-          </div>
+          <SucursalUbigeoFields
+            enabled={open}
+            form={form}
+            idPrefix="e"
+            onChange={(location) =>
+              setForm((previous) => ({
+                ...previous,
+                ...location,
+              }))
+            }
+          />
+
+          {form.ubigeo.length > 0 && !ubigeoRegex.test(form.ubigeo) && (
+            <p className="text-xs text-red-500">Debe tener exactamente 6 digitos</p>
+          )}
 
           <div className="grid gap-2">
             <Label htmlFor="e-estado-sucursal">Estado</Label>

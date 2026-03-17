@@ -3,7 +3,12 @@
 import { useCallback, useRef, useState } from "react"
 
 import { authFetch } from "@/lib/auth/auth-fetch"
-import type { VentaDetalleItem, VentaDetallePago, VentaDetalleResponse } from "@/lib/types/venta"
+import type {
+  VentaDetalleItem,
+  VentaDetallePago,
+  VentaDetalleResponse,
+  VentaSunatRetryResponse,
+} from "@/lib/types/venta"
 
 interface VentaDetalleState {
   open: boolean
@@ -27,6 +32,20 @@ function stringOr(value: unknown, fallback = ""): string {
   return typeof value === "string" ? value : fallback
 }
 
+function stringOrNull(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value : null
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : null
+}
+
+function unwrapResponsePayload(value: unknown): Record<string, unknown> | null {
+  const payload = asRecord(value)
+  if (!payload) return null
+  return asRecord(payload.response) ?? payload
+}
+
 function parseDetalleItems(value: unknown): VentaDetalleItem[] {
   if (!Array.isArray(value)) return []
   return value
@@ -38,21 +57,23 @@ function parseDetalleItems(value: unknown): VentaDetalleItem[] {
         idProductoVariante: numberOr(data.idProductoVariante),
         idProducto: numberOr(data.idProducto),
         nombreProducto: stringOr(data.nombreProducto, "Producto"),
+        descripcion: stringOr(data.descripcion, stringOr(data.nombreProducto, "Producto")),
         sku: typeof data.sku === "string" ? data.sku : null,
-        precioOferta:
-          typeof data.precioOferta === "number" ? data.precioOferta : null,
-        ofertaInicio:
-          typeof data.ofertaInicio === "string" ? data.ofertaInicio : null,
-        ofertaFin:
-          typeof data.ofertaFin === "string" ? data.ofertaFin : null,
+        precioOferta: nullableNumber(data.precioOferta),
+        ofertaInicio: stringOrNull(data.ofertaInicio),
+        ofertaFin: stringOrNull(data.ofertaFin),
         idColor: nullableNumber(data.idColor),
-        color: typeof data.color === "string" ? data.color : null,
+        color: stringOrNull(data.color),
         idTalla: nullableNumber(data.idTalla),
-        talla: typeof data.talla === "string" ? data.talla : null,
+        talla: stringOrNull(data.talla),
         cantidad: numberOr(data.cantidad),
+        unidadMedida: stringOr(data.unidadMedida, "NIU"),
+        codigoTipoAfectacionIgv: stringOr(data.codigoTipoAfectacionIgv, "10"),
         precioUnitario: numberOr(data.precioUnitario),
         descuento: numberOr(data.descuento),
+        igvDetalle: numberOr(data.igvDetalle),
         subtotal: numberOr(data.subtotal),
+        totalDetalle: numberOr(data.totalDetalle),
       }
     })
     .filter((item): item is VentaDetalleItem => item !== null)
@@ -67,34 +88,48 @@ function parseDetallePagos(value: unknown): VentaDetallePago[] {
       return {
         idPago: numberOr(data.idPago),
         idMetodoPago: numberOr(data.idMetodoPago),
-        metodoPago: stringOr(data.metodoPago, "DESCONOCIDO"),
+        nombreMetodoPago: stringOr(
+          data.nombreMetodoPago,
+          stringOr(data.metodoPago, "DESCONOCIDO")
+        ),
         monto: numberOr(data.monto),
-        referencia: typeof data.referencia === "string" ? data.referencia : null,
-        fecha: typeof data.fecha === "string" ? data.fecha : null,
+        codigoOperacion: stringOrNull(data.codigoOperacion ?? data.referencia),
+        fecha: stringOrNull(data.fecha),
       }
     })
     .filter((item): item is VentaDetallePago => item !== null)
 }
 
 function parseVentaDetalle(value: unknown): VentaDetalleResponse | null {
-  if (!value || typeof value !== "object") return null
-  const payload = value as Record<string, unknown>
+  const payload = unwrapResponsePayload(value)
+  if (!payload) return null
   const idVenta = numberOr(payload.idVenta)
   if (idVenta <= 0) return null
 
   return {
     idVenta,
     fecha: stringOr(payload.fecha),
-    tipoComprobante: stringOr(payload.tipoComprobante, "TICKET"),
+    tipoComprobante: stringOr(payload.tipoComprobante, "NOTA DE VENTA"),
     serie: stringOr(payload.serie),
     correlativo: numberOr(payload.correlativo),
+    moneda: stringOr(payload.moneda, "PEN"),
     igvPorcentaje: numberOr(payload.igvPorcentaje),
     subtotal: numberOr(payload.subtotal),
     descuentoTotal: numberOr(payload.descuentoTotal),
-    tipoDescuento: typeof payload.tipoDescuento === "string" ? payload.tipoDescuento : null,
+    tipoDescuento: stringOrNull(payload.tipoDescuento),
     igv: numberOr(payload.igv),
     total: numberOr(payload.total),
     estado: stringOr(payload.estado, "DESCONOCIDO"),
+    sunatEstado: stringOrNull(payload.sunatEstado),
+    sunatCodigo: stringOrNull(payload.sunatCodigo),
+    sunatMensaje: stringOrNull(payload.sunatMensaje),
+    sunatHash: stringOrNull(payload.sunatHash),
+    sunatTicket: stringOrNull(payload.sunatTicket),
+    sunatXmlNombre: stringOrNull(payload.sunatXmlNombre),
+    sunatZipNombre: stringOrNull(payload.sunatZipNombre),
+    sunatCdrNombre: stringOrNull(payload.sunatCdrNombre),
+    sunatEnviadoAt: stringOrNull(payload.sunatEnviadoAt),
+    sunatRespondidoAt: stringOrNull(payload.sunatRespondidoAt),
     idCliente: nullableNumber(payload.idCliente),
     nombreCliente: stringOr(payload.nombreCliente, "Sin cliente"),
     idUsuario: nullableNumber(payload.idUsuario),
@@ -106,8 +141,55 @@ function parseVentaDetalle(value: unknown): VentaDetalleResponse | null {
   }
 }
 
+function parseVentaSunatRetryResponse(value: unknown): VentaSunatRetryResponse | null {
+  const payload = unwrapResponsePayload(value)
+  if (!payload) return null
+
+  const idVenta = numberOr(payload.idVenta)
+  if (idVenta <= 0) return null
+
+  return {
+    idVenta,
+    sunatEstado: stringOrNull(payload.sunatEstado),
+    sunatCodigo: stringOrNull(payload.sunatCodigo),
+    sunatMensaje: stringOrNull(payload.sunatMensaje),
+    sunatXmlNombre: stringOrNull(payload.sunatXmlNombre),
+    sunatZipNombre: stringOrNull(payload.sunatZipNombre),
+    sunatCdrNombre: stringOrNull(payload.sunatCdrNombre),
+  }
+}
+
+function mergeSunatRetryIntoDetalle(
+  detalle: VentaDetalleResponse | null,
+  payload: VentaSunatRetryResponse
+): VentaDetalleResponse | null {
+  if (!detalle || detalle.idVenta !== payload.idVenta) return detalle
+
+  return {
+    ...detalle,
+    sunatEstado: payload.sunatEstado ?? detalle.sunatEstado,
+    sunatCodigo: payload.sunatCodigo ?? detalle.sunatCodigo,
+    sunatMensaje: payload.sunatMensaje ?? detalle.sunatMensaje,
+    sunatXmlNombre: payload.sunatXmlNombre ?? detalle.sunatXmlNombre,
+    sunatZipNombre: payload.sunatZipNombre ?? detalle.sunatZipNombre,
+    sunatCdrNombre: payload.sunatCdrNombre ?? detalle.sunatCdrNombre,
+  }
+}
+
+function getResponseMessage(payload: unknown, fallback: string): string {
+  const data = asRecord(payload)
+  if (!data) return fallback
+
+  if (typeof data.message === "string" && data.message.trim()) {
+    return data.message
+  }
+
+  return fallback
+}
+
 export function useVentaDetalle() {
   const abortRef = useRef<AbortController | null>(null)
+  const [retryingSunat, setRetryingSunat] = useState(false)
   const [state, setState] = useState<VentaDetalleState>({
     open: false,
     ventaId: null,
@@ -138,13 +220,10 @@ export function useVentaDetalle() {
       if (controller.signal.aborted) return
 
       if (!response.ok) {
-        const message =
-          payload &&
-          typeof payload === "object" &&
-          "message" in payload &&
-          typeof payload.message === "string"
-            ? payload.message
-            : `Error ${response.status} al cargar detalle de venta`
+        const message = getResponseMessage(
+          payload,
+          `Error ${response.status} al cargar detalle de venta`
+        )
         setState((previous) => ({
           ...previous,
           detalle: null,
@@ -199,6 +278,61 @@ export function useVentaDetalle() {
     await fetchDetalle(state.ventaId)
   }, [fetchDetalle, state.ventaId])
 
+  const retrySunatVenta = useCallback(async () => {
+    if (!state.ventaId || retryingSunat) {
+      return { ok: false, message: "No hay una venta seleccionada" }
+    }
+
+    setRetryingSunat(true)
+    try {
+      const response = await authFetch(`/api/venta/${state.ventaId}/sunat/reintentar`, {
+        method: "POST",
+      })
+      const payload = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        const message = getResponseMessage(
+          payload,
+          `Error ${response.status} al reenviar a SUNAT`
+        )
+        return { ok: false, message }
+      }
+
+      const sunatPayload = parseVentaSunatRetryResponse(payload)
+      if (!sunatPayload) {
+        return {
+          ok: false,
+          message: "La respuesta de reintento SUNAT no tiene el formato esperado",
+        }
+      }
+
+      setState((previous) => ({
+        ...previous,
+        detalle: mergeSunatRetryIntoDetalle(previous.detalle, sunatPayload),
+        error: null,
+      }))
+
+      return {
+        ok: true,
+        message:
+          sunatPayload.sunatMensaje ??
+          (sunatPayload.sunatEstado
+            ? `Estado SUNAT actualizado a ${sunatPayload.sunatEstado}`
+            : "Envio a SUNAT reintentado correctamente"),
+      }
+    } catch (requestError) {
+      return {
+        ok: false,
+        message:
+          requestError instanceof Error
+            ? requestError.message
+            : "No se pudo reenviar la venta a SUNAT",
+      }
+    } finally {
+      setRetryingSunat(false)
+    }
+  }, [retryingSunat, state.ventaId])
+
   const closeVentaDetalle = useCallback(() => {
     abortRef.current?.abort()
     setState((previous) => ({
@@ -210,8 +344,10 @@ export function useVentaDetalle() {
 
   return {
     ...state,
+    retryingSunat,
     openVentaDetalle,
     retryVentaDetalle,
+    retrySunatVenta,
     closeVentaDetalle,
   }
 }

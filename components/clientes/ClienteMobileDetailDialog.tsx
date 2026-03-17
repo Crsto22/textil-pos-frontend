@@ -11,7 +11,6 @@ import {
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import type { Cliente } from "@/lib/types/cliente"
 import {
-    estadoBadge,
     formatFechaHora,
     getAvatarColor,
     getInitials,
@@ -64,12 +63,6 @@ function ClienteMobileDetailDialogComponent({
                             tipoDocumentoBadge[selectedCliente.tipoDocumento] ?? {
                                 label: selectedCliente.tipoDocumento,
                                 cls: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300",
-                            }
-                        const estado =
-                            estadoBadge[selectedCliente.estado] ?? {
-                                label: selectedCliente.estado,
-                                dot: "bg-gray-400",
-                                cls: "text-gray-600",
                             }
 
                         return (

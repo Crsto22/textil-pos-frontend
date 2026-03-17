@@ -10,8 +10,11 @@ import {
   SEARCH_DEBOUNCE_MS,
   useDebouncedValue,
 } from "@/lib/hooks/useDebouncedValue"
+import {
+  normalizeSucursalPageResponse,
+  sanitizeSucursalPayload,
+} from "@/lib/sucursal"
 import type {
-  PageResponse,
   Sucursal,
   SucursalCreateRequest,
   SucursalUpdateRequest,
@@ -95,12 +98,9 @@ export function useSucursales() {
         return
       }
 
-      const pageData = data as PageResponse<Sucursal> | null
-      const content = Array.isArray(pageData?.content) ? pageData.content : []
-      const nextTotalPages =
-        typeof pageData?.totalPages === "number" ? pageData.totalPages : 0
-      const nextTotalElements =
-        typeof pageData?.totalElements === "number" ? pageData.totalElements : 0
+      const pageData = normalizeSucursalPageResponse(data)
+      const { content, totalPages: nextTotalPages, totalElements: nextTotalElements } =
+        pageData
 
       setSucursales(content)
       setTotalPages(nextTotalPages)
@@ -152,12 +152,9 @@ export function useSucursales() {
         return
       }
 
-      const pageData = data as PageResponse<Sucursal> | null
-      const content = Array.isArray(pageData?.content) ? pageData.content : []
-      const nextTotalPages =
-        typeof pageData?.totalPages === "number" ? pageData.totalPages : 0
-      const nextTotalElements =
-        typeof pageData?.totalElements === "number" ? pageData.totalElements : 0
+      const pageData = normalizeSucursalPageResponse(data)
+      const { content, totalPages: nextTotalPages, totalElements: nextTotalElements } =
+        pageData
 
       setSearchResults(content)
       setSearchTotals({
@@ -215,10 +212,11 @@ export function useSucursales() {
   const createSucursal = useCallback(
     async (payload: SucursalCreateRequest) => {
       try {
+        const sanitizedPayload = sanitizeSucursalPayload(payload)
         const response = await authFetch("/api/sucursal/insertar", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(sanitizedPayload),
         })
 
         const data = await parseJsonSafe(response)
@@ -247,10 +245,11 @@ export function useSucursales() {
   const updateSucursal = useCallback(
     async (id: number, payload: SucursalUpdateRequest) => {
       try {
+        const sanitizedPayload = sanitizeSucursalPayload(payload)
         const response = await authFetch(`/api/sucursal/actualizar/${id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(sanitizedPayload),
         })
 
         const data = await parseJsonSafe(response)

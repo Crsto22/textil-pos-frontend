@@ -57,8 +57,8 @@ export async function GET(
     const fileBuffer = await backendRes.arrayBuffer()
     const contentType = backendRes.headers.get("content-type") ?? PDF_CONTENT_TYPE
     const contentDisposition =
-      backendRes.headers.get("content-disposition") ??
-      `attachment; filename=\"comprobante_venta_${encodeURIComponent(id)}.pdf\"`
+      backendRes.headers.get("content-disposition")?.replace(/^attachment/i, "inline") ??
+      `inline; filename=\"comprobante_venta_${encodeURIComponent(id)}.pdf\"`
 
     return new NextResponse(fileBuffer, {
       status: 200,

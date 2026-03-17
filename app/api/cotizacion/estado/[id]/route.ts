@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 
+import {
+  getProxyHeaders,
+  normalizeCotizacionEstadoEditable,
+  parseBackendBody,
+} from "../../_helpers"
+
 const BACKEND_URL = process.env.BACKEND_URL
 
 export async function PATCH(
@@ -12,25 +18,27 @@ export async function PATCH(
     }
 
     const { id } = await params
-    const authHeader = request.headers.get("authorization")
-    const headers: HeadersInit = { "Content-Type": "application/json" }
-    if (authHeader) {
-      headers["Authorization"] = authHeader
-    }
-
-    let body: string
-    try {
-      body = JSON.stringify(await request.json())
-    } catch {
-      return NextResponse.json({ message: "Body invalido o vacio" }, { status: 400 })
+    const requestPayload = await request.json().catch(() => null)
+    const payload =
+      requestPayload && typeof requestPayload === "object"
+        ? (requestPayload as Record<string, unknown>)
+        : null
+    const rawEstado =
+      payload && "estado" in payload ? payload.estado : null
+    const estado = normalizeCotizacionEstadoEditable(rawEstado)
+    if (!estado) {
+      return NextResponse.json(
+        { message: "Estado permitido para cotizacion: ACTIVA" },
+        { status: 400 }
+      )
     }
 
     let backendRes: Response
     try {
       backendRes = await fetch(`${BACKEND_URL}/api/cotizacion/estado/${encodeURIComponent(id)}`, {
         method: "PATCH",
-        headers,
-        body,
+        headers: getProxyHeaders(request, { includeJsonContentType: true }),
+        body: JSON.stringify({ estado }),
       })
     } catch {
       return NextResponse.json(
@@ -39,21 +47,12 @@ export async function PATCH(
       )
     }
 
-    const text = await backendRes.text()
-    let data: Record<string, unknown> = {}
-    try {
-      data = JSON.parse(text)
-    } catch {
-      data = { message: text || "Error desconocido" }
-    }
+    const { data, message } = await parseBackendBody(
+      backendRes,
+      "Error al actualizar el estado de la cotizacion"
+    )
 
     if (!backendRes.ok) {
-      const message =
-        typeof data.message === "string"
-          ? data.message
-          : typeof data.error === "string"
-            ? data.error
-            : "Error al actualizar el estado de la cotizacion"
       return NextResponse.json({ message }, { status: backendRes.status })
     }
 

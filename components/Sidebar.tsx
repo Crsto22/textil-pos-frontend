@@ -1,10 +1,15 @@
 "use client"
 
 import { useEffect, useState, type ComponentType } from "react"
+import Image from "next/image"
 import { usePathname, useRouter } from "next/navigation"
 import { useCompany } from "@/lib/company/company-context"
+import { getEmpresaDisplayName } from "@/lib/empresa"
+import { useAuth } from "@/lib/auth/auth-context"
+import { hasAccess } from "@/lib/auth/permissions"
 
 import {
+    BanknotesIcon,
     Squares2X2Icon,
     ChevronLeftIcon,
     CreditCardIcon,
@@ -27,6 +32,7 @@ import {
     MagnifyingGlassIcon,
 } from "@heroicons/react/24/outline"
 import {
+    BanknotesIcon as BanknotesIconSolid,
     Squares2X2Icon as Squares2X2IconSolid,
     CreditCardIcon as CreditCardIconSolid,
     CubeIcon as CubeIconSolid,
@@ -77,6 +83,7 @@ const navSections: SidebarSection[] = [
             { label: "Cotizacion", href: "/ventas/cotizacion", icon: DocumentTextIcon, iconActive: DocumentTextIconSolid },
             { label: "Historial cotizacion", href: "/ventas/cotizacion/historial", icon: ClipboardDocumentListIcon, iconActive: ClipboardDocumentListIconSolid },
             { label: "Historial ventas", href: "/ventas/historial", icon: ClipboardDocumentListIcon, iconActive: ClipboardDocumentListIconSolid },
+            { label: "Pagos", href: "/ventas/pagos", icon: BanknotesIcon, iconActive: BanknotesIconSolid },
             { label: "Clientes", href: "/clientes", icon: UsersIcon, iconActive: UsersIconSolid },
         ],
     },
@@ -143,7 +150,9 @@ const getStoredExpandedSections = () => {
 export function Sidebar({ isOpen, collapsed, onClose, onToggleCollapse }: SidebarProps) {
     const pathname = usePathname()
     const router = useRouter()
+    const { user } = useAuth()
     const { company, isLoadingCompany } = useCompany()
+    const companyDisplayName = getEmpresaDisplayName(company)
     const [searchTerm, setSearchTerm] = useState("")
     const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(getStoredExpandedSections)
 
@@ -169,7 +178,7 @@ export function Sidebar({ isOpen, collapsed, onClose, onToggleCollapse }: Sideba
     const filteredSections = navSections
         .map((section) => ({
             ...section,
-            items: section.items.filter((item) => matchQuery(item)),
+            items: section.items.filter((item) => matchQuery(item) && hasAccess(user?.rol, item.href)),
         }))
         .filter((section) => section.items.length > 0)
 
@@ -252,10 +261,13 @@ export function Sidebar({ isOpen, collapsed, onClose, onToggleCollapse }: Sideba
                     <div className={`flex items-center ${collapsed ? "justify-center" : "min-w-0 gap-3"}`}>
                         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white shadow-lg">
                             {company?.logoUrl ? (
-                                <img
+                                <Image
                                     src={company.logoUrl}
                                     alt={`Logo ${company.nombre}`}
+                                    width={32}
+                                    height={32}
                                     className="h-8 w-8 rounded-xl object-contain"
+                                    unoptimized
                                 />
                             ) : (
                                 <HomeModernIcon className="h-5 w-5" />
@@ -264,7 +276,7 @@ export function Sidebar({ isOpen, collapsed, onClose, onToggleCollapse }: Sideba
                         {!collapsed && (
                             <div className="min-w-0">
                                 <p className="truncate text-sm font-semibold tracking-tight text-white">
-                                    {isLoadingCompany ? "Cargando empresa..." : company?.nombre ?? "POS Textil"}
+                                    {isLoadingCompany ? "Cargando empresa..." : companyDisplayName}
                                 </p>
                             </div>
                         )}

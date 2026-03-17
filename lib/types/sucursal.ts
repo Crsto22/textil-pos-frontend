@@ -1,38 +1,33 @@
 // Tipos para el modulo de Sucursales
 
-export interface Sucursal {
-  idSucursal: number
+export interface SucursalBase {
   nombre: string
   descripcion: string
   direccion: string
   telefono: string
   correo: string
+  ubigeo: string
+  departamento: string
+  provincia: string
+  distrito: string
+  codigoEstablecimientoSunat: string
+  idEmpresa: number
+}
+
+export interface Sucursal extends SucursalBase {
+  idSucursal: number
   estado: "ACTIVO" | "INACTIVO" | string
   fechaCreacion: string
-  idEmpresa: number
   nombreEmpresa: string
   usuarios: string[]
   usuariosTotal: number
   usuariosFaltantes: number
 }
 
-export interface SucursalCreateRequest {
-  nombre: string
-  descripcion: string
-  direccion: string
-  telefono: string
-  correo: string
-  idEmpresa: number
-}
+export type SucursalCreateRequest = SucursalBase
 
-export interface SucursalUpdateRequest {
-  nombre: string
-  descripcion: string
-  direccion: string
-  telefono: string
-  correo: string
+export interface SucursalUpdateRequest extends SucursalBase {
   estado: "ACTIVO" | "INACTIVO" | string
-  idEmpresa: number
 }
 
 export const emptyCreate: SucursalCreateRequest = {
@@ -41,6 +36,11 @@ export const emptyCreate: SucursalCreateRequest = {
   direccion: "",
   telefono: "",
   correo: "",
+  ubigeo: "",
+  departamento: "",
+  provincia: "",
+  distrito: "",
+  codigoEstablecimientoSunat: "",
   idEmpresa: 1,
 }
 
@@ -50,6 +50,11 @@ export const emptyUpdate: SucursalUpdateRequest = {
   direccion: "",
   telefono: "",
   correo: "",
+  ubigeo: "",
+  departamento: "",
+  provincia: "",
+  distrito: "",
+  codigoEstablecimientoSunat: "",
   estado: "ACTIVO",
   idEmpresa: 1,
 }

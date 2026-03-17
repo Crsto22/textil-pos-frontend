@@ -68,7 +68,6 @@ function parseCotizacionDetalle(value: unknown): CotizacionResponse | null {
   return {
     idCotizacion,
     fecha: stringOr(payload.fecha),
-    fechaVencimiento: stringOr(payload.fechaVencimiento),
     serie: stringOr(payload.serie, "COT"),
     correlativo: numberOr(payload.correlativo),
     igvPorcentaje: numberOr(payload.igvPorcentaje),
@@ -80,7 +79,7 @@ function parseCotizacionDetalle(value: unknown): CotizacionResponse | null {
         : null,
     igv: numberOr(payload.igv),
     total: numberOr(payload.total),
-    estado: stringOr(payload.estado, "BORRADOR") as EstadoCotizacion,
+    estado: stringOr(payload.estado, "ACTIVA") as EstadoCotizacion,
     observacion: typeof payload.observacion === "string" ? payload.observacion : null,
     idCliente: nullableNumber(payload.idCliente),
     nombreCliente: stringOr(payload.nombreCliente, "Sin cliente"),
