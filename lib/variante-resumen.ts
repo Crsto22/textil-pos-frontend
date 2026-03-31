@@ -201,6 +201,7 @@ export function parseVarianteResumenItem(value: unknown): VarianteResumenItem | 
   return {
     idProductoVariante,
     sku: pickNullableString(payload, ["sku"]),
+    codigoBarras: pickNullableString(payload, ["codigoBarras"]),
     estado: pickString(payload, ["estado"], "ACTIVO"),
     stock: pickNullableNumber(payload, ["stock"]),
     precio: pickNullableNumber(payload, ["precio"]),
@@ -291,6 +292,7 @@ export function mapVarianteResumenToProductoResumen(
             tallaId,
             nombre: item.talla?.nombre ?? `Talla #${tallaId}`,
             sku: item.sku,
+            codigoBarras: item.codigoBarras,
             precio: item.precio,
             precioMayor: item.precioMayor,
             precioOferta: item.precioOferta,

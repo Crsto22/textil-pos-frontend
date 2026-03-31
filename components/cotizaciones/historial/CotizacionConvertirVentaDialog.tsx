@@ -34,6 +34,10 @@ interface CotizacionConvertirVentaDialogProps {
   onConverted: (payload: CotizacionConvertirVentaResponse) => void
 }
 
+function sanitizeNumericInput(value: string) {
+  return value.replace(/\D+/g, "")
+}
+
 export function CotizacionConvertirVentaDialog({
   open,
   target,
@@ -85,6 +89,7 @@ export function CotizacionConvertirVentaDialog({
     if (!selectedPayment || !methods) return null
     return methods.find((method) => method.nombre === selectedPayment) ?? null
   }, [methods, selectedPayment])
+  const hasValidOperationCode = /^\d+$/.test(operationCode.trim())
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (submitting) return
@@ -101,6 +106,20 @@ export function CotizacionConvertirVentaDialog({
       return
     }
 
+    if (!operationCode.trim()) {
+      const message = "Ingresa el codigo de operacion."
+      setRequestError(message)
+      toast.error(message)
+      return
+    }
+
+    if (!hasValidOperationCode) {
+      const message = "El codigo de operacion debe contener solo numeros."
+      setRequestError(message)
+      toast.error(message)
+      return
+    }
+
     setSubmitting(true)
     setRequestError(null)
 
@@ -109,7 +128,7 @@ export function CotizacionConvertirVentaDialog({
         {
           idMetodoPago: selectedMetodoPago.idMetodoPago,
           monto: Number(target.total.toFixed(2)),
-          codigoOperacion: operationCode.trim() || null,
+          codigoOperacion: operationCode.trim(),
         },
       ],
     }
@@ -153,7 +172,7 @@ export function CotizacionConvertirVentaDialog({
         action: {
           label: "Ver venta",
           onClick: () => {
-            router.push(`/ventas/historial?ventaId=${payloadResponse.idVenta}`)
+            router.push(`/ventas/historial/${payloadResponse.idVenta}`)
           },
         },
       })
@@ -255,9 +274,11 @@ export function CotizacionConvertirVentaDialog({
             <input
               id="convertir-venta-codigo-operacion"
               type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
               value={operationCode}
-              onChange={(event) => setOperationCode(event.target.value)}
-              placeholder="Opcional. Ej. YAPE-938271"
+              onChange={(event) => setOperationCode(sanitizeNumericInput(event.target.value))}
+              placeholder="Obligatorio. Solo numeros"
               className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15"
             />
           </div>
@@ -275,7 +296,11 @@ export function CotizacionConvertirVentaDialog({
               Cancelar
             </Button>
           </DialogClose>
-          <Button type="button" onClick={handleConvert} disabled={submitting || !selectedMetodoPago}>
+          <Button
+            type="button"
+            onClick={handleConvert}
+            disabled={submitting || !selectedMetodoPago || !hasValidOperationCode}
+          >
             {submitting ? (
               <>
                 <ArrowPathIcon className="h-4 w-4 animate-spin" />

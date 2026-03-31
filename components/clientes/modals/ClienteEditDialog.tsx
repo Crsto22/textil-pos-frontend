@@ -5,7 +5,6 @@ import {
 } from "@heroicons/react/24/outline"
 
 import { Button } from "@/components/ui/button"
-import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
 import {
     Dialog,
     DialogClose,
@@ -26,9 +25,7 @@ import {
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
-import { useAuth } from "@/lib/auth/auth-context"
 import { useDocumentoLookup } from "@/lib/hooks/useDocumentoLookup"
-import { useSucursalOptions } from "@/lib/hooks/useSucursalOptions"
 import {
     emptyClienteUpdate,
     getTipoDocumentoOption,
@@ -56,11 +53,6 @@ export function ClienteEditDialog({
     onOpenChange,
     onUpdate,
 }: ClienteEditDialogProps) {
-    const { user } = useAuth()
-
-    const userHasSucursal =
-        typeof user?.idSucursal === "number" && user.idSucursal > 0
-
     const [form, setForm] = useState<ClienteUpdateRequest>(emptyClienteUpdate)
     const [isUpdating, setIsUpdating] = useState(false)
 
@@ -71,41 +63,12 @@ export function ClienteEditDialog({
         lookupDocumento,
     } = useDocumentoLookup()
 
-    const {
-        sucursalOptions,
-        loadingSucursales,
-        errorSucursales,
-        searchSucursal,
-        setSearchSucursal,
-    } = useSucursalOptions(open && !userHasSucursal)
-
-    const hasValidSucursal =
-        typeof form.idSucursal === "number" && form.idSucursal > 0
-
     const tipoDocOption = getTipoDocumentoOption(form.tipoDocumento)
     const isSinDoc = form.tipoDocumento === "SIN_DOC"
+    const isRuc = form.tipoDocumento === "RUC"
     const nroDocMaxLength = tipoDocOption?.maxLength ?? 20
     const nroDocMinLength = tipoDocOption?.minLength ?? 0
     const isAlphanumeric = tipoDocOption?.alphanumeric === true
-
-    const comboboxOptions = useMemo<ComboboxOption[]>(
-        () =>
-            hasValidSucursal &&
-            !sucursalOptions.some(
-                (option) => option.value === String(form.idSucursal)
-            )
-                ? [
-                      {
-                          value: String(form.idSucursal),
-                          label:
-                              cliente?.nombreSucursal ||
-                              `Sucursal #${form.idSucursal}`,
-                      },
-                      ...sucursalOptions,
-                  ]
-                : sucursalOptions,
-        [cliente?.nombreSucursal, form.idSucursal, hasValidSucursal, sucursalOptions]
-    )
 
     useEffect(() => {
         if (!open || !cliente) return
@@ -119,17 +82,8 @@ export function ClienteEditDialog({
             correo: cliente.correo,
             direccion: cliente.direccion,
             estado: cliente.estado,
-            idSucursal: userHasSucursal ? user?.idSucursal ?? null : cliente.idSucursal,
         })
-        setSearchSucursal("")
-    }, [
-        clearDocumentLookupError,
-        cliente,
-        open,
-        setSearchSucursal,
-        user?.idSucursal,
-        userHasSucursal,
-    ])
+    }, [clearDocumentLookupError, cliente, open])
 
     const isNroDocValid = useMemo(() => {
         if (isSinDoc) return true
@@ -142,13 +96,15 @@ export function ClienteEditDialog({
         form.nroDocumento.trim().length > 0 &&
         isNroDocValid
 
+    const hasRequiredDireccion = !isRuc || form.direccion.trim() !== ""
+
     const isEditValid = useMemo(
         () =>
             form.nombres.trim() !== "" &&
             form.telefono.length === 9 &&
-            form.correo.trim() !== "" &&
+            hasRequiredDireccion &&
             isNroDocValid,
-        [form, isNroDocValid]
+        [form, hasRequiredDireccion, isNroDocValid]
     )
 
     const handleOpenChange = useCallback(
@@ -158,10 +114,9 @@ export function ClienteEditDialog({
 
             if (!nextOpen) {
                 setForm(emptyClienteUpdate)
-                setSearchSucursal("")
             }
         },
-        [clearDocumentLookupError, onOpenChange, setSearchSucursal]
+        [clearDocumentLookupError, onOpenChange]
     )
 
     const handleLookupDocument = useCallback(async () => {
@@ -196,7 +151,6 @@ export function ClienteEditDialog({
         const payload: ClienteUpdateRequest = {
             ...form,
             nroDocumento: isSinDoc ? "" : form.nroDocumento,
-            idSucursal: hasValidSucursal ? form.idSucursal : null,
         }
 
         setIsUpdating(true)
@@ -356,7 +310,7 @@ export function ClienteEditDialog({
                         </div>
 
                         <div className="grid gap-2">
-                            <Label htmlFor="ce-correo">Correo</Label>
+                            <Label htmlFor="ce-correo">Correo (Opcional)</Label>
                             <Input
                                 id="ce-correo"
                                 type="email"
@@ -372,9 +326,18 @@ export function ClienteEditDialog({
                     </div>
 
                     <div className="grid gap-2">
-                        <Label htmlFor="ce-direccion">Direccion</Label>
+                        <Label htmlFor="ce-direccion">
+                            {isRuc
+                                ? "Direccion (Obligatoria para RUC)"
+                                : "Direccion (Opcional)"}
+                        </Label>
                         <Textarea
                             id="ce-direccion"
+                            placeholder={
+                                isRuc
+                                    ? "Av. Principal 123, Lima"
+                                    : "Av. Principal 123, Lima (Opcional)"
+                            }
                             value={form.direccion}
                             rows={2}
                             onChange={(event) =>
@@ -385,70 +348,36 @@ export function ClienteEditDialog({
                             }
                             className="resize-none"
                         />
+                        {isRuc && form.direccion.trim() === "" && (
+                            <p className="text-xs text-red-500">
+                                La direccion es obligatoria cuando el tipo de documento es RUC.
+                            </p>
+                        )}
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="grid gap-2">
-                            <Label htmlFor="ce-estado">Estado</Label>
-                            <div className="flex h-9 items-center justify-between rounded-md border px-3">
-                                <span
-                                    className={`text-sm font-medium ${
-                                        form.estado === "ACTIVO"
-                                            ? "text-emerald-600"
-                                            : "text-slate-500"
-                                    }`}
-                                >
-                                    {form.estado === "ACTIVO" ? "Activo" : "Inactivo"}
-                                </span>
-                                <Switch
-                                    id="ce-estado"
-                                    checked={form.estado === "ACTIVO"}
-                                    onCheckedChange={(checked) =>
-                                        setForm((previous) => ({
-                                            ...previous,
-                                            estado: checked ? "ACTIVO" : "INACTIVO",
-                                        }))
-                                    }
-                                    aria-label="Cambiar estado del cliente"
-                                />
-                            </div>
-                        </div>
-
-                        <div className="grid gap-2">
-                            <Label htmlFor="ce-sucursal">Sucursal</Label>
-                            {userHasSucursal ? (
-                                <div className="flex h-9 items-center rounded-md border bg-muted/50 px-3">
-                                    <span className="truncate text-sm font-medium">
-                                        {user?.nombreSucursal ||
-                                            `Sucursal #${user?.idSucursal}`}
-                                    </span>
-                                </div>
-                            ) : (
-                                <>
-                                    <Combobox
-                                        id="ce-sucursal"
-                                        value={hasValidSucursal ? String(form.idSucursal) : ""}
-                                        options={comboboxOptions}
-                                        searchValue={searchSucursal}
-                                        onSearchValueChange={setSearchSucursal}
-                                        onValueChange={(value) =>
-                                            setForm((previous) => ({
-                                                ...previous,
-                                                idSucursal: Number(value),
-                                            }))
-                                        }
-                                        placeholder="Selecciona sucursal"
-                                        searchPlaceholder="Buscar sucursal..."
-                                        emptyMessage="No se encontraron sucursales"
-                                        loading={loadingSucursales}
-                                    />
-                                    {errorSucursales && (
-                                        <p className="text-xs text-red-500">
-                                            {errorSucursales}
-                                        </p>
-                                    )}
-                                </>
-                            )}
+                    <div className="grid gap-2">
+                        <Label htmlFor="ce-estado">Estado</Label>
+                        <div className="flex h-9 items-center justify-between rounded-md border px-3">
+                            <span
+                                className={`text-sm font-medium ${
+                                    form.estado === "ACTIVO"
+                                        ? "text-emerald-600"
+                                        : "text-slate-500"
+                                }`}
+                            >
+                                {form.estado === "ACTIVO" ? "Activo" : "Inactivo"}
+                            </span>
+                            <Switch
+                                id="ce-estado"
+                                checked={form.estado === "ACTIVO"}
+                                onCheckedChange={(checked) =>
+                                    setForm((previous) => ({
+                                        ...previous,
+                                        estado: checked ? "ACTIVO" : "INACTIVO",
+                                    }))
+                                }
+                                aria-label="Cambiar estado del cliente"
+                            />
                         </div>
                     </div>
                 </div>

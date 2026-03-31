@@ -2,6 +2,9 @@ export type TipoComprobante = "NOTA DE VENTA" | "BOLETA" | "FACTURA" | (string &
 export type MonedaCodigo = "PEN" | "USD" | (string & {})
 export type FormaPagoVenta = "CONTADO" | "CREDITO" | (string & {})
 export type TipoDescuentoVenta = "PORCENTAJE" | "MONTO" | null
+export type VentaAnularMotivoCodigo = "01" | (string & {})
+export type VentaNotaCreditoMotivoCodigo = "02" | "03" | "06" | "07" | (string & {})
+export type VentaTipoAnulacion = "NOTA_CREDITO" | "COMUNICACION_BAJA" | (string & {})
 export type SunatEstado =
   | "PENDIENTE"
   | "ACEPTADO"
@@ -157,6 +160,45 @@ export interface VentaSunatRetryResponse {
   sunatCdrNombre: string | null
 }
 
+export interface VentaAnularRequest {
+  codigoMotivo: VentaAnularMotivoCodigo
+  descripcionMotivo: string
+}
+
+export interface VentaAnularResponse {
+  idVenta: number
+  numeroVenta: string | null
+  tipoComprobanteVenta: TipoComprobante | null
+  estadoVenta: string | null
+  tipoAnulacion: VentaTipoAnulacion | null
+  motivoAnulacion: string | null
+  fechaAnulacion: string | null
+  stockDevuelto: boolean
+  idNotaCredito: number | null
+  numeroNotaCredito: string | null
+  tipoComprobanteNotaCredito: string | null
+  sunatEstadoNotaCredito: SunatEstado | null
+  sunatCodigoNotaCredito: string | null
+  sunatMensajeNotaCredito: string | null
+}
+
+export interface VentaAnularResult {
+  ok: boolean
+  message: string
+  response: VentaAnularResponse | null
+}
+
+export interface VentaNotaCreditoItemRequest {
+  idVentaDetalle: number
+  cantidad: number
+}
+
+export interface VentaNotaCreditoRequest {
+  codigoMotivo: VentaNotaCreditoMotivoCodigo
+  descripcionMotivo: string
+  items?: VentaNotaCreditoItemRequest[]
+}
+
 export interface VentaHistorialPageResponse {
   content: VentaHistorial[]
   page: number
@@ -175,6 +217,7 @@ export interface VentaHistorialFilters {
   comprobante: "TODOS" | TipoComprobante
   idUsuario: number | null
   idSucursal: number | null
+  idCliente: number | null
   periodo: VentaListadoPeriodoBase
   usarRangoFechas: boolean
   fecha: string

@@ -14,6 +14,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const page = searchParams.get("page") ?? "0"
+    const idSucursal = searchParams.get("idSucursal")
 
     const authHeader = request.headers.get("authorization")
     const headers: HeadersInit = {}
@@ -23,8 +24,13 @@ export async function GET(request: NextRequest) {
 
     let backendRes: Response
     try {
+      const backendParams = new URLSearchParams({ page })
+      if (idSucursal?.trim()) {
+        backendParams.set("idSucursal", idSucursal)
+      }
+
       backendRes = await fetch(
-        `${BACKEND_URL}/api/categoria/listar?page=${encodeURIComponent(page)}`,
+        `${BACKEND_URL}/api/categoria/listar?${backendParams.toString()}`,
         { headers }
       )
     } catch {

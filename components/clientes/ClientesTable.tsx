@@ -49,9 +49,6 @@ function ClientesTableComponent({
                             <th className="hidden px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground lg:table-cell">
                                 Teléfono
                             </th>
-                            <th className="hidden px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground xl:table-cell">
-                                Sucursal
-                            </th>
                             <th className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider text-muted-foreground">
                                 Estado
                             </th>
@@ -65,7 +62,7 @@ function ClientesTableComponent({
                             <ClientesTableSkeleton />
                         ) : clientes.length === 0 ? (
                             <tr>
-                                <td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">
+                                <td colSpan={6} className="px-4 py-12 text-center text-muted-foreground">
                                     No se encontraron clientes
                                 </td>
                             </tr>
@@ -124,9 +121,6 @@ function ClientesTableComponent({
                                         </td>
                                         <td className="hidden px-4 py-3 font-semibold text-muted-foreground lg:table-cell">
                                             {cliente.telefono}
-                                        </td>
-                                        <td className="hidden px-4 py-3 font-semibold text-muted-foreground xl:table-cell">
-                                            {cliente.nombreSucursal || "Sin sucursal"}
                                         </td>
                                         <td className="px-4 py-3 text-center">
                                             <span

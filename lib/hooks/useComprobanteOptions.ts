@@ -3,6 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import type { ComboboxOption } from "@/components/ui/combobox"
+import {
+  buildComprobanteDescription,
+  buildComprobanteLabel,
+  normalizeComprobantePageResponse,
+} from "@/lib/comprobante"
 import { authFetch } from "@/lib/auth/auth-fetch"
 import type { ComprobanteConfig } from "@/lib/types/comprobante"
 
@@ -17,66 +22,6 @@ function isAbortError(error: unknown) {
 
 async function parseJsonSafe(response: Response) {
   return response.json().catch(() => null)
-}
-
-function toComprobanteArray(data: unknown): unknown[] {
-  if (Array.isArray(data)) return data
-
-  const content =
-    typeof data === "object" && data !== null && "content" in data
-      ? (data as { content?: unknown }).content
-      : undefined
-
-  return Array.isArray(content) ? content : []
-}
-
-function normalizeComprobante(value: unknown): ComprobanteConfig | null {
-  const item =
-    typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null
-  if (!item) return null
-
-  const idComprobante = Number(item.idComprobante ?? item.id_comprobante ?? item.id)
-  const idSucursal = Number(item.idSucursal ?? item.id_sucursal)
-  const tipoComprobante =
-    typeof item.tipoComprobante === "string" ? item.tipoComprobante.trim() : ""
-  const serie = typeof item.serie === "string" ? item.serie.trim() : ""
-
-  if (!Number.isFinite(idComprobante) || idComprobante <= 0) return null
-  if (!Number.isFinite(idSucursal) || idSucursal <= 0) return null
-  if (!tipoComprobante) return null
-
-  return {
-    idComprobante,
-    idSucursal,
-    nombreSucursal:
-      typeof item.nombreSucursal === "string" ? item.nombreSucursal : "",
-    tipoComprobante,
-    serie,
-    ultimoCorrelativo: Number(item.ultimoCorrelativo) || 0,
-    siguienteCorrelativo: Number(item.siguienteCorrelativo) || 0,
-    activo: typeof item.activo === "string" ? item.activo : "ACTIVO",
-    createdAt: typeof item.createdAt === "string" ? item.createdAt : null,
-    updatedAt: typeof item.updatedAt === "string" ? item.updatedAt : null,
-    deletedAt: typeof item.deletedAt === "string" ? item.deletedAt : null,
-  }
-}
-
-function toComprobanteList(data: unknown): ComprobanteConfig[] {
-  return toComprobanteArray(data)
-    .map((item) => normalizeComprobante(item))
-    .filter((item): item is ComprobanteConfig => item !== null)
-}
-
-function buildComprobanteLabel(comprobante: ComprobanteConfig): string {
-  if (comprobante.serie) {
-    return `${comprobante.tipoComprobante} (${comprobante.serie})`
-  }
-  return comprobante.tipoComprobante
-}
-
-function buildComprobanteDescription(comprobante: ComprobanteConfig): string {
-  if (comprobante.serie) return `Serie ${comprobante.serie}`
-  return `Correlativo ${comprobante.siguienteCorrelativo}`
 }
 
 export function useComprobanteOptions({
@@ -100,13 +45,18 @@ export function useComprobanteOptions({
 
     try {
       const params = new URLSearchParams({
+        page: "0",
         activo: "ACTIVO",
         idSucursal: String(sucursalId),
+        habilitadoVenta: "true",
       })
 
-      const response = await authFetch(`/api/config/comprobantes?${params.toString()}`, {
-        signal: controller.signal,
-      })
+      const response = await authFetch(
+        `/api/config/comprobantes/listar?${params.toString()}`,
+        {
+          signal: controller.signal,
+        }
+      )
       const data = await parseJsonSafe(response)
       if (controller.signal.aborted) return
 
@@ -116,7 +66,7 @@ export function useComprobanteOptions({
         return
       }
 
-      setComprobantes(toComprobanteList(data))
+      setComprobantes(normalizeComprobantePageResponse(data).content)
     } catch (requestError) {
       if (isAbortError(requestError)) return
       const message =
@@ -155,7 +105,10 @@ export function useComprobanteOptions({
     () =>
       comprobantes.filter((item) => {
         if (!normalizedSearch) return true
+
+        const label = buildComprobanteLabel(item).toLowerCase()
         return (
+          label.includes(normalizedSearch) ||
           item.tipoComprobante.toLowerCase().includes(normalizedSearch) ||
           item.serie.toLowerCase().includes(normalizedSearch)
         )

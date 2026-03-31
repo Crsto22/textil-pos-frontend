@@ -18,10 +18,11 @@ export interface AuthUser {
   correo: string
   dni: string
   telefono: string
+  fotoPerfilUrl: string | null
   rol: string
   fechaCreacion: string
   idSucursal: number | null
-  nombreSucursal: string
+  nombreSucursal: string | null
 }
 
 /** Respuesta que el BFF devuelve al cliente (login y refresh) */
@@ -39,10 +40,11 @@ export interface BackendLoginResponse {
   correo: string
   dni: string
   telefono: string
+  fotoPerfilUrl: string | null
   rol: string
   fechaCreacion: string
   idSucursal: number | null
-  nombreSucursal: string
+  nombreSucursal: string | null
 }
 
 export interface AuthError {

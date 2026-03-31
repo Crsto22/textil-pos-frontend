@@ -73,6 +73,10 @@ function normalizePago(value: unknown): PagoListado | null {
       typeof item.nombreSucursal === "string" && item.nombreSucursal.trim().length > 0
         ? item.nombreSucursal
         : "Sin sucursal",
+    estadoVenta:
+      typeof item.estadoVenta === "string" && item.estadoVenta.trim().length > 0
+        ? item.estadoVenta
+        : "DESCONOCIDO",
   }
 }
 
@@ -102,6 +106,10 @@ function buildQueryParams(
     params.set("idSucursal", String(filters.idSucursal))
   }
 
+  if (filters.estadoVenta !== "TODOS") {
+    params.set("estadoVenta", filters.estadoVenta)
+  }
+
   const { desde, hasta } = resolvePagoDateRange(filters)
 
   if (desde) params.set("desde", desde)
@@ -118,6 +126,7 @@ export function usePagos(filters: PagoFilters) {
     fecha,
     fechaDesde,
     fechaHasta,
+    estadoVenta,
     idMetodoPago,
     idSucursal,
     idUsuario,
@@ -155,6 +164,7 @@ export function usePagos(filters: PagoFilters) {
     idMetodoPago,
     idSucursal,
     idUsuario,
+    estadoVenta,
   ])
 
   const fetchPagos = useCallback(
@@ -171,6 +181,7 @@ export function usePagos(filters: PagoFilters) {
         idUsuario,
         idMetodoPago,
         idSucursal,
+        estadoVenta,
         periodo,
         usarRangoFechas,
         fecha,
@@ -250,6 +261,7 @@ export function usePagos(filters: PagoFilters) {
       idMetodoPago,
       idSucursal,
       idUsuario,
+      estadoVenta,
     ]
   )
 

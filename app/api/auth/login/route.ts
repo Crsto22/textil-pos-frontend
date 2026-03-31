@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import type { BackendLoginResponse } from "@/lib/auth/types"
-import { forwardCookies, safeParseJson } from "../_helpers"
+import { forwardCookies, safeParseJson, setSessionUserCookie } from "../_helpers"
 
 const BACKEND_URL = process.env.BACKEND_URL
 
@@ -55,6 +55,7 @@ export async function POST(request: NextRequest) {
       correo: data.correo,
       dni: data.dni,
       telefono: data.telefono,
+      fotoPerfilUrl: data.fotoPerfilUrl,
       rol: data.rol,
       fechaCreacion: data.fechaCreacion,
       idSucursal: data.idSucursal,
@@ -70,13 +71,7 @@ export async function POST(request: NextRequest) {
     forwardCookies(backendRes, response)
 
     // Guardar datos de usuario en cookie propia del BFF (para restaurar en refresh)
-    response.cookies.set("session_user", JSON.stringify(user), {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 7,
-    })
+    setSessionUserCookie(response, user)
 
     return response
   } catch (error) {

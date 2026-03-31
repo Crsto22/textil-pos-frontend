@@ -41,11 +41,12 @@ export interface Usuario {
   dni: string
   telefono: string
   correo: string
+  fotoPerfilUrl: string | null
   rol: UsuarioRol
   estado: "ACTIVO" | "INACTIVO" | string
   fechaCreacion: string
   idSucursal: number | null
-  nombreSucursal: string
+  nombreSucursal: string | null
 }
 
 export interface UsuarioCreateRequest {

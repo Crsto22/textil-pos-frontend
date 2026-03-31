@@ -56,6 +56,14 @@ function hasValidSucursalId(idSucursal: number | null): idSucursal is number {
   return typeof idSucursal === "number" && idSucursal > 0
 }
 
+function isUsuarioResponse(data: unknown): data is Usuario {
+  return (
+    !!data &&
+    typeof data === "object" &&
+    typeof (data as { idUsuario?: unknown }).idUsuario === "number"
+  )
+}
+
 export function useUsuarios() {
   const { isLoading: isAuthLoading } = useAuth()
 
@@ -279,7 +287,7 @@ export function useUsuarios() {
         const message = "Debe seleccionar una sucursal para el rol seleccionado"
         setError(message)
         toast.error(message)
-        return false
+        return null
       }
 
       try {
@@ -342,18 +350,23 @@ export function useUsuarios() {
           const message = getErrorMessage(response.status, data?.message)
           setError(message)
           toast.error(message)
-          return false
+          return null
         }
 
-        toast.success(data?.message ?? "Usuario actualizado exitosamente")
+        const updatedUsuario = isUsuarioResponse(data) ? data : null
+        toast.success(
+          updatedUsuario
+            ? "Usuario actualizado exitosamente"
+            : data?.message ?? "Usuario actualizado exitosamente"
+        )
         await refreshCurrentView()
-        return true
+        return updatedUsuario
       } catch (requestError) {
         const message =
           requestError instanceof Error ? requestError.message : "Error inesperado"
         setError(message)
         toast.error(message)
-        return false
+        return null
       }
     },
     [refreshCurrentView]

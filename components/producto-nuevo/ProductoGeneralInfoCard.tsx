@@ -12,6 +12,7 @@ import type { ProductoCreateFormState } from "@/lib/types/producto-create"
 
 interface ProductoGeneralInfoCardProps {
   isAdmin: boolean
+  hasSucursal: boolean
   nombreSucursal?: string
   form: ProductoCreateFormState
   sucursalOptions: ComboboxOption[]
@@ -52,6 +53,7 @@ function hasValidId(value: number | null | undefined): value is number {
 
 export function ProductoGeneralInfoCard({
   isAdmin,
+  hasSucursal,
   nombreSucursal,
   form,
   sucursalOptions,
@@ -101,6 +103,7 @@ export function ProductoGeneralInfoCard({
           selectedTallas={selectedTallas}
           activeColorId={activePreviewColorId}
           previewImageUrl={activePreviewImageUrl}
+          hasSucursal={hasSucursal}
           onOpenImages={onOpenImages}
           onOpenColors={onOpenColors}
           onOpenTallas={onOpenTallas}
@@ -153,11 +156,12 @@ export function ProductoGeneralInfoCard({
               searchValue={searchCategoria}
               onSearchValueChange={onSearchCategoriaChange}
               onValueChange={onCategoriaChange}
-              placeholder="Selecciona categoria"
+              placeholder={isAdmin && !hasSucursal ? "Selecciona una sucursal primero" : "Selecciona categoria"}
               searchPlaceholder="Buscar categoria..."
               emptyMessage="No se encontraron categorias"
               loading={loadingCategorias}
               loadingMessage="Buscando categorias..."
+              disabled={isAdmin && !hasSucursal}
               onCreateAction={() => onOpenCategoriaCreate()}
               createActionLabel={categoriaCreateActionLabel}
               createActionDisabled={!canCreateCategoria}

@@ -18,8 +18,6 @@ export interface CotizacionDetalleRequest {
 export interface CotizacionCreateRequest {
   idSucursal: number
   idCliente: number
-  serie?: string | null
-  correlativo?: number | null
   igvPorcentaje?: number | null
   descuentoTotal?: number | null
   tipoDescuento?: TipoDescuentoCotizacion | null
@@ -70,6 +68,28 @@ export interface CotizacionResponse {
   idSucursal: number | null
   nombreSucursal: string
   detalles: CotizacionDetalleResponse[]
+}
+
+export interface CotizacionWriteResponse {
+  idCotizacion: number
+  fecha?: string
+  serie: string
+  correlativo: number
+  igvPorcentaje?: number
+  subtotal?: number
+  descuentoTotal?: number
+  tipoDescuento?: TipoDescuentoCotizacion | null
+  igv?: number
+  total?: number
+  estado?: EstadoCotizacion
+  observacion?: string | null
+  idCliente?: number | null
+  nombreCliente?: string
+  idUsuario?: number | null
+  nombreUsuario?: string
+  idSucursal?: number | null
+  nombreSucursal?: string
+  detalles?: CotizacionDetalleResponse[]
 }
 
 export interface CotizacionConvertirPagoRequest {

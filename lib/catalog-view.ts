@@ -29,6 +29,7 @@ export interface CatalogVariantItem {
   tallaId: number
   tallaName: string
   sku: string | null
+  codigoBarras: string | null
   stock: number | null
   estado: string
   imageUrl: string | null
@@ -222,6 +223,7 @@ export function buildCatalogVariantItems(
           tallaId: talla.tallaId,
           tallaName: normalizeLabel(talla.nombre, `Talla #${talla.tallaId}`),
           sku: normalizeLabel(talla.sku, "") || null,
+          codigoBarras: normalizeLabel(talla.codigoBarras, "") || null,
           stock: typeof talla.stock === "number" ? talla.stock : null,
           estado: normalizeLabel(talla.estado, "ACTIVO"),
           imageUrl: color.imagenPrincipal?.urlThumb || color.imagenPrincipal?.url || null,

@@ -12,7 +12,7 @@ function ClientesSearchComponent({ search, onSearchChange }: ClientesSearchProps
             <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
                 type="text"
-                placeholder="Buscar por nombre o documento..."
+                placeholder="Buscar por nombre, documento o teléfono..."
                 value={search}
                 onChange={(event) => onSearchChange(event.target.value)}
                 className="w-full rounded-lg border bg-background py-2.5 pl-10 pr-4 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 
 const BACKEND_URL = process.env.BACKEND_URL
-const ZIP_CONTENT_TYPE = "application/zip"
+const DEFAULT_CONTENT_TYPE = "application/xml"
 
 async function parseErrorResponse(response: Response) {
   const text = await response.text()
@@ -32,9 +32,15 @@ export async function GET(
       headers.Authorization = authHeader
     }
 
+    const formato = request.nextUrl.searchParams.get("formato")
+    const backendUrl = new URL(`${BACKEND_URL}/api/venta/${encodeURIComponent(id)}/sunat/cdr`)
+    if (formato) {
+      backendUrl.searchParams.set("formato", formato)
+    }
+
     let backendRes: Response
     try {
-      backendRes = await fetch(`${BACKEND_URL}/api/venta/${encodeURIComponent(id)}/sunat/cdr`, {
+      backendRes = await fetch(backendUrl.toString(), {
         method: "GET",
         headers,
         cache: "no-store",
@@ -52,10 +58,11 @@ export async function GET(
     }
 
     const fileBuffer = await backendRes.arrayBuffer()
-    const contentType = backendRes.headers.get("content-type") ?? ZIP_CONTENT_TYPE
+    const contentType = backendRes.headers.get("content-type") ?? DEFAULT_CONTENT_TYPE
+    const fallbackExt = formato === "zip" ? "zip" : "xml"
     const contentDisposition =
       backendRes.headers.get("content-disposition") ??
-      `attachment; filename="cdr_venta_${encodeURIComponent(id)}.zip"`
+      `attachment; filename="cdr_venta_${encodeURIComponent(id)}.${fallbackExt}"`
 
     return new NextResponse(fileBuffer, {
       status: 200,

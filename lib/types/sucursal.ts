@@ -14,12 +14,19 @@ export interface SucursalBase {
   idEmpresa: number
 }
 
+export interface SucursalUsuarioDetalle {
+  idUsuario: number
+  nombreCompleto: string
+  fotoPerfilUrl: string | null
+}
+
 export interface Sucursal extends SucursalBase {
   idSucursal: number
   estado: "ACTIVO" | "INACTIVO" | string
   fechaCreacion: string
   nombreEmpresa: string
   usuarios: string[]
+  usuariosDetalle: SucursalUsuarioDetalle[]
   usuariosTotal: number
   usuariosFaltantes: number
 }

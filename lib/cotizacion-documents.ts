@@ -1,4 +1,5 @@
 import { authFetch } from "@/lib/auth/auth-fetch"
+import { setDocumentPreviewLoadingState } from "@/lib/document-preview-loader"
 
 interface CotizacionDocumentConfig {
   endpoint: string
@@ -103,12 +104,7 @@ export async function openCotizacionDocument(config: CotizacionDocumentConfig) {
   const previewWindow =
     typeof window !== "undefined" ? window.open("", "_blank", popupFeatures) : null
 
-  if (previewWindow?.document) {
-    previewWindow.opener = null
-    previewWindow.document.title = "Cargando documento..."
-    previewWindow.document.body.innerHTML =
-      '<div style="font-family: sans-serif; padding: 24px; color: #475569;">Cargando documento...</div>'
-  }
+  setDocumentPreviewLoadingState(previewWindow, "Cargando documento...")
 
   const result = await fetchCotizacionDocument(config)
 

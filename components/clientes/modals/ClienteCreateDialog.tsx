@@ -5,7 +5,6 @@ import {
 } from "@heroicons/react/24/outline"
 
 import { Button } from "@/components/ui/button"
-import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
 import {
     Dialog,
     DialogClose,
@@ -25,9 +24,7 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { useAuth } from "@/lib/auth/auth-context"
 import { useDocumentoLookup } from "@/lib/hooks/useDocumentoLookup"
-import { useSucursalOptions } from "@/lib/hooks/useSucursalOptions"
 import {
     emptyClienteCreate,
     getTipoDocumentoOption,
@@ -52,15 +49,7 @@ interface ClienteCreateDialogProps {
     onCreated?: (cliente: Cliente) => void
 }
 
-function buildInitialForm({
-    prefill,
-    userHasSucursal,
-    userSucursalId,
-}: {
-    prefill?: ClienteCreatePrefill | null
-    userHasSucursal: boolean
-    userSucursalId: number | null
-}): ClienteCreateRequest {
+function buildInitialForm(prefill?: ClienteCreatePrefill | null): ClienteCreateRequest {
     return {
         ...emptyClienteCreate,
         tipoDocumento: prefill?.tipoDocumento ?? emptyClienteCreate.tipoDocumento,
@@ -69,9 +58,6 @@ function buildInitialForm({
         telefono: prefill?.telefono ?? "",
         correo: prefill?.correo ?? "",
         direccion: prefill?.direccion ?? "",
-        idSucursal: userHasSucursal
-            ? userSucursalId
-            : prefill?.idSucursal ?? null,
     }
 }
 
@@ -109,20 +95,9 @@ export function ClienteCreateDialog({
     prefill,
     onCreated,
 }: ClienteCreateDialogProps) {
-    const { user } = useAuth()
-
-    const userHasSucursal =
-        typeof user?.idSucursal === "number" && user.idSucursal > 0
-    const userSucursalId = userHasSucursal ? user?.idSucursal ?? null : null
-
     const initialForm = useMemo(
-        () =>
-            buildInitialForm({
-                prefill,
-                userHasSucursal,
-                userSucursalId,
-            }),
-        [prefill, userHasSucursal, userSucursalId]
+        () => buildInitialForm(prefill),
+        [prefill]
     )
 
     const [form, setForm] = useState<ClienteCreateRequest>(initialForm)
@@ -136,39 +111,12 @@ export function ClienteCreateDialog({
         lookupDocumento,
     } = useDocumentoLookup()
 
-    const {
-        sucursalOptions,
-        loadingSucursales,
-        errorSucursales,
-        searchSucursal,
-        setSearchSucursal,
-    } = useSucursalOptions(open && !userHasSucursal)
-
-    const hasValidSucursal =
-        typeof form.idSucursal === "number" && form.idSucursal > 0
-
     const tipoDocOption = getTipoDocumentoOption(form.tipoDocumento)
     const isSinDoc = form.tipoDocumento === "SIN_DOC"
+    const isRuc = form.tipoDocumento === "RUC"
     const nroDocMaxLength = tipoDocOption?.maxLength ?? 20
     const nroDocMinLength = tipoDocOption?.minLength ?? 0
     const isAlphanumeric = tipoDocOption?.alphanumeric === true
-
-    const comboboxOptions = useMemo<ComboboxOption[]>(
-        () =>
-            hasValidSucursal &&
-            !sucursalOptions.some(
-                (option) => option.value === String(form.idSucursal)
-            )
-                ? [
-                      {
-                          value: String(form.idSucursal),
-                          label: `Sucursal #${form.idSucursal}`,
-                      },
-                      ...sucursalOptions,
-                  ]
-                : sucursalOptions,
-        [form.idSucursal, hasValidSucursal, sucursalOptions]
-    )
 
     const isNroDocValid = useMemo(() => {
         if (isSinDoc) return true
@@ -181,14 +129,15 @@ export function ClienteCreateDialog({
         form.nroDocumento.trim().length > 0 &&
         isNroDocValid
 
+    const hasRequiredDireccion = !isRuc || form.direccion.trim() !== ""
+
     const isCreateValid = useMemo(
         () =>
-            hasValidSucursal &&
             form.nombres.trim() !== "" &&
             form.telefono.length === 9 &&
-            form.correo.trim() !== "" &&
+            hasRequiredDireccion &&
             isNroDocValid,
-        [form, hasValidSucursal, isNroDocValid]
+        [form, hasRequiredDireccion, isNroDocValid]
     )
 
     const autoLookupKey = useMemo(() => resolveAutoLookupKey(prefill), [prefill])
@@ -201,13 +150,7 @@ export function ClienteCreateDialog({
 
         clearDocumentLookupError()
         setForm(initialForm)
-        setSearchSucursal("")
-    }, [
-        clearDocumentLookupError,
-        initialForm,
-        open,
-        setSearchSucursal,
-    ])
+    }, [clearDocumentLookupError, initialForm, open])
 
     useEffect(() => {
         if (!open || !autoLookupKey) return
@@ -242,23 +185,10 @@ export function ClienteCreateDialog({
 
             if (!nextOpen) {
                 autoLookupRef.current = ""
-                setForm(
-                    buildInitialForm({
-                        prefill: null,
-                        userHasSucursal,
-                        userSucursalId,
-                    })
-                )
-                setSearchSucursal("")
+                setForm(buildInitialForm(null))
             }
         },
-        [
-            clearDocumentLookupError,
-            onOpenChange,
-            setSearchSucursal,
-            userHasSucursal,
-            userSucursalId,
-        ]
+        [clearDocumentLookupError, onOpenChange]
     )
 
     const applyLookupResult = useCallback(
@@ -299,7 +229,6 @@ export function ClienteCreateDialog({
         const payload: ClienteCreateRequest = {
             ...form,
             nroDocumento: isSinDoc ? "" : form.nroDocumento,
-            idSucursal: hasValidSucursal ? form.idSucursal : null,
         }
 
         setIsSaving(true)
@@ -462,11 +391,11 @@ export function ClienteCreateDialog({
                         </div>
 
                         <div className="grid gap-2">
-                            <Label htmlFor="cc-correo">Correo</Label>
+                            <Label htmlFor="cc-correo">Correo (Opcional)</Label>
                             <Input
                                 id="cc-correo"
                                 type="email"
-                                placeholder="cliente@email.com"
+                                placeholder="cliente@email.com (Opcional)"
                                 value={form.correo}
                                 onChange={(event) =>
                                     setForm((previous) => ({
@@ -479,10 +408,18 @@ export function ClienteCreateDialog({
                     </div>
 
                     <div className="grid gap-2">
-                        <Label htmlFor="cc-direccion">Direccion</Label>
+                        <Label htmlFor="cc-direccion">
+                            {isRuc
+                                ? "Direccion (Obligatoria para RUC)"
+                                : "Direccion (Opcional)"}
+                        </Label>
                         <Textarea
                             id="cc-direccion"
-                            placeholder="Av. Principal 123, Lima"
+                            placeholder={
+                                isRuc
+                                    ? "Av. Principal 123, Lima"
+                                    : "Av. Principal 123, Lima (Opcional)"
+                            }
                             value={form.direccion}
                             rows={2}
                             onChange={(event) =>
@@ -493,44 +430,13 @@ export function ClienteCreateDialog({
                             }
                             className="resize-none"
                         />
-                    </div>
-
-                    <div className="grid gap-2">
-                        <Label htmlFor="cc-sucursal">Sucursal</Label>
-                        {userHasSucursal ? (
-                            <div className="flex h-9 items-center rounded-md border bg-muted/50 px-3">
-                                <span className="truncate text-sm font-medium">
-                                    {user?.nombreSucursal ||
-                                        `Sucursal #${user?.idSucursal}`}
-                                </span>
-                            </div>
-                        ) : (
-                            <>
-                                <Combobox
-                                    id="cc-sucursal"
-                                    value={hasValidSucursal ? String(form.idSucursal) : ""}
-                                    options={comboboxOptions}
-                                    searchValue={searchSucursal}
-                                    onSearchValueChange={setSearchSucursal}
-                                    onValueChange={(value) =>
-                                        setForm((previous) => ({
-                                            ...previous,
-                                            idSucursal: Number(value),
-                                        }))
-                                    }
-                                    placeholder="Selecciona sucursal"
-                                    searchPlaceholder="Buscar sucursal..."
-                                    emptyMessage="No se encontraron sucursales"
-                                    loading={loadingSucursales}
-                                />
-                                {errorSucursales && (
-                                    <p className="text-xs text-red-500">
-                                        {errorSucursales}
-                                    </p>
-                                )}
-                            </>
+                        {isRuc && form.direccion.trim() === "" && (
+                            <p className="text-xs text-red-500">
+                                La direccion es obligatoria cuando el tipo de documento es RUC.
+                            </p>
                         )}
                     </div>
+
                 </div>
 
                 <DialogFooter>

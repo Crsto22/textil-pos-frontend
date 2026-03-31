@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import type { AuthUser } from "@/lib/auth/types"
 
 /**
  * Parsea los headers Set-Cookie del backend y los re-setea usando
@@ -20,6 +21,19 @@ export function forwardCookies(
       nextRes.cookies.set(parsed.name, parsed.value, parsed.options)
     }
   }
+}
+
+export function setSessionUserCookie(
+  nextRes: NextResponse,
+  user: AuthUser
+): void {
+  nextRes.cookies.set("session_user", JSON.stringify(user), {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 7,
+  })
 }
 
 interface CookieOptions {

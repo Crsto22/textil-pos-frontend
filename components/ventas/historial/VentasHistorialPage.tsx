@@ -1,14 +1,13 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 
-import { VentaDetalleModal } from "@/components/ventas/historial/VentaDetalleModal"
 import { VentasHistorialFilters } from "@/components/ventas/historial/VentasHistorialFilters"
 import { VentasHistorialTable } from "@/components/ventas/historial/VentasHistorialTable"
 import { useVentaReporteExcel } from "@/lib/hooks/useVentaReporteExcel"
-import { useVentaDetalle } from "@/lib/hooks/useVentaDetalle"
+import { useVentaReportePdf } from "@/lib/hooks/useVentaReportePdf"
 import { useVentasHistorial } from "@/lib/hooks/useVentasHistorial"
 import {
   downloadVentaDocument,
@@ -31,6 +30,7 @@ const DEFAULT_FILTERS: VentaHistorialFilters = {
   comprobante: "TODOS",
   idUsuario: null,
   idSucursal: null,
+  idCliente: null,
   periodo: "HOY",
   usarRangoFechas: false,
   fecha: TODAY_DATE,
@@ -40,7 +40,6 @@ const DEFAULT_FILTERS: VentaHistorialFilters = {
 
 export function VentasHistorialPage() {
   const router = useRouter()
-  const pathname = usePathname()
   const searchParams = useSearchParams()
   const [filters, setFilters] = useState<VentaHistorialFilters>(DEFAULT_FILTERS)
   const [openingPdfVentaId, setOpeningPdfVentaId] = useState<number | null>(null)
@@ -57,29 +56,21 @@ export function VentasHistorialPage() {
     setDisplayedPage,
     refreshVentas,
   } = useVentasHistorial(filters)
-  const {
-    open: detailOpen,
-    detalle,
-    loading: detailLoading,
-    error: detailError,
-    openVentaDetalle,
-    retryVentaDetalle,
-    retrySunatVenta,
-    retryingSunat,
-    closeVentaDetalle,
-  } = useVentaDetalle()
   const { isExporting, exportReporteExcel } = useVentaReporteExcel()
+  const { isExporting: isExportingPdf, exportReportePdf } = useVentaReportePdf()
 
   useEffect(() => {
     const ventaIdParam = searchParams.get("ventaId")
     if (!ventaIdParam) return
 
     const ventaId = Number(ventaIdParam)
-    if (!Number.isFinite(ventaId) || ventaId <= 0) return
+    if (!Number.isFinite(ventaId) || ventaId <= 0) {
+      router.replace("/ventas/historial", { scroll: false })
+      return
+    }
 
-    void openVentaDetalle(ventaId)
-    router.replace(pathname, { scroll: false })
-  }, [openVentaDetalle, pathname, router, searchParams])
+    router.replace(`/ventas/historial/${ventaId}`, { scroll: false })
+  }, [router, searchParams])
 
   const estadoOptions = useMemo(() => {
     const values = new Set<string>()
@@ -119,6 +110,8 @@ export function VentasHistorialPage() {
         periodo: "RANGO",
         desde: filters.fechaDesde,
         hasta: filters.fechaHasta,
+        idSucursal: filters.idSucursal,
+        idCliente: filters.idCliente,
       })
       return
     }
@@ -132,11 +125,66 @@ export function VentasHistorialPage() {
       await exportReporteExcel({
         periodo: "RANGO",
         desde: filters.fecha,
+        hasta: filters.fecha,
+        idSucursal: filters.idSucursal,
+        idCliente: filters.idCliente,
       })
       return
     }
 
-    await exportReporteExcel({ periodo: filters.periodo })
+    await exportReporteExcel({
+      periodo: filters.periodo,
+      idSucursal: filters.idSucursal,
+      idCliente: filters.idCliente,
+    })
+  }
+
+  const handleDownloadReportPdf = async () => {
+    if (filters.usarRangoFechas) {
+      if (!filters.fechaDesde || !filters.fechaHasta) {
+        toast.error("Selecciona fecha desde y hasta")
+        return
+      }
+      if (filters.fechaDesde > filters.fechaHasta) {
+        toast.error("La fecha desde no puede ser mayor a la fecha hasta")
+        return
+      }
+
+      await exportReportePdf({
+        periodo: "RANGO",
+        desde: filters.fechaDesde,
+        hasta: filters.fechaHasta,
+        idUsuario: filters.idUsuario,
+        idSucursal: filters.idSucursal,
+        idCliente: filters.idCliente,
+        incluirAnuladas: filters.estado !== "TODOS" ? undefined : undefined,
+      })
+      return
+    }
+
+    if (filters.periodo === "FECHA") {
+      if (!filters.fecha) {
+        toast.error("Selecciona una fecha")
+        return
+      }
+
+      await exportReportePdf({
+        periodo: "RANGO",
+        desde: filters.fecha,
+        hasta: filters.fecha,
+        idUsuario: filters.idUsuario,
+        idSucursal: filters.idSucursal,
+        idCliente: filters.idCliente,
+      })
+      return
+    }
+
+    await exportReportePdf({
+      periodo: filters.periodo,
+      idUsuario: filters.idUsuario,
+      idSucursal: filters.idSucursal,
+      idCliente: filters.idCliente,
+    })
   }
 
   const handleOpenPdf = async (ventaId: number) => {
@@ -193,9 +241,13 @@ export function VentasHistorialPage() {
         pageElements={numberOfElements}
         totalElements={totalElements}
         reportLoading={isExporting}
+        reportPdfLoading={isExportingPdf}
         onChange={handleFiltersChange}
         onDownloadReport={() => {
           void handleDownloadReport()
+        }}
+        onDownloadReportPdf={() => {
+          void handleDownloadReportPdf()
         }}
         onClear={handleClearFilters}
       />
@@ -212,7 +264,7 @@ export function VentasHistorialPage() {
         }}
         onPageChange={setDisplayedPage}
         onViewDetail={(venta) => {
-          void openVentaDetalle(venta.idVenta)
+          router.push(`/ventas/historial/${venta.idVenta}`)
         }}
         onOpenPdf={(venta) => {
           void handleOpenPdf(venta.idVenta)
@@ -226,29 +278,6 @@ export function VentasHistorialPage() {
         openingPdfVentaId={openingPdfVentaId}
         downloadingPdfVentaId={downloadingPdfVentaId}
         openingTicketVentaId={openingTicketVentaId}
-      />
-
-      <VentaDetalleModal
-        open={detailOpen}
-        detalle={detalle}
-        loading={detailLoading}
-        error={detailError}
-        onRetry={() => {
-          void retryVentaDetalle()
-        }}
-        onRetrySunat={async () => {
-          const result = await retrySunatVenta()
-          if (result.ok) {
-            await refreshVentas()
-          }
-          return result
-        }}
-        retryingSunat={retryingSunat}
-        onOpenChange={(open) => {
-          if (!open) {
-            closeVentaDetalle()
-          }
-        }}
       />
     </div>
   )

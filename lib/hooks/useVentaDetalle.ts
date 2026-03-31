@@ -1,9 +1,12 @@
 "use client"
 
-import { useCallback, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 
 import { authFetch } from "@/lib/auth/auth-fetch"
 import type {
+  VentaAnularRequest,
+  VentaAnularResponse,
+  VentaAnularResult,
   VentaDetalleItem,
   VentaDetallePago,
   VentaDetalleResponse,
@@ -159,6 +162,28 @@ function parseVentaSunatRetryResponse(value: unknown): VentaSunatRetryResponse |
   }
 }
 
+function parseVentaAnularResponse(value: unknown): VentaAnularResponse | null {
+  const payload = unwrapResponsePayload(value)
+  if (!payload) return null
+
+  return {
+    idVenta: numberOr(payload.idVenta),
+    numeroVenta: stringOrNull(payload.numeroVenta),
+    tipoComprobanteVenta: stringOrNull(payload.tipoComprobanteVenta),
+    estadoVenta: stringOrNull(payload.estadoVenta),
+    tipoAnulacion: stringOrNull(payload.tipoAnulacion),
+    motivoAnulacion: stringOrNull(payload.motivoAnulacion),
+    fechaAnulacion: stringOrNull(payload.fechaAnulacion),
+    stockDevuelto: payload.stockDevuelto === true,
+    idNotaCredito: nullableNumber(payload.idNotaCredito),
+    numeroNotaCredito: stringOrNull(payload.numeroNotaCredito),
+    tipoComprobanteNotaCredito: stringOrNull(payload.tipoComprobanteNotaCredito),
+    sunatEstadoNotaCredito: stringOrNull(payload.sunatEstadoNotaCredito),
+    sunatCodigoNotaCredito: stringOrNull(payload.sunatCodigoNotaCredito),
+    sunatMensajeNotaCredito: stringOrNull(payload.sunatMensajeNotaCredito),
+  }
+}
+
 function mergeSunatRetryIntoDetalle(
   detalle: VentaDetalleResponse | null,
   payload: VentaSunatRetryResponse
@@ -190,6 +215,7 @@ function getResponseMessage(payload: unknown, fallback: string): string {
 export function useVentaDetalle() {
   const abortRef = useRef<AbortController | null>(null)
   const [retryingSunat, setRetryingSunat] = useState(false)
+  const [anulandoVenta, setAnulandoVenta] = useState(false)
   const [state, setState] = useState<VentaDetalleState>({
     open: false,
     ventaId: null,
@@ -333,6 +359,75 @@ export function useVentaDetalle() {
     }
   }, [retryingSunat, state.ventaId])
 
+  const submitVentaAction = useCallback(
+    async (
+      endpoint: "anular",
+      body: VentaAnularRequest,
+      fallbackErrorMessage: string,
+      fallbackSuccessMessage: string,
+      setSubmitting: (value: boolean) => void
+    ): Promise<VentaAnularResult> => {
+      if (!state.ventaId) {
+        return { ok: false, message: "No hay una venta seleccionada", response: null }
+      }
+
+      setSubmitting(true)
+      try {
+        const response = await authFetch(`/api/venta/${state.ventaId}/${endpoint}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(body),
+        })
+        const payload = await response.json().catch(() => null)
+
+        if (!response.ok) {
+          return {
+            ok: false,
+            message: getResponseMessage(payload, fallbackErrorMessage),
+            response: null,
+          }
+        }
+
+        await fetchDetalle(state.ventaId)
+
+        return {
+          ok: true,
+          message: getResponseMessage(payload, fallbackSuccessMessage),
+          response: parseVentaAnularResponse(payload),
+        }
+      } catch (requestError) {
+        return {
+          ok: false,
+          message:
+            requestError instanceof Error ? requestError.message : fallbackErrorMessage,
+          response: null,
+        }
+      } finally {
+        setSubmitting(false)
+      }
+    },
+    [fetchDetalle, state.ventaId]
+  )
+
+  const anularVenta = useCallback(
+    async (payload: VentaAnularRequest) => {
+      if (anulandoVenta) {
+        return { ok: false, message: "Ya hay una anulacion en proceso", response: null }
+      }
+
+      return submitVentaAction(
+        "anular",
+        payload,
+        "No se pudo anular la venta",
+        "Venta anulada correctamente",
+        setAnulandoVenta
+      )
+    },
+    [anulandoVenta, submitVentaAction]
+  )
+
   const closeVentaDetalle = useCallback(() => {
     abortRef.current?.abort()
     setState((previous) => ({
@@ -342,12 +437,20 @@ export function useVentaDetalle() {
     }))
   }, [])
 
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort()
+    }
+  }, [])
+
   return {
     ...state,
     retryingSunat,
+    anulandoVenta,
     openVentaDetalle,
     retryVentaDetalle,
     retrySunatVenta,
+    anularVenta,
     closeVentaDetalle,
   }
 }

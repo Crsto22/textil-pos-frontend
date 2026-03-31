@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 
 import {
   Dialog,
@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { useAuth } from "@/lib/auth/auth-context"
 import { useSucursalOptions } from "@/lib/hooks/useSucursalOptions"
+import { useSucursalGlobal } from "@/lib/sucursal-global-context"
 import type { CategoriaCreateRequest } from "@/lib/types/categoria"
 
 interface CategoriaCreateDialogProps {
@@ -45,12 +46,20 @@ export function CategoriaCreateDialog({
   const isAdmin = user?.rol === "ADMINISTRADOR"
   const userHasSucursal = hasValidSucursalId(user?.idSucursal)
 
+  const { sucursalGlobal } = useSucursalGlobal()
+  const sucursalGlobalRef = useRef(sucursalGlobal)
+  useLayoutEffect(() => {
+    sucursalGlobalRef.current = sucursalGlobal
+  })
+
   const buildInitialForm = useCallback(
     (): CategoriaCreateRequest => ({
       nombreCategoria: initialNombreCategoria,
       descripcion: initialDescripcion,
       idSucursal: isAdmin
-        ? (hasValidSucursalId(initialIdSucursal) ? initialIdSucursal : null)
+        ? (hasValidSucursalId(initialIdSucursal)
+            ? initialIdSucursal
+            : (sucursalGlobalRef.current?.idSucursal ?? null))
         : user?.idSucursal ?? null,
     }),
     [initialDescripcion, initialIdSucursal, initialNombreCategoria, isAdmin, user?.idSucursal]

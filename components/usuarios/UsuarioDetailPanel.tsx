@@ -11,12 +11,12 @@ import {
 } from "@heroicons/react/24/outline"
 
 import { Button } from "@/components/ui/button"
+import { UserAvatar } from "@/components/ui/user-avatar"
 import type { Usuario } from "@/lib/types/usuario"
 import {
   estadoBadge,
   formatFecha,
   getAvatarColor,
-  getInitials,
   getSucursalDisplay,
   rolBadge,
 } from "@/components/usuarios/usuarios.utils"
@@ -38,7 +38,6 @@ function UsuarioDetailPanelComponent({
         {selectedUser ? (
           (() => {
             const color = getAvatarColor(selectedUser.idUsuario)
-            const initials = getInitials(selectedUser.nombre, selectedUser.apellido)
             const rol =
               rolBadge[selectedUser.rol] ?? {
                 label: selectedUser.rol,
@@ -67,11 +66,14 @@ function UsuarioDetailPanelComponent({
                 </div>
 
                 <div className="flex flex-col items-center px-6 pb-6">
-                  <div
-                    className={`flex h-16 w-16 items-center justify-center rounded-full text-xl font-bold ${color.bg} ${color.text}`}
-                  >
-                    {initials}
-                  </div>
+                  <UserAvatar
+                    nombre={selectedUser.nombre}
+                    apellido={selectedUser.apellido}
+                    fotoPerfilUrl={selectedUser.fotoPerfilUrl}
+                    className="h-16 w-16"
+                    fallbackClassName={`${color.bg} ${color.text}`}
+                    textClassName="text-xl font-bold"
+                  />
                   <h3 className="mt-3 text-lg font-semibold">
                     {selectedUser.nombre} {selectedUser.apellido}
                   </h3>

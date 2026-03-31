@@ -1,4 +1,4 @@
-import { memo, useMemo } from "react"
+import { memo, useEffect, useLayoutEffect, useMemo, useRef } from "react"
 
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
 import {
@@ -9,6 +9,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useSucursalOptions } from "@/lib/hooks/useSucursalOptions"
+import { useSucursalGlobal } from "@/lib/sucursal-global-context"
 import {
   ALL_USUARIO_BRANCH_FILTER,
   ALL_USUARIO_ROLE_FILTER,
@@ -30,6 +31,18 @@ function UsuariosFiltersComponent({
   onRoleFilterChange,
   onBranchFilterChange,
 }: UsuariosFiltersProps) {
+  const { sucursalGlobal } = useSucursalGlobal()
+  const onBranchFilterChangeRef = useRef(onBranchFilterChange)
+  useLayoutEffect(() => {
+    onBranchFilterChangeRef.current = onBranchFilterChange
+  })
+
+  // Sincronizar con sucursal global cuando cambia
+  useEffect(() => {
+    if (sucursalGlobal === null) return
+    onBranchFilterChangeRef.current(String(sucursalGlobal.idSucursal))
+  }, [sucursalGlobal])
+
   const {
     sucursalOptions,
     loadingSucursales,

@@ -1,8 +1,9 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, startTransition, useState } from "react"
 import { useRouter } from "next/navigation"
-import { MagnifyingGlassIcon } from "@heroicons/react/24/outline"
+import { BuildingStorefrontIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline"
+import { toast } from "sonner"
 
 import { ProductosCards } from "@/components/productos/ProductosCards"
 import {
@@ -12,16 +13,25 @@ import {
 import { ProductosPagination } from "@/components/productos/ProductosPagination"
 import { ProductosTable } from "@/components/productos/ProductosTable"
 import { ProductosVariantesCards } from "@/components/productos/ProductosVariantesCards"
+import { BarcodeListDialog } from "@/components/productos/modals/BarcodeListDialog"
 import { ProductoDeleteDialog } from "@/components/productos/modals/ProductoDeleteDialog"
 import { ProductoVarianteDeleteDialog } from "@/components/productos/modals/ProductoVarianteDeleteDialog"
 import { ProductoVarianteEditDialog } from "@/components/productos/modals/ProductoVarianteEditDialog"
+import { VarianteBarcodeDialog } from "@/components/productos/modals/VarianteBarcodeDialog"
 import CatalogViewToggle from "@/components/ventas/CatalogViewToggle"
 import CategoryFilter from "@/components/ventas/CategoryFilter"
-import type { CatalogVariantItem, CatalogViewMode } from "@/lib/catalog-view"
+import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
+import type { CatalogVariantItem } from "@/lib/catalog-view"
+import { useAuth } from "@/lib/auth/auth-context"
 import { authFetch } from "@/lib/auth/auth-fetch"
 import { useCatalogoVariantes } from "@/lib/hooks/useCatalogoVariantes"
 import { useCatalogViewMode } from "@/lib/hooks/useCatalogViewMode"
 import { useProductos } from "@/lib/hooks/useProductos"
+import { useSucursalOptions } from "@/lib/hooks/useSucursalOptions"
+import { useSucursalGlobal } from "@/lib/sucursal-global-context"
+import { generateBarcode } from "@/lib/barcode-generator"
+import { useVarianteReporteExcel } from "@/lib/hooks/useVarianteReporteExcel"
+import { getSucursalAvatarColor, getSucursalInitials } from "@/lib/sucursal"
 import type { Categoria, PageResponse as CategoriaPageResponse } from "@/lib/types/categoria"
 import type { Color, PageResponse as ColorPageResponse } from "@/lib/types/color"
 import type { ProductoResumen } from "@/lib/types/producto"
@@ -83,11 +93,67 @@ function mapColorFilters(payload: unknown): ColorFilterOption[] {
     })
 }
 
+function hasValidSucursalId(idSucursal?: number | null): idSucursal is number {
+  return typeof idSucursal === "number" && idSucursal > 0
+}
+
 export default function ProductosPage() {
   const router = useRouter()
+  const { user } = useAuth()
+  const isAdmin = user?.rol === "ADMINISTRADOR"
+  const userHasSucursal = hasValidSucursalId(user?.idSucursal)
+
+  const [selectedSucursalId, setSelectedSucursalId] = useState<number | null>(null)
+  const defaultAdminSucursalId =
+    isAdmin && hasValidSucursalId(user?.idSucursal) ? user.idSucursal : null
+  const effectiveSelectedSucursalId = hasValidSucursalId(selectedSucursalId)
+    ? selectedSucursalId
+    : defaultAdminSucursalId
+  const hasSelectedSucursal = hasValidSucursalId(effectiveSelectedSucursalId)
+  const resolvedSucursalId = isAdmin
+    ? hasSelectedSucursal
+      ? effectiveSelectedSucursalId
+      : null
+    : userHasSucursal
+      ? user?.idSucursal ?? null
+      : null
+
+  const {
+    sucursalOptions,
+    loadingSucursales,
+    searchSucursal,
+    setSearchSucursal,
+  } = useSucursalOptions(isAdmin)
+
+  const { sucursalGlobal } = useSucursalGlobal()
+  useEffect(() => {
+    if (!isAdmin || sucursalGlobal === null) return
+    startTransition(() => setSelectedSucursalId(sucursalGlobal.idSucursal))
+  }, [sucursalGlobal, isAdmin])
+
+  const sucursalComboboxOptions = useMemo<ComboboxOption[]>(
+    () =>
+      hasSelectedSucursal &&
+      !sucursalOptions.some((o) => o.value === String(effectiveSelectedSucursalId))
+        ? [
+            {
+              value: String(effectiveSelectedSucursalId),
+              label: `Sucursal #${effectiveSelectedSucursalId}`,
+              avatarText: getSucursalInitials("Sucursal"),
+              avatarClassName: getSucursalAvatarColor(effectiveSelectedSucursalId),
+            },
+            ...sucursalOptions,
+          ]
+        : sucursalOptions,
+    [effectiveSelectedSucursalId, hasSelectedSucursal, sucursalOptions]
+  )
+
+  const { isExporting, exportReporteExcel } = useVarianteReporteExcel()
   const [deleteTarget, setDeleteTarget] = useState<ProductoResumen | null>(null)
   const [editVariantTarget, setEditVariantTarget] = useState<CatalogVariantItem | null>(null)
   const [deleteVariantTarget, setDeleteVariantTarget] = useState<CatalogVariantItem | null>(null)
+  const [barcodeTarget, setBarcodeTarget] = useState<CatalogVariantItem | null>(null)
+  const [showBarcodeList, setShowBarcodeList] = useState(false)
   const [viewMode, setViewMode] = useState<ProductosViewMode>("cards")
   const [catalogViewMode, setCatalogViewMode] = useCatalogViewMode()
   const [categoriasDisponibles, setCategoriasDisponibles] = useState<CategoryFilterOption[]>(
@@ -114,7 +180,7 @@ export default function ProductosPage() {
     displayedPage: displayedPageProductos,
     setDisplayedPage: setDisplayedPageProductos,
     deleteProducto,
-  } = useProductos(!isVariantView)
+  } = useProductos(!isVariantView && resolvedSucursalId !== null, resolvedSucursalId)
   const {
     search: searchVariantes,
     setSearch: setSearchVariantes,
@@ -130,12 +196,19 @@ export default function ProductosPage() {
     setDisplayedPage: setDisplayedPageVariantes,
     updateVariante,
     deleteVariante,
-  } = useCatalogoVariantes(isVariantView)
-
+  } = useCatalogoVariantes(isVariantView && resolvedSucursalId !== null, resolvedSucursalId)
   useEffect(() => {
     const fetchCategorias = async () => {
+      if (resolvedSucursalId === null) {
+        setCategoriasDisponibles([])
+        setCategoryTotalPages(1)
+        return
+      }
+
       try {
-        const response = await authFetch(`/api/categoria/listar?page=${categoryPage}`)
+        const params = new URLSearchParams({ page: String(categoryPage) })
+        if (resolvedSucursalId) params.set("idSucursal", String(resolvedSucursalId))
+        const response = await authFetch(`/api/categoria/listar?${params.toString()}`)
         const data = await parseJsonSafe(response)
 
         if (!response.ok) {
@@ -164,10 +237,16 @@ export default function ProductosPage() {
     }
 
     void fetchCategorias()
-  }, [categoryPage])
+  }, [categoryPage, resolvedSucursalId])
 
   useEffect(() => {
     const fetchColores = async () => {
+      if (resolvedSucursalId === null) {
+        setColoresDisponibles([])
+        setColorTotalPages(1)
+        return
+      }
+
       try {
         const response = await authFetch(`/api/color/listar?page=${colorPage}`)
         const data = await parseJsonSafe(response)
@@ -198,7 +277,7 @@ export default function ProductosPage() {
     }
 
     void fetchColores()
-  }, [colorPage])
+  }, [colorPage, resolvedSucursalId])
 
   const safeCategoryPage = Math.max(
     0,
@@ -261,6 +340,11 @@ export default function ProductosPage() {
     setDeleteVariantTarget(variant)
   }, [])
 
+  const handleShowBarcode = useCallback((variant: CatalogVariantItem) => {
+    if (!variant.codigoBarras) return
+    setBarcodeTarget(variant)
+  }, [])
+
   const handleVariantUpdateConfirmed = useCallback(
     async (idVariante: number, payload: VarianteUpdateRequest) => {
       const success = await updateVariante(idVariante, payload)
@@ -280,11 +364,20 @@ export default function ProductosPage() {
     [deleteVariante]
   )
 
+  const [isGeneratingBarcode] = useState(false)
+
+  const handleGenerateBarcodeForEdit = useCallback((): Promise<string | null> => {
+    const codigoBarras = generateBarcode()
+    toast.success("Código de barras generado")
+    return Promise.resolve(codigoBarras)
+  }, [])
+
   const search = isVariantView ? searchVariantes : searchProductos
   const idCategoriaFilter = isVariantView
     ? idCategoriaFilterVariantes
     : idCategoriaFilterProductos
   const idColorFilter = isVariantView ? idColorFilterVariantes : idColorFilterProductos
+  const shouldShowCatalogFilters = resolvedSucursalId !== null
   const displayedLoading = isVariantView ? displayedLoadingVariantes : displayedLoadingProductos
   const displayedTotalElements = isVariantView
     ? displayedTotalElementsVariantes
@@ -345,6 +438,34 @@ export default function ProductosPage() {
   return (
     <div className="space-y-5">
       <div className="flex flex-col gap-3">
+        {isAdmin && (
+          <div className="flex items-center gap-3">
+            <div className="w-72">
+              <Combobox
+                value={String(effectiveSelectedSucursalId ?? "")}
+                options={sucursalComboboxOptions}
+                onValueChange={(value) => {
+                  const parsed = parseInt(value, 10)
+                  setSelectedSucursalId(Number.isFinite(parsed) && parsed > 0 ? parsed : null)
+                  setCategoryPage(0)
+                  setColorPage(0)
+                  setIdCategoriaFilterProductos(null)
+                  setIdColorFilterProductos(null)
+                  setIdCategoriaFilterVariantes(null)
+                  setIdColorFilterVariantes(null)
+                }}
+                placeholder="Selecciona una sucursal..."
+                searchPlaceholder="Buscar sucursal..."
+                emptyMessage="Sin resultados"
+                loading={loadingSucursales}
+                loadingMessage="Cargando sucursales..."
+                searchValue={searchSucursal}
+                onSearchValueChange={setSearchSucursal}
+              />
+            </div>
+          </div>
+        )}
+
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <div className="relative flex-1">
             <MagnifyingGlassIcon className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -353,7 +474,8 @@ export default function ProductosPage() {
               placeholder="Buscar por nombre, SKU o categoria..."
               value={search}
               onChange={(event) => handleSearchChange(event.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-sm shadow-sm transition-all placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800"
+              disabled={resolvedSucursalId === null}
+              className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-sm shadow-sm transition-all placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800"
             />
           </div>
 
@@ -362,47 +484,73 @@ export default function ProductosPage() {
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-100 bg-white px-3.5 py-3 shadow-sm dark:border-slate-700/60 dark:bg-slate-800/60">
-          <CategoryFilter
-            categories={categoriasDisponibles}
-            colors={coloresDisponibles}
-            activeCategoryId={idCategoriaFilter}
-            onCategoryChange={handleCategoriaFilterChange}
-            categoryPage={safeCategoryPage}
-            categoryTotalPages={categoryTotalPages}
-            onCategoryNextPage={handleNextCategoryPage}
-            onCategoryPrevPage={handlePrevCategoryPage}
-            activeColorId={idColorFilter}
-            onColorChange={handleColorFilterChange}
-            colorPage={safeColorPage}
-            colorTotalPages={colorTotalPages}
-            onColorNextPage={handleNextColorPage}
-            onColorPrevPage={handlePrevColorPage}
-          />
-        </div>
+        {shouldShowCatalogFilters ? (
+          <>
+            <div className="rounded-xl border border-slate-100 bg-white px-3.5 py-3 shadow-sm dark:border-slate-700/60 dark:bg-slate-800/60">
+              <CategoryFilter
+                categories={categoriasDisponibles}
+                colors={coloresDisponibles}
+                activeCategoryId={idCategoriaFilter}
+                onCategoryChange={handleCategoriaFilterChange}
+                categoryPage={safeCategoryPage}
+                categoryTotalPages={categoryTotalPages}
+                onCategoryNextPage={handleNextCategoryPage}
+                onCategoryPrevPage={handlePrevCategoryPage}
+                activeColorId={idColorFilter}
+                onColorChange={handleColorFilterChange}
+                colorPage={safeColorPage}
+                colorTotalPages={colorTotalPages}
+                onColorNextPage={handleNextColorPage}
+                onColorPrevPage={handlePrevColorPage}
+              />
+            </div>
 
-        <p className="text-xs text-slate-500 dark:text-slate-400">
-          Mostrando{" "}
-          {isVariantView ? displayedCatalogVariants.length : displayedProductos.length}{" "}
-          {isVariantView ? "variante(s)" : "producto(s)"} en esta pagina.
-        </p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Mostrando{" "}
+              {isVariantView ? displayedCatalogVariants.length : displayedProductos.length}{" "}
+              {isVariantView ? "variante(s)" : "producto(s)"} en esta pagina.
+            </p>
+          </>
+        ) : null}
 
         <div className="w-full">
           <ProductosHeader
             viewMode={viewMode}
             onViewModeChange={setViewMode}
             showViewModeToggle={!isVariantView}
+            reportLoading={isExporting}
+            onDownloadExcel={() => {
+              void exportReporteExcel()
+            }}
+            onOpenBarcodeList={
+              resolvedSucursalId !== null
+                ? () => setShowBarcodeList(true)
+                : undefined
+            }
           />
         </div>
       </div>
 
       <section className="space-y-4">
-        {isVariantView ? (
+        {resolvedSucursalId === null ? (
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white py-20 text-center dark:border-slate-700 dark:bg-slate-800/40">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700">
+              <BuildingStorefrontIcon className="h-7 w-7 text-slate-400 dark:text-slate-500" />
+            </div>
+            <p className="mt-4 text-sm font-semibold text-slate-600 dark:text-slate-300">
+              Selecciona una sucursal
+            </p>
+            <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+              Elige una sucursal para ver y gestionar sus productos
+            </p>
+          </div>
+        ) : isVariantView ? (
           <ProductosVariantesCards
             variants={displayedCatalogVariants}
             loading={displayedLoading}
             onEditVariante={handleEditVariante}
             onDeleteVariante={handleDeleteVariante}
+            onShowBarcode={handleShowBarcode}
           />
         ) : viewMode === "cards" ? (
           <ProductosCards
@@ -420,13 +568,15 @@ export default function ProductosPage() {
           />
         )}
 
-        <ProductosPagination
-          totalElements={displayedTotalElements}
-          totalPages={displayedTotalPages}
-          page={displayedPage}
-          onPageChange={handleDisplayedPageChange}
-          itemLabel={isVariantView ? "variantes" : "productos"}
-        />
+        {resolvedSucursalId !== null && (
+          <ProductosPagination
+            totalElements={displayedTotalElements}
+            totalPages={displayedTotalPages}
+            page={displayedPage}
+            onPageChange={handleDisplayedPageChange}
+            itemLabel={isVariantView ? "variantes" : "productos"}
+          />
+        )}
       </section>
 
       <ProductoDeleteDialog
@@ -445,6 +595,8 @@ export default function ProductosPage() {
           if (!open) setEditVariantTarget(null)
         }}
         onUpdate={handleVariantUpdateConfirmed}
+        onGenerateBarcode={handleGenerateBarcodeForEdit}
+        isGeneratingBarcode={isGeneratingBarcode}
       />
 
       <ProductoVarianteDeleteDialog
@@ -454,6 +606,20 @@ export default function ProductosPage() {
           if (!open) setDeleteVariantTarget(null)
         }}
         onDelete={handleVariantDeleteConfirmed}
+      />
+
+      <VarianteBarcodeDialog
+        open={barcodeTarget !== null}
+        target={barcodeTarget}
+        onOpenChange={(open) => {
+          if (!open) setBarcodeTarget(null)
+        }}
+      />
+
+      <BarcodeListDialog
+        open={showBarcodeList}
+        onOpenChange={setShowBarcodeList}
+        idSucursal={resolvedSucursalId}
       />
     </div>
   )

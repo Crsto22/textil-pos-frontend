@@ -1,14 +1,23 @@
-import { useMemo } from "react"
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react"
 import { MagnifyingGlassIcon } from "@heroicons/react/24/outline"
 
 import { ALL_PAGO_METHOD_FILTER } from "@/components/pagos/pagos.utils"
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
 import { Input } from "@/components/ui/input"
 import { PAGO_PERIOD_OPTIONS } from "@/lib/pago-filters"
+import { useCanFilterBySucursal, useCanFilterByUsuario } from "@/lib/hooks/useCanFilterByUsuario"
 import { useMetodoPagoOptions } from "@/lib/hooks/useMetodoPagoOptions"
 import { useSucursalOptions } from "@/lib/hooks/useSucursalOptions"
 import { useUsuarioOptions } from "@/lib/hooks/useUsuarioOptions"
+import { useSucursalGlobal } from "@/lib/sucursal-global-context"
 import type { PagoFilters } from "@/lib/types/pago"
+
+const ESTADO_VENTA_OPTIONS = [
+  { value: "TODOS", label: "Estado venta: Todos" },
+  { value: "EMITIDA", label: "Emitida" },
+  { value: "ANULADA", label: "Anulada" },
+  { value: "NC_EMITIDA", label: "NC emitida" },
+] as const
 
 interface PagosFiltersProps {
   filters: PagoFilters
@@ -29,6 +38,22 @@ export function PagosFilters({
   onDownloadReport,
   onClear,
 }: PagosFiltersProps) {
+  const canFilterByUsuario = useCanFilterByUsuario()
+  const canFilterBySucursal = useCanFilterBySucursal()
+  const { sucursalGlobal } = useSucursalGlobal()
+  const filtersRef = useRef(filters)
+  const onChangeRef = useRef(onChange)
+  useLayoutEffect(() => {
+    filtersRef.current = filters
+    onChangeRef.current = onChange
+  })
+
+  // Sincronizar con sucursal global cuando cambia
+  useEffect(() => {
+    if (!canFilterBySucursal || sucursalGlobal === null) return
+    onChangeRef.current({ ...filtersRef.current, idSucursal: sucursalGlobal.idSucursal })
+  }, [sucursalGlobal, canFilterBySucursal])
+
   const { methodOptions, loadingMethods, errorMethods } = useMetodoPagoOptions(true)
   const {
     usuarioOptions,
@@ -36,19 +61,35 @@ export function PagosFilters({
     errorUsuarios,
     searchUsuario,
     setSearchUsuario,
-  } = useUsuarioOptions(true)
+  } = useUsuarioOptions(canFilterByUsuario)
   const {
     sucursalOptions,
     loadingSucursales,
     errorSucursales,
     searchSucursal,
     setSearchSucursal,
-  } = useSucursalOptions(true)
+  } = useSucursalOptions(canFilterBySucursal)
 
   const selectedMethodValue =
     filters.idMetodoPago === null ? ALL_PAGO_METHOD_FILTER : String(filters.idMetodoPago)
   const selectedUsuarioValue = filters.idUsuario === null ? "" : String(filters.idUsuario)
   const selectedSucursalValue = filters.idSucursal === null ? "" : String(filters.idSucursal)
+
+  useEffect(() => {
+    if (canFilterByUsuario || filters.idUsuario === null) return
+    onChange({
+      ...filters,
+      idUsuario: null,
+    })
+  }, [canFilterByUsuario, filters, onChange])
+
+  useEffect(() => {
+    if (canFilterBySucursal || filters.idSucursal === null) return
+    onChange({
+      ...filters,
+      idSucursal: null,
+    })
+  }, [canFilterBySucursal, filters, onChange])
 
   const methodSelectOptions = useMemo<ComboboxOption[]>(
     () =>
@@ -107,7 +148,36 @@ export function PagosFilters({
             />
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div
+            className={`grid grid-cols-1 gap-3 sm:grid-cols-2 ${
+              canFilterByUsuario
+                ? canFilterBySucursal
+                  ? "xl:grid-cols-5"
+                  : "xl:grid-cols-4"
+                : canFilterBySucursal
+                  ? "xl:grid-cols-4"
+                  : "xl:grid-cols-3"
+            }`}
+          >
+            <div className="space-y-1">
+              <select
+                value={filters.estadoVenta}
+                onChange={(event) =>
+                  onChange({
+                    ...filters,
+                    estadoVenta: event.target.value,
+                  })
+                }
+                className="h-10 w-full rounded-lg border bg-background px-3 text-xs outline-none"
+              >
+                {ESTADO_VENTA_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div className="space-y-1">
               <select
                 value={selectedMethodValue}
@@ -138,56 +208,60 @@ export function PagosFilters({
               )}
             </div>
 
-            <div className="space-y-1">
-              <Combobox
-                value={selectedUsuarioValue}
-                options={[
-                  { value: "", label: "Todos los usuarios" },
-                  ...usuarioComboboxOptions,
-                ]}
-                searchValue={searchUsuario}
-                onSearchValueChange={setSearchUsuario}
-                onValueChange={(value) => {
-                  const parsed = Number(value)
-                  onChange({
-                    ...filters,
-                    idUsuario:
-                      value && Number.isInteger(parsed) && parsed > 0 ? parsed : null,
-                  })
-                }}
-                placeholder="Filtrar por usuario"
-                searchPlaceholder="Buscar usuario..."
-                emptyMessage="No se encontraron usuarios"
-                loading={loadingUsuarios}
-              />
-              {errorUsuarios && (
-                <p className="text-[11px] text-red-500">{errorUsuarios}</p>
-              )}
-            </div>
+            {canFilterByUsuario && (
+              <div className="space-y-1">
+                <Combobox
+                  value={selectedUsuarioValue}
+                  options={[
+                    { value: "", label: "Todos los usuarios" },
+                    ...usuarioComboboxOptions,
+                  ]}
+                  searchValue={searchUsuario}
+                  onSearchValueChange={setSearchUsuario}
+                  onValueChange={(value) => {
+                    const parsed = Number(value)
+                    onChange({
+                      ...filters,
+                      idUsuario:
+                        value && Number.isInteger(parsed) && parsed > 0 ? parsed : null,
+                    })
+                  }}
+                  placeholder="Filtrar por usuario"
+                  searchPlaceholder="Buscar usuario..."
+                  emptyMessage="No se encontraron usuarios"
+                  loading={loadingUsuarios}
+                />
+                {errorUsuarios && (
+                  <p className="text-[11px] text-red-500">{errorUsuarios}</p>
+                )}
+              </div>
+            )}
 
-            <div className="space-y-1">
-              <Combobox
-                value={selectedSucursalValue}
-                options={sucursalComboboxOptions}
-                searchValue={searchSucursal}
-                onSearchValueChange={setSearchSucursal}
-                onValueChange={(value) => {
-                  const parsed = Number(value)
-                  onChange({
-                    ...filters,
-                    idSucursal:
-                      value && Number.isInteger(parsed) && parsed > 0 ? parsed : null,
-                  })
-                }}
-                placeholder="Filtrar por sucursal"
-                searchPlaceholder="Buscar sucursal..."
-                emptyMessage="No se encontraron sucursales"
-                loading={loadingSucursales}
-              />
-              {errorSucursales && (
-                <p className="text-[11px] text-red-500">{errorSucursales}</p>
-              )}
-            </div>
+            {canFilterBySucursal && (
+              <div className="space-y-1">
+                <Combobox
+                  value={selectedSucursalValue}
+                  options={sucursalComboboxOptions}
+                  searchValue={searchSucursal}
+                  onSearchValueChange={setSearchSucursal}
+                  onValueChange={(value) => {
+                    const parsed = Number(value)
+                    onChange({
+                      ...filters,
+                      idSucursal:
+                        value && Number.isInteger(parsed) && parsed > 0 ? parsed : null,
+                    })
+                  }}
+                  placeholder="Filtrar por sucursal"
+                  searchPlaceholder="Buscar sucursal..."
+                  emptyMessage="No se encontraron sucursales"
+                  loading={loadingSucursales}
+                />
+                {errorSucursales && (
+                  <p className="text-[11px] text-red-500">{errorSucursales}</p>
+                )}
+              </div>
+            )}
 
             <button
               type="button"
@@ -309,9 +383,9 @@ export function PagosFilters({
               type="button"
               onClick={onDownloadReport}
               disabled={reportLoading}
-              className="inline-flex h-9 items-center justify-center rounded-lg bg-[#3266E4] px-4 text-xs font-semibold text-white transition-colors hover:bg-[#2756ca] disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex h-9 items-center justify-center rounded-lg bg-red-700 px-4 text-xs font-semibold text-white transition-colors hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {reportLoading ? "Descargando..." : "Descargar reporte"}
+              {reportLoading ? "Descargando..." : "Reporte PDF"}
             </button>
           </div>
         </div>

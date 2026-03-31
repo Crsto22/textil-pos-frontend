@@ -2,6 +2,7 @@ import type {
   PageResponse,
   Sucursal,
   SucursalCreateRequest,
+  SucursalUsuarioDetalle,
   SucursalUpdateRequest,
 } from "@/lib/types/sucursal"
 
@@ -20,6 +21,29 @@ function normalizeUsuarios(value: unknown): string[] {
   return value
     .map((item) => toTrimmedString(item))
     .filter((item) => item.length > 0)
+}
+
+function normalizeUsuariosDetalle(value: unknown): SucursalUsuarioDetalle[] {
+  if (!Array.isArray(value)) return []
+
+  return value
+    .map((item) => {
+      if (!item || typeof item !== "object") return null
+
+      const data = item as Record<string, unknown>
+      const idUsuario = toNumber(data.idUsuario)
+      const nombreCompleto = toTrimmedString(data.nombreCompleto)
+      if (idUsuario <= 0 || nombreCompleto.length === 0) return null
+
+      const fotoPerfilUrl = toTrimmedString(data.fotoPerfilUrl)
+
+      return {
+        idUsuario,
+        nombreCompleto,
+        fotoPerfilUrl: fotoPerfilUrl.length > 0 ? fotoPerfilUrl : null,
+      }
+    })
+    .filter((item): item is SucursalUsuarioDetalle => item !== null)
 }
 
 const sucursalAvatarColors = [
@@ -41,6 +65,7 @@ export function normalizeSucursal(value: unknown): Sucursal | null {
   if (idSucursal <= 0) return null
 
   const usuarios = normalizeUsuarios(data.usuarios)
+  const usuariosDetalle = normalizeUsuariosDetalle(data.usuariosDetalle)
 
   return {
     idSucursal,
@@ -59,7 +84,11 @@ export function normalizeSucursal(value: unknown): Sucursal | null {
     idEmpresa: toNumber(data.idEmpresa),
     nombreEmpresa: toTrimmedString(data.nombreEmpresa),
     usuarios,
-    usuariosTotal: toNumber(data.usuariosTotal, usuarios.length),
+    usuariosDetalle,
+    usuariosTotal: toNumber(
+      data.usuariosTotal,
+      Math.max(usuariosDetalle.length, usuarios.length)
+    ),
     usuariosFaltantes: toNumber(data.usuariosFaltantes),
   }
 }

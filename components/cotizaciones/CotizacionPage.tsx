@@ -1,14 +1,19 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type ReactNode } from "react"
+import { useCallback, useEffect, useMemo, startTransition, useState, type ChangeEvent, type ReactNode } from "react"
 import { useRouter } from "next/navigation"
 import {
   ArrowPathIcon,
+  BuildingStorefrontIcon,
   CheckCircleIcon,
   CubeIcon,
   ExclamationTriangleIcon,
   MagnifyingGlassIcon,
   ShoppingBagIcon,
+  TagIcon,
+  TicketIcon,
+  XMarkIcon,
+  QrCodeIcon,
 } from "@heroicons/react/24/outline"
 import { toast } from "sonner"
 
@@ -26,30 +31,54 @@ import { Textarea } from "@/components/ui/textarea"
 import { useAuth } from "@/lib/auth/auth-context"
 import { authFetch } from "@/lib/auth/auth-fetch"
 import {
+  getCotizacionErrorMessage,
+  normalizeCotizacionResponse,
+} from "@/lib/cotizacion"
+import {
   buildCatalogVariantItems,
   buildCatalogVariantCartSelection,
   matchesCatalogVariantItem,
   type CatalogVariantItem,
   type CatalogVariantSelection,
-  type CatalogViewMode,
 } from "@/lib/catalog-view"
 import { useCatalogoVariantes } from "@/lib/hooks/useCatalogoVariantes"
 import { useCatalogViewMode } from "@/lib/hooks/useCatalogViewMode"
 import { useClienteCreate } from "@/lib/hooks/useClienteCreate"
 import { useProductos } from "@/lib/hooks/useProductos"
 import { useSucursalOptions } from "@/lib/hooks/useSucursalOptions"
+import { useBarcodeScan } from "@/lib/hooks/useBarcodeScan"
+import { useGlobalBarcodeScanner } from "@/lib/hooks/useGlobalBarcodeScanner"
+import { useSucursalGlobal } from "@/lib/sucursal-global-context"
 import { getSucursalAvatarColor, getSucursalInitials } from "@/lib/sucursal"
-import type { CotizacionCreateRequest, CotizacionResponse } from "@/lib/types/cotizacion"
+import type {
+  CotizacionCreateRequest,
+  CotizacionWriteResponse,
+} from "@/lib/types/cotizacion"
 import type { Categoria, PageResponse as CategoriaPageResponse } from "@/lib/types/categoria"
 import type { Cliente, ClienteCreatePrefill } from "@/lib/types/cliente"
 import type { Color, PageResponse as ColorPageResponse } from "@/lib/types/color"
 import type { ProductoResumen } from "@/lib/types/producto"
+import type { VarianteEscanearResponse } from "@/lib/types/variante"
+import type { VentaLineaPrecioTipo, VentaLineaPrecioOption } from "@/lib/types/venta-price"
 
 const DEFAULT_CLIENT: ClientSelection = { idCliente: null, nombre: "Cliente Generico" }
-const DEFAULT_COTIZACION_SERIE = "COT"
-const DEFAULT_IGV_PORCENTAJE = 18
 
 type DiscountMode = "none" | "percent" | "amount"
+type DiscountTypeOption = { value: DiscountMode; label: string }
+
+interface DiscountState {
+  mode: DiscountMode
+  value: string
+}
+
+const DISCOUNT_MODE_OPTIONS: DiscountTypeOption[] = [
+  { value: "percent", label: "%" },
+  { value: "amount", label: "S/" },
+]
+
+function createEmptyDiscountState(): DiscountState {
+  return { mode: "none", value: "" }
+}
 
 interface CategoryFilterOption {
   id: number
@@ -95,6 +124,44 @@ function parseDiscountValue(value: string) {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
+function getNormalizedDiscountValue(
+  mode: DiscountMode,
+  rawValue: number,
+  subtotal: number
+) {
+  if (mode === "percent") {
+    return Math.min(100, Math.max(0, rawValue))
+  }
+
+  if (mode === "amount") {
+    return Math.min(subtotal, Math.max(0, rawValue))
+  }
+
+  return 0
+}
+
+function getDiscountAmount(
+  mode: DiscountMode,
+  normalizedValue: number,
+  subtotal: number
+) {
+  if (mode === "percent") {
+    return subtotal * (normalizedValue / 100)
+  }
+
+  if (mode === "amount") {
+    return normalizedValue
+  }
+
+  return 0
+}
+
+function getDiscountType(mode: DiscountMode) {
+  if (mode === "percent") return "PORCENTAJE" as const
+  if (mode === "amount") return "MONTO" as const
+  return null
+}
+
 function formatRegisteredQuoteCode(serie: string | null | undefined, correlativo: number | null | undefined) {
   const safeSerie = typeof serie === "string" && serie.trim().length > 0 ? serie.trim() : "COT"
   const safeCorrelativo = typeof correlativo === "number" && Number.isFinite(correlativo) && correlativo > 0
@@ -137,28 +204,32 @@ function mapCategoryFilters(payload: unknown): CategoryFilterOption[] {
     }))
 }
 
-function resolveDiscountMode(cotizacion: CotizacionResponse): DiscountMode {
-  if (cotizacion.tipoDescuento === "PORCENTAJE") return "percent"
-  if (cotizacion.tipoDescuento === "MONTO") return "amount"
-  return "none"
-}
-
-function resolveDiscountValue(cotizacion: CotizacionResponse): string {
-  if (cotizacion.descuentoTotal <= 0) return ""
+function resolveDiscountState(cotizacion: CotizacionResponse): DiscountState {
+  if (cotizacion.descuentoTotal <= 0) {
+    return createEmptyDiscountState()
+  }
 
   if (cotizacion.tipoDescuento === "MONTO") {
-    return String(cotizacion.descuentoTotal)
+    return {
+      mode: "amount",
+      value: String(cotizacion.descuentoTotal),
+    }
   }
 
   if (cotizacion.tipoDescuento === "PORCENTAJE") {
     const baseSubtotal = cotizacion.detalles.reduce((sum, item) => sum + item.subtotal, 0)
-    if (baseSubtotal <= 0) return ""
+    if (baseSubtotal <= 0) return createEmptyDiscountState()
 
     const percentage = Number(((cotizacion.descuentoTotal / baseSubtotal) * 100).toFixed(2))
-    return percentage > 0 ? String(percentage) : ""
+    return percentage > 0
+      ? {
+          mode: "percent",
+          value: String(percentage),
+        }
+      : createEmptyDiscountState()
   }
 
-  return ""
+  return createEmptyDiscountState()
 }
 
 function mapCotizacionToCart(cotizacion: CotizacionResponse): CartItemData[] {
@@ -183,13 +254,30 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
   const [catalogViewMode, setCatalogViewMode] = useCatalogViewMode()
   const isVariantView = catalogViewMode === "variantes"
 
+  const [selectedSucursalId, setSelectedSucursalId] = useState<number | null>(null)
+  const defaultAdminSucursalId =
+    isAdmin && hasValidSucursalId(user?.idSucursal) ? user.idSucursal : null
+  const effectiveSelectedSucursalId = hasValidSucursalId(selectedSucursalId)
+    ? selectedSucursalId
+    : defaultAdminSucursalId
+  const hasSelectedSucursal = hasValidSucursalId(effectiveSelectedSucursalId)
+  const resolvedSucursalId = isAdmin
+    ? hasSelectedSucursal
+      ? effectiveSelectedSucursalId
+      : null
+    : userHasSucursal
+      ? user?.idSucursal ?? null
+      : null
+
   const {
     search: searchProductos,
     setSearch: setSearchProductos,
     idCategoriaFilter: idCategoriaFilterProductos,
     idColorFilter: idColorFilterProductos,
+    conOfertaFilter: conOfertaFilterProductos,
     setIdCategoriaFilter: setIdCategoriaFilterProductos,
     setIdColorFilter: setIdColorFilterProductos,
+    setConOfertaFilter: setConOfertaFilterProductos,
     displayedProductos,
     displayedTotalElements: displayedTotalElementsProductos,
     displayedTotalPages: displayedTotalPagesProductos,
@@ -198,14 +286,16 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
     setDisplayedPage: setDisplayedPageProductos,
     error: errorProductosListado,
     refreshCurrentView: refreshProductosView,
-  } = useProductos(!isVariantView)
+  } = useProductos(!isVariantView && resolvedSucursalId !== null, resolvedSucursalId)
   const {
     search: searchVariantes,
     setSearch: setSearchVariantes,
     idCategoriaFilter: idCategoriaFilterVariantes,
     idColorFilter: idColorFilterVariantes,
+    conOfertaFilter: conOfertaFilterVariantes,
     setIdCategoriaFilter: setIdCategoriaFilterVariantes,
     setIdColorFilter: setIdColorFilterVariantes,
+    setConOfertaFilter: setConOfertaFilterVariantes,
     displayedCatalogVariants,
     displayedTotalElements: displayedTotalElementsVariantes,
     displayedTotalPages: displayedTotalPagesVariantes,
@@ -214,15 +304,14 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
     setDisplayedPage: setDisplayedPageVariantes,
     error: errorVariantesListado,
     refreshCurrentView: refreshVariantesView,
-  } = useCatalogoVariantes(isVariantView)
-
+  } = useCatalogoVariantes(isVariantView && resolvedSucursalId !== null, resolvedSucursalId)
   const [cart, setCart] = useState<CartItemData[]>([])
   const [selectedClient, setSelectedClient] = useState<ClientSelection>(DEFAULT_CLIENT)
   const [clientCreatePrefill, setClientCreatePrefill] = useState<ClienteCreatePrefill | null>(null)
   const [isClientCreateOpen, setIsClientCreateOpen] = useState(false)
-  const [selectedSucursalId, setSelectedSucursalId] = useState<number | null>(null)
-  const [discountMode, setDiscountMode] = useState<DiscountMode>("none")
-  const [discountValue, setDiscountValue] = useState("")
+  const [discount, setDiscount] = useState<DiscountState>(() => createEmptyDiscountState())
+  const [discountDraft, setDiscountDraft] = useState<DiscountState>(() => createEmptyDiscountState())
+  const [isDiscountEditorActive, setIsDiscountEditorActive] = useState(false)
   const [notes, setNotes] = useState("")
   const [modalProduct, setModalProduct] = useState<ProductoResumen | null>(null)
   const [modalVariantSelection, setModalVariantSelection] =
@@ -230,7 +319,6 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
   const [cotizacionError, setCotizacionError] = useState<string | null>(null)
   const [submittingCotizacion, setSubmittingCotizacion] = useState(false)
   const [loadingCotizacion, setLoadingCotizacion] = useState(isEditing)
-  const [loadedCotizacion, setLoadedCotizacion] = useState<CotizacionResponse | null>(null)
   const [editingLocked, setEditingLocked] = useState(false)
   const [categoriasDisponibles, setCategoriasDisponibles] = useState<CategoryFilterOption[]>([])
   const [categoryPage, setCategoryPage] = useState(0)
@@ -238,6 +326,90 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
   const [coloresDisponibles, setColoresDisponibles] = useState<ColorFilterOption[]>([])
   const [colorPage, setColorPage] = useState(0)
   const [colorTotalPages, setColorTotalPages] = useState(1)
+  const handleBarcodeScanSuccess = useCallback(
+    (data: VarianteEscanearResponse) => {
+      const priceOptions: VentaLineaPrecioOption[] = [
+        { type: "normal", label: "Precio Unidad", precio: data.precio, description: "Precio regular" },
+      ]
+
+      if (
+        typeof data.precioOferta === "number" &&
+        data.precioOferta > 0 &&
+        data.precioOferta < data.precio &&
+        data.precioVigente === data.precioOferta
+      ) {
+        const expDesc =
+          data.ofertaFin
+            ? `Hasta ${new Date(data.ofertaFin).toLocaleDateString("es-PE")}`
+            : "Oferta vigente"
+        priceOptions.push({ type: "oferta", label: "Precio Oferta", precio: data.precioOferta, description: expDesc })
+      }
+
+      if (typeof data.precioMayor === "number" && data.precioMayor > 0) {
+        priceOptions.push({ type: "mayor", label: "Precio por Mayor", precio: data.precioMayor, description: "Precio por mayor" })
+      }
+
+      const defaultType = priceOptions.some((o) => o.type === "oferta") ? "oferta" as const : "normal" as const
+      const selectedPrice = priceOptions.find((o) => o.type === defaultType)?.precio ?? data.precioVigente
+
+      const imageUrl = data.imagenPrincipal?.urlThumb ?? data.imagenPrincipal?.url ?? null
+
+      setCart((previous) => {
+        const index = previous.findIndex((item) => item.varianteId === data.idProductoVariante)
+        if (index >= 0) {
+          return previous.map((item, idx) =>
+            idx === index
+              ? {
+                  ...item,
+                  cantidad: item.cantidad + 1,
+                  precio: selectedPrice,
+                  precioSeleccionado: item.precioSeleccionado ?? defaultType,
+                  preciosDisponibles: priceOptions,
+                  imageUrl: imageUrl ?? item.imageUrl ?? null,
+                }
+              : item
+          )
+        }
+
+        return [
+          ...previous,
+          {
+            id: data.producto.idProducto,
+            varianteId: data.idProductoVariante,
+            nombre: data.producto.nombre,
+            precio: selectedPrice,
+            precioSeleccionado: defaultType,
+            preciosDisponibles: priceOptions,
+            cantidad: 1,
+            talla: data.talla.nombre,
+            color: data.color.nombre,
+            imageUrl,
+          },
+        ]
+      })
+
+      setCotizacionError(null)
+      toast.success(`${data.producto.nombre} - ${data.color.nombre} ${data.talla.nombre} agregado`)
+    },
+    []
+  )
+
+  const handleBarcodeScanError = useCallback(
+    (message: string) => {
+      setCotizacionError(message)
+    },
+    []
+  )
+
+  const { scan: scanBarcode, scanning: scanningBarcode } = useBarcodeScan({
+    idSucursal: resolvedSucursalId,
+    onSuccess: handleBarcodeScanSuccess,
+    onError: handleBarcodeScanError,
+  })
+
+  const { active: scannerActive, toggle: toggleScanner } = useGlobalBarcodeScanner({
+    onScan: scanBarcode,
+  })
 
   const {
     sucursalOptions,
@@ -246,16 +418,16 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
     searchSucursal,
     setSearchSucursal,
   } = useSucursalOptions(isAdmin)
+
+  const { sucursalGlobal } = useSucursalGlobal()
+  useEffect(() => {
+    if (!isAdmin || sucursalGlobal === null) return
+    startTransition(() => setSelectedSucursalId(sucursalGlobal.idSucursal))
+  }, [sucursalGlobal, isAdmin])
+
   const { createCliente } = useClienteCreate({
     successMessage: "Cliente creado y seleccionado",
   })
-
-  const defaultAdminSucursalId =
-    isAdmin && hasValidSucursalId(user?.idSucursal) ? user.idSucursal : null
-  const effectiveSelectedSucursalId = hasValidSucursalId(selectedSucursalId)
-    ? selectedSucursalId
-    : defaultAdminSucursalId
-  const hasSelectedSucursal = hasValidSucursalId(effectiveSelectedSucursalId)
 
   const sucursalComboboxOptions = useMemo<ComboboxOption[]>(
     () =>
@@ -271,18 +443,9 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
     [effectiveSelectedSucursalId, hasSelectedSucursal, sucursalOptions]
   )
 
-  const resolvedSucursalId = isAdmin
-    ? hasSelectedSucursal
-      ? effectiveSelectedSucursalId
-      : null
-    : userHasSucursal
-      ? user?.idSucursal ?? null
-      : null
-
   useEffect(() => {
     if (!isEditing || !cotizacionId) {
       setLoadingCotizacion(false)
-      setLoadedCotizacion(null)
       setEditingLocked(false)
       return
     }
@@ -302,31 +465,33 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
         if (controller.signal.aborted) return
 
         if (!response.ok) {
-          const message =
-            data &&
-            typeof data === "object" &&
-            "message" in data &&
-            typeof data.message === "string"
-              ? data.message
-              : `Error ${response.status} al cargar la cotizacion`
-          setLoadedCotizacion(null)
+          const message = getCotizacionErrorMessage(
+            data,
+            `Error ${response.status} al cargar la cotizacion`
+          )
           setCotizacionError(message)
           setEditingLocked(false)
           return
         }
 
-        const cotizacion = data as CotizacionResponse
+        const cotizacion = normalizeCotizacionResponse(data)
+        if (!cotizacion) {
+          setCotizacionError("La cotizacion no tiene el formato esperado.")
+          setEditingLocked(false)
+          return
+        }
         const locked = cotizacion.estado.trim().toUpperCase() === "CONVERTIDA"
 
-        setLoadedCotizacion(cotizacion)
         setEditingLocked(locked)
         setSelectedClient({
           idCliente: cotizacion.idCliente,
           nombre: cotizacion.nombreCliente?.trim() || DEFAULT_CLIENT.nombre,
         })
         setSelectedSucursalId(cotizacion.idSucursal ?? null)
-        setDiscountMode(resolveDiscountMode(cotizacion))
-        setDiscountValue(resolveDiscountValue(cotizacion))
+        const resolvedDiscount = resolveDiscountState(cotizacion)
+        setDiscount(resolvedDiscount)
+        setDiscountDraft(resolvedDiscount)
+        setIsDiscountEditorActive(false)
         setNotes(cotizacion.observacion ?? "")
         setCart(mapCotizacionToCart(cotizacion))
         if (locked) {
@@ -336,7 +501,6 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
         }
       } catch (requestError) {
         if (controller.signal.aborted) return
-        setLoadedCotizacion(null)
         setEditingLocked(false)
         setCotizacionError(
           requestError instanceof Error
@@ -359,8 +523,16 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
 
   useEffect(() => {
     const fetchCategorias = async () => {
+      if (resolvedSucursalId === null) {
+        setCategoriasDisponibles([])
+        setCategoryTotalPages(1)
+        return
+      }
+
       try {
-        const response = await authFetch(`/api/categoria/listar?page=${categoryPage}`)
+        const params = new URLSearchParams({ page: String(categoryPage) })
+        if (resolvedSucursalId) params.set("idSucursal", String(resolvedSucursalId))
+        const response = await authFetch(`/api/categoria/listar?${params.toString()}`)
         const data = await parseJsonSafe(response)
         if (!response.ok) {
           setCategoriasDisponibles([])
@@ -384,10 +556,16 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
     }
 
     void fetchCategorias()
-  }, [categoryPage])
+  }, [categoryPage, resolvedSucursalId])
 
   useEffect(() => {
     const fetchColores = async () => {
+      if (resolvedSucursalId === null) {
+        setColoresDisponibles([])
+        setColorTotalPages(1)
+        return
+      }
+
       try {
         const response = await authFetch(`/api/color/listar?page=${colorPage}`)
         const data = await parseJsonSafe(response)
@@ -413,7 +591,7 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
     }
 
     void fetchColores()
-  }, [colorPage])
+  }, [colorPage, resolvedSucursalId])
 
   const safeCategoryPage = Math.max(0, Math.min(categoryPage, Math.max(0, categoryTotalPages - 1)))
   const safeColorPage = Math.max(0, Math.min(colorPage, Math.max(0, colorTotalPages - 1)))
@@ -424,6 +602,8 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
   const search = isVariantView ? searchVariantes : searchProductos
   const idCategoriaFilter = isVariantView ? idCategoriaFilterVariantes : idCategoriaFilterProductos
   const idColorFilter = isVariantView ? idColorFilterVariantes : idColorFilterProductos
+  const conOfertaFilter = isVariantView ? conOfertaFilterVariantes : conOfertaFilterProductos
+  const shouldShowCatalogFilters = resolvedSucursalId !== null
   const displayedTotalElements = isVariantView
     ? displayedTotalElementsVariantes
     : displayedTotalElementsProductos
@@ -439,31 +619,31 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
     : displayedProductos.length
   const totalItems = cart.reduce((sum, item) => sum + item.cantidad, 0)
   const subtotal = cart.reduce((sum, item) => sum + item.precio * item.cantidad, 0)
-  const parsedDiscountValue = parseDiscountValue(discountValue)
+  const parsedDiscountValue = parseDiscountValue(discount.value)
+  const normalizedDiscountValue = useMemo(
+    () => getNormalizedDiscountValue(discount.mode, parsedDiscountValue, subtotal),
+    [discount.mode, parsedDiscountValue, subtotal]
+  )
   const discountAmount = useMemo(() => {
-    if (discountMode === "percent") {
-      return subtotal * (Math.min(100, Math.max(0, parsedDiscountValue)) / 100)
-    }
-    if (discountMode === "amount") {
-      return Math.min(subtotal, Math.max(0, parsedDiscountValue))
-    }
-    return 0
-  }, [discountMode, parsedDiscountValue, subtotal])
+    return getDiscountAmount(discount.mode, normalizedDiscountValue, subtotal)
+  }, [discount.mode, normalizedDiscountValue, subtotal])
   const total = Math.max(0, subtotal - discountAmount)
-  const payloadDiscountValue = useMemo(() => {
-    if (discountMode === "percent") {
-      return Math.min(100, Math.max(0, parsedDiscountValue))
-    }
-    if (discountMode === "amount") {
-      return Math.min(subtotal, Math.max(0, parsedDiscountValue))
-    }
-    return null
-  }, [discountMode, parsedDiscountValue, subtotal])
+  const payloadDiscountValue = normalizedDiscountValue
   const payloadDiscountType = useMemo(() => {
-    if (discountMode === "percent") return "PORCENTAJE" as const
-    if (discountMode === "amount") return "MONTO" as const
-    return null
-  }, [discountMode])
+    return payloadDiscountValue > 0 ? getDiscountType(discount.mode) : null
+  }, [discount.mode, payloadDiscountValue])
+  const parsedDiscountDraftValue = parseDiscountValue(discountDraft.value)
+  const normalizedDiscountDraftValue = useMemo(
+    () => getNormalizedDiscountValue(discountDraft.mode, parsedDiscountDraftValue, subtotal),
+    [discountDraft.mode, parsedDiscountDraftValue, subtotal]
+  )
+  const discountDraftAmount = useMemo(() => {
+    return getDiscountAmount(discountDraft.mode, normalizedDiscountDraftValue, subtotal)
+  }, [discountDraft.mode, normalizedDiscountDraftValue, subtotal])
+  const visibleDiscountAmount = isDiscountEditorActive ? discountDraftAmount : discountAmount
+  const quoteDisplayedTotal = isDiscountEditorActive
+    ? Math.max(0, subtotal - discountDraftAmount)
+    : total
   const generationIssues = useMemo(() => [
     ...(loadingCotizacion ? ["Cargando cotizacion..."] : []),
     ...(editingLocked ? ["La cotizacion convertida no se puede editar"] : []),
@@ -498,11 +678,7 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
 
       setIdCategoriaFilterProductos(value)
     },
-    [
-      isVariantView,
-      setIdCategoriaFilterProductos,
-      setIdCategoriaFilterVariantes,
-    ]
+    [isVariantView, setIdCategoriaFilterProductos, setIdCategoriaFilterVariantes]
   )
 
   const handleColorFilterChange = useCallback(
@@ -515,6 +691,18 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
       setIdColorFilterProductos(value)
     },
     [isVariantView, setIdColorFilterProductos, setIdColorFilterVariantes]
+  )
+
+  const handleConOfertaFilterChange = useCallback(
+    (value: boolean) => {
+      if (isVariantView) {
+        setConOfertaFilterVariantes(value)
+        return
+      }
+
+      setConOfertaFilterProductos(value)
+    },
+    [isVariantView, setConOfertaFilterProductos, setConOfertaFilterVariantes]
   )
 
   const handleDisplayedPageChange = useCallback(
@@ -533,8 +721,9 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
     setCart([])
     setSelectedClient(DEFAULT_CLIENT)
     setSelectedSucursalId(null)
-    setDiscountMode("none")
-    setDiscountValue("")
+    setDiscount(createEmptyDiscountState())
+    setDiscountDraft(createEmptyDiscountState())
+    setIsDiscountEditorActive(false)
     setNotes("")
     setCotizacionError(null)
   }, [])
@@ -552,13 +741,10 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
   }, [])
 
   const handleClientCreateRequest = useCallback((prefill: ClienteCreatePrefill) => {
-    setClientCreatePrefill({
-      ...prefill,
-      idSucursal: resolvedSucursalId,
-    })
+    setClientCreatePrefill(prefill)
     setIsClientCreateOpen(true)
     clearCotizacionError()
-  }, [clearCotizacionError, resolvedSucursalId])
+  }, [clearCotizacionError])
 
   const handleClientCreated = useCallback((client: Cliente) => {
     setSelectedClient({
@@ -571,21 +757,66 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
   const handleSucursalChange = useCallback((value: string) => {
     const parsedValue = Number(value)
     setSelectedSucursalId(Number.isFinite(parsedValue) && parsedValue > 0 ? parsedValue : null)
+    setCategoryPage(0)
+    setColorPage(0)
+    setIdCategoriaFilterProductos(null)
+    setIdColorFilterProductos(null)
+    setIdCategoriaFilterVariantes(null)
+    setIdColorFilterVariantes(null)
+    clearCotizacionError()
+  }, [
+    clearCotizacionError,
+    setIdCategoriaFilterProductos,
+    setIdColorFilterProductos,
+    setIdCategoriaFilterVariantes,
+    setIdColorFilterVariantes,
+  ])
+
+  const handleOpenDiscountEditor = useCallback(() => {
+    setDiscountDraft(
+      discount.mode === "none"
+        ? {
+            mode: "percent",
+            value: "",
+          }
+        : { ...discount }
+    )
+    setIsDiscountEditorActive(true)
+    clearCotizacionError()
+  }, [clearCotizacionError, discount])
+
+  const handleDiscountDraftModeChange = useCallback((mode: DiscountMode) => {
+    setDiscountDraft((previous) => ({
+      mode,
+      value: previous.value,
+    }))
     clearCotizacionError()
   }, [clearCotizacionError])
 
-  const handleDiscountModeChange = useCallback((mode: DiscountMode) => {
-    setDiscountMode(mode)
-    if (mode === "none") {
-      setDiscountValue("")
+  const handleDiscountDraftValueChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    setDiscountDraft((previous) => ({
+      ...previous,
+      value: event.target.value,
+    }))
+    clearCotizacionError()
+  }, [clearCotizacionError])
+
+  const commitDiscountDraft = useCallback(() => {
+    if (normalizedDiscountDraftValue <= 0) {
+      setDiscount(createEmptyDiscountState())
+    } else {
+      setDiscount({
+        mode: discountDraft.mode,
+        value: String(normalizedDiscountDraftValue),
+      })
     }
+    setIsDiscountEditorActive(false)
     clearCotizacionError()
-  }, [clearCotizacionError])
+  }, [clearCotizacionError, discountDraft.mode, normalizedDiscountDraftValue])
 
-  const handleDiscountValueChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
-    setDiscountValue(event.target.value)
-    clearCotizacionError()
-  }, [clearCotizacionError])
+  const handleApplyDiscount = useCallback(() => {
+    commitDiscountDraft()
+  }, [commitDiscountDraft])
 
   const handleNotesChange = useCallback((event: ChangeEvent<HTMLTextAreaElement>) => {
     setNotes(event.target.value)
@@ -647,6 +878,8 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
                 ...item,
                 cantidad: item.cantidad + variant.cantidad,
                 precio: variant.precio,
+                precioSeleccionado: variant.precioSeleccionado,
+                preciosDisponibles: variant.preciosDisponibles,
                 imageUrl: variant.imageUrl ?? item.imageUrl ?? null,
               }
             : item
@@ -660,6 +893,8 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
           varianteId: variant.varianteId,
           nombre: variant.nombre,
           precio: variant.precio,
+          precioSeleccionado: variant.precioSeleccionado,
+          preciosDisponibles: variant.preciosDisponibles,
           cantidad: variant.cantidad,
           talla: variant.talla,
           color: variant.color,
@@ -687,6 +922,8 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
             ? {
                 ...item,
                 cantidad: item.cantidad + 1,
+                precioSeleccionado: item.precioSeleccionado ?? nextItem.precioSeleccionado,
+                preciosDisponibles: item.preciosDisponibles ?? nextItem.preciosDisponibles,
                 imageUrl: item.imageUrl ?? nextItem.imageUrl ?? null,
               }
             : item
@@ -698,6 +935,36 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
 
     clearCotizacionError()
   }, [clearCotizacionError])
+
+  const handleSelectCartItemPrice = useCallback(
+    (targetItem: CartItemData, priceType: VentaLineaPrecioTipo) => {
+      setCart((previous) =>
+        previous.map((item) => {
+          const isSameItem =
+            targetItem.varianteId && item.varianteId
+              ? item.varianteId === targetItem.varianteId
+              : item.id === targetItem.id &&
+                item.talla === targetItem.talla &&
+                item.color === targetItem.color
+
+          if (!isSameItem) return item
+
+          const selectedOption =
+            item.preciosDisponibles?.find((option) => option.type === priceType) ?? null
+
+          if (!selectedOption) return item
+
+          return {
+            ...item,
+            precio: selectedOption.precio,
+            precioSeleccionado: priceType,
+          }
+        })
+      )
+      setCotizacionError(null)
+    },
+    []
+  )
 
   const updateQty = useCallback((id: number, talla: string, color: string, delta: number, varianteId?: number) => {
     setCart((previous) =>
@@ -730,6 +997,10 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
   }, [clearCotizacionError])
 
   const handleGenerateQuote = useCallback(async () => {
+    if (isDiscountEditorActive) {
+      commitDiscountDraft()
+    }
+
     if (!canGenerate) {
       const message = generationIssues[0] ?? "Completa los datos obligatorios."
       setCotizacionError(message)
@@ -759,12 +1030,10 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
     const payload: CotizacionCreateRequest = {
       idSucursal: resolvedSucursalId,
       idCliente: selectedClient.idCliente,
-      serie: loadedCotizacion?.serie?.trim() || DEFAULT_COTIZACION_SERIE,
-      correlativo: isEditing ? loadedCotizacion?.correlativo : undefined,
-      igvPorcentaje: loadedCotizacion?.igvPorcentaje ?? DEFAULT_IGV_PORCENTAJE,
       descuentoTotal: payloadDiscountValue,
       tipoDescuento: payloadDiscountType,
       observacion: notes.trim().length > 0 ? notes.trim() : null,
+      // La numeracion ahora la asigna el backend segun la sucursal.
       detalles: cart.map((item) => ({
         idProductoVariante: item.varianteId as number,
         cantidad: item.cantidad,
@@ -790,16 +1059,14 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
 
       const data = await parseJsonSafe(response)
       if (!response.ok) {
-        const message =
-          data && typeof data === "object" && "message" in data && typeof data.message === "string"
-            ? data.message
-            : data && typeof data === "object" && "error" in data && typeof data.error === "string"
-              ? data.error
-              : `Error ${response.status} al registrar la cotizacion`
+        const message = getCotizacionErrorMessage(
+          data,
+          `Error ${response.status} al registrar la cotizacion`
+        )
         throw new Error(message)
       }
 
-      return data as CotizacionResponse
+      return data as CotizacionWriteResponse
     })()
 
     toast.promise(requestPromise, {
@@ -829,7 +1096,9 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
   }, [
     canGenerate,
     cart,
+    commitDiscountDraft,
     generationIssues,
+    isDiscountEditorActive,
     notes,
     payloadDiscountType,
     payloadDiscountValue,
@@ -840,9 +1109,6 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
     submittingCotizacion,
     cotizacionId,
     isEditing,
-    loadedCotizacion?.correlativo,
-    loadedCotizacion?.igvPorcentaje,
-    loadedCotizacion?.serie,
   ])
 
   if (isEditing && loadingCotizacion) {
@@ -891,45 +1157,92 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
                 />
               </div>
 
-              <div className="flex items-center justify-end">
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleConOfertaFilterChange(!conOfertaFilter)}
+                  className={`inline-flex h-11 items-center gap-2 rounded-xl border px-3 text-xs font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/20 ${
+                    conOfertaFilter
+                      ? "border-blue-500 bg-blue-50 text-blue-700 dark:border-blue-500/70 dark:bg-blue-500/10 dark:text-blue-200"
+                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700/70"
+                  }`}
+                  title="Mostrar solo productos y variantes con oferta"
+                  aria-pressed={conOfertaFilter}
+                >
+                  <TagIcon className="h-4 w-4" />
+                  {conOfertaFilter ? "Ofertas activas" : "Solo ofertas"}
+                </button>
+                <button
+                  type="button"
+                  onClick={toggleScanner}
+                  className={`inline-flex h-11 items-center gap-2 rounded-xl border px-3 text-xs font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/20 ${
+                    scannerActive
+                      ? "border-emerald-500 bg-emerald-50 text-emerald-700 dark:border-emerald-500/70 dark:bg-emerald-500/10 dark:text-emerald-200"
+                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700/70"
+                  }`}
+                  title="Escanear codigo de barras"
+                  aria-pressed={scannerActive}
+                >
+                  <QrCodeIcon className="h-4 w-4" />
+                  Escaner
+                  {scanningBarcode && (
+                    <ArrowPathIcon className="h-3.5 w-3.5 animate-spin" />
+                  )}
+                </button>
                 <CatalogViewToggle value={catalogViewMode} onChange={setCatalogViewMode} />
               </div>
             </div>
 
-            <div className="rounded-xl border border-slate-100 bg-white px-3.5 py-3 shadow-sm dark:border-slate-700/60 dark:bg-slate-800/60">
-              <CategoryFilter
-                categories={categoriasDisponibles}
-                colors={coloresDisponibles}
-                activeCategoryId={idCategoriaFilter}
-                onCategoryChange={handleCategoriaFilterChange}
-                activeColorId={idColorFilter}
-                onColorChange={handleColorFilterChange}
-                categoryPage={safeCategoryPage}
-                categoryTotalPages={categoryTotalPages}
-                onCategoryNextPage={() => {
-                  if (safeCategoryPage < categoryTotalPages - 1) setCategoryPage((previous) => previous + 1)
-                }}
-                onCategoryPrevPage={() => {
-                  if (safeCategoryPage > 0) setCategoryPage((previous) => Math.max(0, previous - 1))
-                }}
-                colorPage={safeColorPage}
-                colorTotalPages={colorTotalPages}
-                onColorNextPage={() => {
-                  if (safeColorPage < colorTotalPages - 1) setColorPage((previous) => previous + 1)
-                }}
-                onColorPrevPage={() => {
-                  if (safeColorPage > 0) setColorPage((previous) => Math.max(0, previous - 1))
-                }}
-              />
-            </div>
+            {shouldShowCatalogFilters ? (
+              <>
+                <div className="rounded-xl border border-slate-100 bg-white px-3.5 py-3 shadow-sm dark:border-slate-700/60 dark:bg-slate-800/60">
+                  <CategoryFilter
+                    categories={categoriasDisponibles}
+                    colors={coloresDisponibles}
+                    activeCategoryId={idCategoriaFilter}
+                    onCategoryChange={handleCategoriaFilterChange}
+                    activeColorId={idColorFilter}
+                    onColorChange={handleColorFilterChange}
+                    categoryPage={safeCategoryPage}
+                    categoryTotalPages={categoryTotalPages}
+                    onCategoryNextPage={() => {
+                      if (safeCategoryPage < categoryTotalPages - 1) setCategoryPage((previous) => previous + 1)
+                    }}
+                    onCategoryPrevPage={() => {
+                      if (safeCategoryPage > 0) setCategoryPage((previous) => Math.max(0, previous - 1))
+                    }}
+                    colorPage={safeColorPage}
+                    colorTotalPages={colorTotalPages}
+                    onColorNextPage={() => {
+                      if (safeColorPage < colorTotalPages - 1) setColorPage((previous) => previous + 1)
+                    }}
+                    onColorPrevPage={() => {
+                      if (safeColorPage > 0) setColorPage((previous) => Math.max(0, previous - 1))
+                    }}
+                  />
+                </div>
 
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Mostrando {visibleCatalogCount} {isVariantView ? "variante(s)" : "producto(s)"} en esta pagina.
-            </p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Mostrando {visibleCatalogCount} {isVariantView ? "variante(s)" : "producto(s)"} en esta pagina.
+                </p>
+              </>
+            ) : null}
           </div>
 
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pb-4">
-            {displayedLoading ? (
+            {resolvedSucursalId === null ? (
+              <div className="flex h-full flex-col items-center justify-center py-20 text-center">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700">
+                  <BuildingStorefrontIcon className="h-7 w-7 text-slate-400 dark:text-slate-500" />
+                </div>
+                <p className="mt-4 text-sm font-semibold text-slate-600 dark:text-slate-300">
+                  Selecciona una sucursal
+                </p>
+                <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+                  Elige una sucursal para ver el catalogo de productos
+                </p>
+              </div>
+            ) : displayedLoading ? (
               <div className="flex h-full flex-col items-center justify-center gap-3">
                 <ArrowPathIcon className="h-8 w-8 animate-spin text-blue-500" />
                 <p className="text-sm text-slate-400">Cargando catalogo...</p>
@@ -947,6 +1260,7 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
                     <ProductCard
                       key={variant.key}
                       product={variant.product}
+                      variantItem={variant}
                       onAdd={() => handleSelectCatalogVariant(variant)}
                     />
                   ))}
@@ -1056,7 +1370,9 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
                     onIncrease={(id) => updateQty(id, item.talla, item.color, 1, item.varianteId)}
                     onDecrease={(id) => updateQty(id, item.talla, item.color, -1, item.varianteId)}
                     onRemove={(id) => removeFromCart(id, item.talla, item.color, item.varianteId)}
+                    onSelectPrice={handleSelectCartItemPrice}
                     onEdit={handleEditItem}
+                    showPriceTypeBadge
                   />
                 ))
               )}
@@ -1066,14 +1382,69 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
           <Card className="p-3.5">
             <SectionLabel>Condiciones</SectionLabel>
             <div className="mt-3 space-y-3">
-              <div className="grid grid-cols-3 gap-2">
-                {[{ value: "none", label: "Sin desc." }, { value: "percent", label: "%" }, { value: "amount", label: "S/" }].map((option) => (
-                  <button key={option.value} type="button" onClick={() => handleDiscountModeChange(option.value as DiscountMode)} className={["rounded-xl border px-2 py-2 text-xs font-semibold transition-colors", discountMode === option.value ? "border-blue-500 bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400" : "border-slate-200 text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"].join(" ")}>{option.label}</button>
-                ))}
-              </div>
+              {isDiscountEditorActive ? (
+                <div className="flex items-center justify-between gap-3">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-[11px] font-medium text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-200">
+                    <span className="flex h-4 w-4 items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-blue-600 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300">
+                      <TicketIcon className="h-2.5 w-2.5" />
+                    </span>
+                    Editando Descuento
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleApplyDiscount}
+                    className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:text-slate-500 dark:hover:bg-slate-700/70 dark:hover:text-slate-100"
+                    aria-label="Cerrar editor de descuento"
+                  >
+                    <XMarkIcon className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleOpenDiscountEditor}
+                  className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-[11px] font-medium text-slate-600 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:border-blue-500/40 dark:hover:bg-blue-500/10 dark:hover:text-blue-300"
+                >
+                  <span className="flex h-4 w-4 items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-blue-600 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300">
+                    <TicketIcon className="h-2.5 w-2.5" />
+                  </span>
+                  {payloadDiscountType ? "Editar Descuento" : "Aplicar Descuento"}
+                </button>
+              )}
 
-              {discountMode !== "none" && (
-                <input type="number" min="0" step={discountMode === "percent" ? "0.1" : "0.01"} max={discountMode === "percent" ? "100" : undefined} value={discountValue} onChange={handleDiscountValueChange} placeholder={discountMode === "percent" ? "Ej. 10" : "Ej. 25.00"} className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" />
+              {isDiscountEditorActive && (
+                <div className="mt-3 flex items-center gap-2.5">
+                  <div className="flex h-10 items-center rounded-full border border-slate-200 bg-slate-50 p-1 shadow-sm dark:border-slate-700 dark:bg-slate-900/70">
+                    {DISCOUNT_MODE_OPTIONS.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => handleDiscountDraftModeChange(option.value)}
+                        className={[
+                          "flex h-8 min-w-10 items-center justify-center rounded-full px-3 text-xs font-semibold transition-all",
+                          discountDraft.mode === option.value
+                            ? "bg-[#5964f2] text-white shadow-[0_8px_18px_rgba(89,100,242,0.4)]"
+                            : "text-slate-500 hover:bg-white hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100",
+                        ].join(" ")}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="relative flex-1">
+                    <input
+                      type="number"
+                      min="0"
+                      step={discountDraft.mode === "percent" ? "0.1" : "0.01"}
+                      max={discountDraft.mode === "percent" ? "100" : undefined}
+                      value={discountDraft.value}
+                      onChange={handleDiscountDraftValueChange}
+                      placeholder={discountDraft.mode === "percent" ? "12" : "25.00"}
+                      className="h-10 w-full rounded-full border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
+                    />
+                  </div>
+                </div>
               )}
 
               <Textarea value={notes} onChange={handleNotesChange} rows={4} placeholder="Observaciones comerciales, tiempos de entrega o condiciones." className="resize-none rounded-xl border-slate-200 bg-white text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-blue-500/15 dark:border-slate-700 dark:bg-slate-900" />
@@ -1084,8 +1455,10 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
             <SectionLabel>Totales</SectionLabel>
             <div className="mt-3 space-y-2 text-sm">
               <div className="flex items-center justify-between text-slate-500 dark:text-slate-400"><span>Subtotal</span><span className="tabular-nums">{formatMonedaPen(subtotal)}</span></div>
-              <div className="flex items-center justify-between text-slate-500 dark:text-slate-400"><span>Descuento</span><span className="tabular-nums">{formatMonedaPen(discountAmount)}</span></div>
-              <div className="flex items-center justify-between border-t border-dashed border-slate-200 pt-2 text-base font-bold text-slate-900 dark:border-slate-700 dark:text-white"><span>Total cotizado</span><span className="tabular-nums text-blue-600 dark:text-blue-400">{formatMonedaPen(total)}</span></div>
+              {visibleDiscountAmount > 0 && (
+                <div className="flex items-center justify-between text-emerald-600 dark:text-emerald-400"><span>Descuento</span><span className="tabular-nums">-{formatMonedaPen(visibleDiscountAmount)}</span></div>
+              )}
+              <div className="flex items-center justify-between border-t border-dashed border-slate-200 pt-2 text-base font-bold text-slate-900 dark:border-slate-700 dark:text-white"><span>Total cotizado</span><span className="tabular-nums text-blue-600 dark:text-blue-400">{formatMonedaPen(quoteDisplayedTotal)}</span></div>
             </div>
           </Card>
 

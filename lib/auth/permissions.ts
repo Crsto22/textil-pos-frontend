@@ -5,6 +5,17 @@ export const ROLE_CONFIG: Record<string, { allowedRoutes: string[]; defaultRoute
       "/ventas",
       "/clientes",
       "/configuracion/cuenta",
+      "/configuracion/comprobantes",
+    ],
+    defaultRoute: "/dashboard",
+  },
+  VENDEDOR: {
+    allowedRoutes: [
+      "/dashboard",
+      "/ventas",
+      "/clientes",
+      "/configuracion/cuenta",
+      "/configuracion/comprobantes",
     ],
     defaultRoute: "/dashboard",
   },
@@ -12,6 +23,8 @@ export const ROLE_CONFIG: Record<string, { allowedRoutes: string[]; defaultRoute
     allowedRoutes: [
       "/dashboard",
       "/productos",
+      "/stock",
+      "/reportes/productos",
       "/configuracion/cuenta",
     ],
     defaultRoute: "/dashboard",

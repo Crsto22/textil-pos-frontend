@@ -4,6 +4,7 @@ const BACKEND_URL = process.env.BACKEND_URL
 const PDF_CONTENT_TYPE = "application/pdf"
 const ALLOWED_QUERY_KEYS = [
   "q",
+  "estadoVenta",
   "idVenta",
   "idUsuario",
   "idMetodoPago",

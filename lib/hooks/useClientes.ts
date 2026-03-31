@@ -19,9 +19,11 @@ import {
     useDebouncedValue,
 } from "@/lib/hooks/useDebouncedValue"
 import type {
+    ClienteTipoDocumentoFilter,
     Cliente,
     ClienteUpdateRequest,
 } from "@/lib/types/cliente"
+import { ALL_CLIENTE_DOCUMENT_FILTER } from "@/lib/types/cliente"
 import type { PageResponse } from "@/lib/types/usuario"
 
 interface SearchTotals {
@@ -56,6 +58,8 @@ export function useClientes() {
     const [error, setError] = useState<string | null>(null)
 
     const [search, setSearch] = useState("")
+    const [tipoDocumentoFilter, setTipoDocumentoFilter] =
+        useState<ClienteTipoDocumentoFilter>(ALL_CLIENTE_DOCUMENT_FILTER)
     const [searchPage, setSearchPage] = useState(0)
     const resetSearchPage = useCallback(() => {
         setSearchPage(0)
@@ -77,7 +81,10 @@ export function useClientes() {
 
     const isSearchMode = debouncedSearch.trim().length > 0
 
-    const fetchClientes = useCallback(async (pageNumber: number) => {
+    const fetchClientes = useCallback(async (
+        pageNumber: number,
+        tipoDocumentoFilterValue: ClienteTipoDocumentoFilter
+    ) => {
         listAbortRef.current?.abort()
         const controller = new AbortController()
         listAbortRef.current = controller
@@ -86,7 +93,15 @@ export function useClientes() {
         setError(null)
 
         try {
-            const response = await authFetch(`/api/cliente/listar?page=${pageNumber}`, {
+            const params = new URLSearchParams({
+                page: String(pageNumber),
+            })
+
+            if (tipoDocumentoFilterValue !== ALL_CLIENTE_DOCUMENT_FILTER) {
+                params.set("tipoDocumento", tipoDocumentoFilterValue)
+            }
+
+            const response = await authFetch(`/api/cliente/listar?${params.toString()}`, {
                 signal: controller.signal,
             })
             const data = await parseJsonSafe(response)
@@ -116,7 +131,11 @@ export function useClientes() {
         }
     }, [])
 
-    const fetchBuscar = useCallback(async (query: string, pageNumber: number) => {
+    const fetchBuscar = useCallback(async (
+        query: string,
+        pageNumber: number,
+        tipoDocumentoFilterValue: ClienteTipoDocumentoFilter
+    ) => {
         searchAbortRef.current?.abort()
         const controller = new AbortController()
         searchAbortRef.current = controller
@@ -129,6 +148,10 @@ export function useClientes() {
                 q: query.trim(),
                 page: String(pageNumber),
             })
+
+            if (tipoDocumentoFilterValue !== ALL_CLIENTE_DOCUMENT_FILTER) {
+                params.set("tipoDocumento", tipoDocumentoFilterValue)
+            }
 
             const response = await authFetch(`/api/cliente/buscar?${params.toString()}`, {
                 signal: controller.signal,
@@ -166,8 +189,8 @@ export function useClientes() {
 
     useEffect(() => {
         if (isAuthLoading || isSearchMode) return
-        fetchClientes(page)
-    }, [fetchClientes, isAuthLoading, isSearchMode, page])
+        fetchClientes(page, tipoDocumentoFilter)
+    }, [fetchClientes, isAuthLoading, isSearchMode, page, tipoDocumentoFilter])
 
     useEffect(() => {
         if (isAuthLoading) return
@@ -179,8 +202,13 @@ export function useClientes() {
             return
         }
 
-        fetchBuscar(debouncedSearch, searchPage)
-    }, [debouncedSearch, fetchBuscar, isAuthLoading, isSearchMode, searchPage])
+        fetchBuscar(debouncedSearch, searchPage, tipoDocumentoFilter)
+    }, [debouncedSearch, fetchBuscar, isAuthLoading, isSearchMode, searchPage, tipoDocumentoFilter])
+
+    useEffect(() => {
+        setPage(0)
+        setSearchPage(0)
+    }, [tipoDocumentoFilter])
 
     useEffect(() => {
         return () => {
@@ -191,12 +219,20 @@ export function useClientes() {
 
     const refreshCurrentView = useCallback(async () => {
         if (isSearchMode) {
-            await fetchBuscar(debouncedSearch, searchPage)
+            await fetchBuscar(debouncedSearch, searchPage, tipoDocumentoFilter)
             return
         }
 
-        await fetchClientes(page)
-    }, [debouncedSearch, fetchBuscar, fetchClientes, isSearchMode, page, searchPage])
+        await fetchClientes(page, tipoDocumentoFilter)
+    }, [
+        debouncedSearch,
+        fetchBuscar,
+        fetchClientes,
+        isSearchMode,
+        page,
+        searchPage,
+        tipoDocumentoFilter,
+    ])
     const { createCliente } = useClienteCreate({
         onCreated: refreshCurrentView,
         onError: setError,
@@ -315,6 +351,8 @@ export function useClientes() {
         setDisplayedPage,
 
         setSearch,
+        tipoDocumentoFilter,
+        setTipoDocumentoFilter,
         setPage,
         setSearchPage,
         fetchClientes,

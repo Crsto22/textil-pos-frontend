@@ -10,6 +10,8 @@ interface ExportVentaReporteExcelParams {
   periodo: VentaListadoPeriodo
   desde?: string
   hasta?: string
+  idSucursal?: number | null
+  idCliente?: number | null
 }
 
 function buildQueryString(params: ExportVentaReporteExcelParams): string {
@@ -22,6 +24,14 @@ function buildQueryString(params: ExportVentaReporteExcelParams): string {
 
   if (params.hasta) {
     searchParams.set("hasta", params.hasta)
+  }
+
+  if (typeof params.idSucursal === "number" && params.idSucursal > 0) {
+    searchParams.set("idSucursal", String(params.idSucursal))
+  }
+
+  if (typeof params.idCliente === "number" && params.idCliente > 0) {
+    searchParams.set("idCliente", String(params.idCliente))
   }
 
   return searchParams.toString()

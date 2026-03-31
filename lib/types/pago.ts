@@ -25,10 +25,12 @@ export interface PagoListado {
   nombreUsuario: string
   idSucursal: number | null
   nombreSucursal: string
+  estadoVenta: string
 }
 
 export interface PagoFilters {
   search: string
+  estadoVenta: "TODOS" | string
   idUsuario: number | null
   idMetodoPago: number | null
   idSucursal: number | null

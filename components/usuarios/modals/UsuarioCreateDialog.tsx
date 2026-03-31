@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useEffect, useLayoutEffect, useMemo, useRef, startTransition, useState } from "react"
 
 import {
   Dialog,
@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { useSucursalOptions } from "@/lib/hooks/useSucursalOptions"
+import { useSucursalGlobal } from "@/lib/sucursal-global-context"
 import {
   emptyCreate,
   isUsuarioRol,
@@ -41,8 +42,24 @@ export function UsuarioCreateDialog({
   onOpenChange,
   onCreate,
 }: UsuarioCreateDialogProps) {
+  const { sucursalGlobal } = useSucursalGlobal()
+  const sucursalGlobalRef = useRef(sucursalGlobal)
+  useLayoutEffect(() => {
+    sucursalGlobalRef.current = sucursalGlobal
+  })
+
   const [form, setForm] = useState<UsuarioCreateRequest>(emptyCreate)
   const [isSaving, setIsSaving] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+    const globalId = sucursalGlobalRef.current?.idSucursal
+    if (!globalId) return
+    startTransition(() =>
+      setForm((prev) => ({ ...prev, idSucursal: globalId }))
+    )
+  }, [open])
+
   const {
     sucursalOptions,
     loadingSucursales,

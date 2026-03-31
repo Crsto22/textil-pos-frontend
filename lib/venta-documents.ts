@@ -1,6 +1,7 @@
 import { authFetch } from "@/lib/auth/auth-fetch"
+import { setDocumentPreviewLoadingState } from "@/lib/document-preview-loader"
 
-export type VentaDocumentKind = "comprobante" | "ticket" | "xml" | "cdr"
+export type VentaDocumentKind = "comprobante" | "ticket" | "xml" | "cdr-xml" | "cdr-zip"
 
 interface VentaDocumentSource {
   idVenta: number
@@ -13,6 +14,7 @@ interface VentaDocumentConfig {
   fallbackFileName: string
   successMessage: string
   errorLabel: string
+  loadingMessage: string
   disposition: "download" | "inline"
   openMode?: "tab" | "popup"
 }
@@ -46,17 +48,31 @@ export function getVentaDocumentConfig(
       fallbackFileName: venta.sunatXmlNombre || `venta_${venta.idVenta}.xml`,
       successMessage: "XML descargado correctamente.",
       errorLabel: "XML",
+      loadingMessage: "Cargando XML...",
       disposition: "download",
       openMode: "tab",
     }
   }
 
-  if (kind === "cdr") {
+  if (kind === "cdr-xml") {
     return {
-      endpoint: `/api/venta/${venta.idVenta}/sunat/cdr`,
+      endpoint: `/api/venta/${venta.idVenta}/sunat/cdr?formato=xml`,
+      fallbackFileName: `cdr_venta_${venta.idVenta}.xml`,
+      successMessage: "CDR XML abierto correctamente.",
+      errorLabel: "CDR XML",
+      loadingMessage: "Cargando CDR XML...",
+      disposition: "download",
+      openMode: "tab",
+    }
+  }
+
+  if (kind === "cdr-zip") {
+    return {
+      endpoint: `/api/venta/${venta.idVenta}/sunat/cdr?formato=zip`,
       fallbackFileName: venta.sunatCdrNombre || `cdr_venta_${venta.idVenta}.zip`,
-      successMessage: "CDR descargado correctamente.",
-      errorLabel: "CDR",
+      successMessage: "CDR ZIP descargado correctamente.",
+      errorLabel: "CDR ZIP",
+      loadingMessage: "Descargando CDR ZIP...",
       disposition: "download",
       openMode: "tab",
     }
@@ -68,6 +84,7 @@ export function getVentaDocumentConfig(
       fallbackFileName: `ticket_venta_${venta.idVenta}.pdf`,
       successMessage: "Ticket abierto correctamente.",
       errorLabel: "ticket",
+      loadingMessage: "Cargando ticket...",
       disposition: "inline",
       openMode: "popup",
     }
@@ -78,6 +95,7 @@ export function getVentaDocumentConfig(
     fallbackFileName: `comprobante_venta_${venta.idVenta}.pdf`,
     successMessage: "Comprobante abierto correctamente.",
     errorLabel: "comprobante",
+    loadingMessage: "Cargando comprobante...",
     disposition: "inline",
     openMode: "tab",
   }
@@ -147,12 +165,7 @@ export async function openVentaDocument(config: VentaDocumentConfig) {
   const previewWindow =
     typeof window !== "undefined" ? window.open("", "_blank", popupFeatures) : null
 
-  if (previewWindow?.document) {
-    previewWindow.opener = null
-    previewWindow.document.title = "Cargando documento..."
-    previewWindow.document.body.innerHTML =
-      '<div style="font-family: sans-serif; padding: 24px; color: #475569;">Cargando documento...</div>'
-  }
+  setDocumentPreviewLoadingState(previewWindow, config.loadingMessage)
 
   const result = await fetchVentaDocument(config)
 

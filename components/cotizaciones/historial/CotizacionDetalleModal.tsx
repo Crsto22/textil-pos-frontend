@@ -169,12 +169,6 @@ export function CotizacionDetalleModal({
                     </span>
                     <span className="font-medium">{formatMonto(detalle.descuentoTotal)}</span>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">
-                      IGV ({detalle.igvPorcentaje.toFixed(2)}%)
-                    </span>
-                    <span className="font-medium">{formatMonto(detalle.igv)}</span>
-                  </div>
                   <div className="mt-1 flex items-center justify-between border-t pt-2 text-base font-semibold">
                     <span>Total</span>
                     <span>{formatMonto(detalle.total)}</span>

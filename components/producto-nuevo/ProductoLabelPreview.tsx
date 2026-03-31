@@ -13,6 +13,7 @@ interface ProductoLabelPreviewProps {
   selectedTallas: Talla[]
   activeColorId: number | null
   previewImageUrl: string | null
+  hasSucursal: boolean
   onOpenImages: () => void
   onOpenColors: () => void
   onOpenTallas: () => void
@@ -32,6 +33,7 @@ export function ProductoLabelPreview({
   selectedTallas,
   activeColorId,
   previewImageUrl,
+  hasSucursal,
   onOpenImages,
   onOpenColors,
   onOpenTallas,
@@ -75,8 +77,15 @@ export function ProductoLabelPreview({
       <div className="grid grid-cols-2 gap-3">
         <button
           type="button"
-          onClick={onOpenColors}
-          className="inline-flex items-center justify-center gap-2 rounded-2xl bg-background px-4 py-3 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-muted/60"
+          onClick={hasSucursal ? onOpenColors : undefined}
+          disabled={!hasSucursal}
+          title={!hasSucursal ? "Selecciona una sucursal primero" : undefined}
+          className={cn(
+            "inline-flex items-center justify-center gap-2 rounded-2xl bg-background px-4 py-3 text-sm font-medium shadow-sm transition-colors",
+            hasSucursal
+              ? "text-foreground hover:bg-muted/60"
+              : "cursor-not-allowed opacity-40"
+          )}
         >
           <SwatchIcon className="h-4 w-4" />
           <span>Colores</span>
@@ -87,8 +96,15 @@ export function ProductoLabelPreview({
 
         <button
           type="button"
-          onClick={onOpenTallas}
-          className="inline-flex items-center justify-center gap-2 rounded-2xl bg-background px-4 py-3 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-muted/60"
+          onClick={hasSucursal ? onOpenTallas : undefined}
+          disabled={!hasSucursal}
+          title={!hasSucursal ? "Selecciona una sucursal primero" : undefined}
+          className={cn(
+            "inline-flex items-center justify-center gap-2 rounded-2xl bg-background px-4 py-3 text-sm font-medium shadow-sm transition-colors",
+            hasSucursal
+              ? "text-foreground hover:bg-muted/60"
+              : "cursor-not-allowed opacity-40"
+          )}
         >
           <PlusIcon className="h-4 w-4" />
           <span>Tallas</span>

@@ -11,7 +11,9 @@ const ESTADO_CLASSES: Record<string, string> = {
   PENDIENTE: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
   VENCIDA: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
   ANULADA: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400",
+  ANULACION_PENDIENTE: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
   RECHAZADA: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400",
+  NC_EMITIDA:"bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
 }
 
 const SUNAT_ESTADO_CLASSES: Record<string, string> = {
@@ -25,6 +27,7 @@ const SUNAT_ESTADO_CLASSES: Record<string, string> = {
   RECHAZADO: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400",
   ERROR: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400",
   NO_APLICA: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+  NC_EMITIDA:"bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
 }
 
 export function getEstadoBadgeClass(estado: string): string {
@@ -36,11 +39,19 @@ export function getEstadoBadgeClass(estado: string): string {
 }
 
 export function getSunatBadgeClass(estado: string | null | undefined): string {
-  const key = (estado ?? "").trim().toUpperCase()
+  const key = normalizeSunatEstado(estado)
   return (
     SUNAT_ESTADO_CLASSES[key] ??
     "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
   )
+}
+
+export function normalizeSunatEstado(estado: string | null | undefined): string {
+  return (estado ?? "").trim().toUpperCase()
+}
+
+export function isSunatNotApplicable(estado: string | null | undefined): boolean {
+  return normalizeSunatEstado(estado) === "NO_APLICA"
 }
 
 export function formatMonto(value: number, currency = "PEN"): string {

@@ -10,6 +10,7 @@ import {
 } from "@heroicons/react/24/outline"
 
 import { SucursalesCardsSkeleton } from "@/components/sucursales/SucursalesCardsSkeleton"
+import { UserAvatar } from "@/components/ui/user-avatar"
 import { getSucursalLocationLabel } from "@/lib/sucursal"
 import { cn } from "@/lib/utils"
 import type { Sucursal } from "@/lib/types/sucursal"
@@ -80,13 +81,17 @@ function getAvatarColor(index: number): string {
   return avatarColors[index % avatarColors.length]
 }
 
-function getInitials(fullName: string) {
-  return fullName
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? "")
-    .join("")
+function splitNombreCompleto(fullName: string) {
+  const trimmed = fullName.trim()
+  if (!trimmed) {
+    return { nombre: "", apellido: "" }
+  }
+
+  const parts = trimmed.split(/\s+/)
+  return {
+    nombre: parts[0] ?? "",
+    apellido: parts.slice(1).join(" "),
+  }
 }
 
 /* ─── Main component ─── */
@@ -116,9 +121,23 @@ function SucursalesCardsComponent({
         const usuarios = Array.isArray(sucursal.usuarios)
           ? sucursal.usuarios
           : []
+        const usuariosDetalle = Array.isArray(sucursal.usuariosDetalle)
+          ? sucursal.usuariosDetalle
+          : []
+        const usuariosPreview = usuariosDetalle.length > 0
+          ? usuariosDetalle.slice(0, 4)
+          : usuarios.slice(0, 4).map((nombreCompleto, index) => ({
+              idUsuario: index + 1,
+              nombreCompleto,
+              fotoPerfilUrl: null,
+            }))
         const usuariosTotal = Number.isFinite(sucursal.usuariosTotal)
           ? sucursal.usuariosTotal
-          : usuarios.length
+          : Math.max(usuariosDetalle.length, usuarios.length)
+        const usuariosHiddenCount =
+          Number.isFinite(sucursal.usuariosFaltantes) && sucursal.usuariosFaltantes > 0
+            ? sucursal.usuariosFaltantes
+            : Math.max(0, usuariosTotal - usuariosPreview.length)
         const locationLabel = getSucursalLocationLabel(sucursal)
 
 
@@ -226,31 +245,67 @@ function SucursalesCardsComponent({
 
             {/* ─── Staff section ─── */}
             <div className="px-5 pt-4">
-              <div className="flex items-center justify-between">
-                <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  <UserGroupIcon className="h-3.5 w-3.5" />
-                  Staff
-                </p>
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    <UserGroupIcon className="h-3.5 w-3.5" />
+                    Staff
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {usuariosTotal > 0
+                      ? `${usuariosTotal} usuario${usuariosTotal === 1 ? "" : "s"} asignado${usuariosTotal === 1 ? "" : "s"}`
+                      : "Sin usuarios asignados"}
+                  </p>
+                </div>
                 <div className="flex -space-x-2">
-                  {usuarios.slice(0, 4).map((usuario, idx) => (
-                    <span
-                      key={`${sucursal.idSucursal}-${usuario}`}
-                      className={cn(
-                        "inline-flex h-7 w-7 items-center justify-center rounded-full border-2 border-card text-[10px] font-bold text-white shadow-sm",
-                        getAvatarColor(idx)
-                      )}
-                      title={usuario}
-                    >
-                      {getInitials(usuario)}
-                    </span>
-                  ))}
-                  {usuariosTotal > 4 && (
+                  {usuariosPreview.map((usuario, idx) => {
+                    const parsedName = splitNombreCompleto(usuario.nombreCompleto)
+
+                    return (
+                      <span
+                        key={`${sucursal.idSucursal}-${usuario.idUsuario}-${usuario.nombreCompleto}`}
+                        className="inline-flex rounded-full border-2 border-card shadow-sm"
+                        title={usuario.nombreCompleto}
+                      >
+                        <UserAvatar
+                          nombre={parsedName.nombre}
+                          apellido={parsedName.apellido}
+                          fotoPerfilUrl={usuario.fotoPerfilUrl}
+                          className="h-7 w-7"
+                          fallbackClassName={getAvatarColor(idx)}
+                          textClassName="text-[10px] font-bold"
+                          alt={`Foto de perfil de ${usuario.nombreCompleto}`}
+                        />
+                      </span>
+                    )
+                  })}
+                  {usuariosHiddenCount > 0 && (
                     <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border-2 border-card bg-slate-200 text-[10px] font-bold text-slate-600 shadow-sm dark:bg-slate-700 dark:text-slate-300">
-                      +{usuariosTotal - 4}
+                      +{usuariosHiddenCount}
                     </span>
                   )}
                 </div>
               </div>
+
+              {usuariosPreview.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {usuariosPreview.map((usuario, idx) => (
+                    <span
+                      key={`${sucursal.idSucursal}-label-${usuario.idUsuario}-${idx}`}
+                      className="inline-flex max-w-full items-center gap-2 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-700 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
+                      title={usuario.nombreCompleto}
+                    >
+                      <span
+                        className={cn(
+                          "inline-flex h-2 w-2 rounded-full",
+                          usuario.fotoPerfilUrl ? "bg-emerald-500" : "bg-slate-400"
+                        )}
+                      />
+                      <span className="truncate">{usuario.nombreCompleto}</span>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
 
 

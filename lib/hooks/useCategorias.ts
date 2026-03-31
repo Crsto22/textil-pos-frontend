@@ -50,7 +50,16 @@ function hasValidSucursalId(idSucursal?: number | null): idSucursal is number {
   return typeof idSucursal === "number" && idSucursal > 0
 }
 
-export function useCategorias() {
+function appendOptionalPositiveInt(
+  params: URLSearchParams,
+  key: string,
+  value?: number | null
+) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return
+  params.set(key, String(Math.trunc(value)))
+}
+
+export function useCategorias(idSucursal?: number | null) {
   const { isLoading: isAuthLoading, user } = useAuth()
 
   const [categorias, setCategorias] = useState<Categoria[]>([])
@@ -92,7 +101,9 @@ export function useCategorias() {
     setError(null)
 
     try {
-      const response = await authFetch(`/api/categoria/listar?page=${pageNumber}`, {
+      const params = new URLSearchParams({ page: String(pageNumber) })
+      appendOptionalPositiveInt(params, "idSucursal", idSucursal)
+      const response = await authFetch(`/api/categoria/listar?${params.toString()}`, {
         signal: controller.signal,
       })
       const data = await parseJsonSafe(response)
@@ -132,7 +143,7 @@ export function useCategorias() {
         setLoading(false)
       }
     }
-  }, [])
+  }, [idSucursal])
 
   const fetchBuscar = useCallback(async (query: string, pageNumber: number) => {
     searchAbortRef.current?.abort()
@@ -147,6 +158,7 @@ export function useCategorias() {
         q: query.trim(),
         page: String(pageNumber),
       })
+      appendOptionalPositiveInt(params, "idSucursal", idSucursal)
 
       const response = await authFetch(
         `/api/categoria/buscar?${params.toString()}`,
@@ -191,15 +203,20 @@ export function useCategorias() {
         setSearching(false)
       }
     }
-  }, [])
+  }, [idSucursal])
 
   useEffect(() => {
-    if (isAuthLoading || isSearchMode) return
+    setPage(0)
+    setSearchPage(0)
+  }, [idSucursal])
+
+  useEffect(() => {
+    if (isAuthLoading || isSearchMode || !hasValidSucursalId(idSucursal)) return
     fetchCategorias(page)
-  }, [fetchCategorias, isAuthLoading, isSearchMode, page])
+  }, [fetchCategorias, idSucursal, isAuthLoading, isSearchMode, page])
 
   useEffect(() => {
-    if (isAuthLoading) return
+    if (isAuthLoading || !hasValidSucursalId(idSucursal)) return
 
     if (!isSearchMode) {
       setSearchResults([])
@@ -209,7 +226,7 @@ export function useCategorias() {
     }
 
     fetchBuscar(debouncedSearch, searchPage)
-  }, [debouncedSearch, fetchBuscar, isAuthLoading, isSearchMode, searchPage])
+  }, [debouncedSearch, fetchBuscar, idSucursal, isAuthLoading, isSearchMode, searchPage])
 
   useEffect(() => {
     return () => {

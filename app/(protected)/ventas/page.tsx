@@ -1,18 +1,21 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type ReactNode } from "react"
+import { useCallback, useEffect, useMemo, startTransition, useState, type ChangeEvent, type ReactNode } from "react"
 import { useRouter } from "next/navigation"
 import {
   ArrowLeftIcon,
   ArrowPathIcon,
+  BuildingStorefrontIcon,
   CheckCircleIcon,
   ClockIcon,
   CubeIcon,
   ExclamationTriangleIcon,
   MagnifyingGlassIcon,
   ShoppingBagIcon,
+  TagIcon,
   TicketIcon,
   XMarkIcon,
+  QrCodeIcon,
 } from "@heroicons/react/24/outline"
 import { toast } from "sonner"
 
@@ -38,7 +41,6 @@ import {
   matchesCatalogVariantItem,
   type CatalogVariantItem,
   type CatalogVariantSelection,
-  type CatalogViewMode,
 } from "@/lib/catalog-view"
 import { useCatalogoVariantes } from "@/lib/hooks/useCatalogoVariantes"
 import { useCatalogViewMode } from "@/lib/hooks/useCatalogViewMode"
@@ -47,6 +49,9 @@ import { useComprobanteOptions } from "@/lib/hooks/useComprobanteOptions"
 import { useMetodosPagoActivos } from "@/lib/hooks/useMetodosPagoActivos"
 import { useProductos } from "@/lib/hooks/useProductos"
 import { useSucursalOptions } from "@/lib/hooks/useSucursalOptions"
+import { useBarcodeScan } from "@/lib/hooks/useBarcodeScan"
+import { useGlobalBarcodeScanner } from "@/lib/hooks/useGlobalBarcodeScanner"
+import { useSucursalGlobal } from "@/lib/sucursal-global-context"
 import { getSucursalAvatarColor, getSucursalInitials } from "@/lib/sucursal"
 import type { Categoria, PageResponse as CategoriaPageResponse } from "@/lib/types/categoria"
 import type { Cliente, ClienteCreatePrefill } from "@/lib/types/cliente"
@@ -54,6 +59,7 @@ import type { Color, PageResponse as ColorPageResponse } from "@/lib/types/color
 import type { ProductoResumen } from "@/lib/types/producto"
 import type { VentaLineaPrecioTipo } from "@/lib/types/venta-price"
 import type { VentaCreateRequest, VentaInsertResponse } from "@/lib/types/venta"
+import type { VarianteEscanearResponse } from "@/lib/types/variante"
 import {
   appliesIgvForComprobante,
   calculateIncludedIgvAmount,
@@ -306,6 +312,10 @@ function clampCartQuantity(cantidad: number, stockDisponible?: number | null) {
   return Math.min(normalizedQuantity, stockLimit)
 }
 
+function sanitizeNumericInput(value: string) {
+  return value.replace(/\D+/g, "")
+}
+
 export default function VentasPage() {
   const router = useRouter()
   const { user } = useAuth()
@@ -314,13 +324,30 @@ export default function VentasPage() {
   const [catalogViewMode, setCatalogViewMode] = useCatalogViewMode()
   const isVariantView = catalogViewMode === "variantes"
 
+  const [selectedSucursalId, setSelectedSucursalId] = useState<number | null>(null)
+  const defaultAdminSucursalId =
+    isAdmin && hasValidSucursalId(user?.idSucursal) ? user.idSucursal : null
+  const effectiveSelectedSucursalId = hasValidSucursalId(selectedSucursalId)
+    ? selectedSucursalId
+    : defaultAdminSucursalId
+  const hasSelectedSucursal = hasValidSucursalId(effectiveSelectedSucursalId)
+  const resolvedSucursalId = isAdmin
+    ? hasSelectedSucursal
+      ? effectiveSelectedSucursalId
+      : null
+    : userHasSucursal
+      ? user?.idSucursal ?? null
+      : null
+
   const {
     search: searchProductos,
     setSearch: setSearchProductos,
     idCategoriaFilter: idCategoriaFilterProductos,
     idColorFilter: idColorFilterProductos,
+    conOfertaFilter: conOfertaFilterProductos,
     setIdCategoriaFilter: setIdCategoriaFilterProductos,
     setIdColorFilter: setIdColorFilterProductos,
+    setConOfertaFilter: setConOfertaFilterProductos,
     displayedProductos,
     displayedTotalElements: displayedTotalElementsProductos,
     displayedTotalPages: displayedTotalPagesProductos,
@@ -329,14 +356,16 @@ export default function VentasPage() {
     setDisplayedPage: setDisplayedPageProductos,
     error: errorProductosListado,
     refreshCurrentView: refreshProductosView,
-  } = useProductos(!isVariantView)
+  } = useProductos(!isVariantView && resolvedSucursalId !== null, resolvedSucursalId)
   const {
     search: searchVariantes,
     setSearch: setSearchVariantes,
     idCategoriaFilter: idCategoriaFilterVariantes,
     idColorFilter: idColorFilterVariantes,
+    conOfertaFilter: conOfertaFilterVariantes,
     setIdCategoriaFilter: setIdCategoriaFilterVariantes,
     setIdColorFilter: setIdColorFilterVariantes,
+    setConOfertaFilter: setConOfertaFilterVariantes,
     displayedCatalogVariants,
     displayedTotalElements: displayedTotalElementsVariantes,
     displayedTotalPages: displayedTotalPagesVariantes,
@@ -345,8 +374,7 @@ export default function VentasPage() {
     setDisplayedPage: setDisplayedPageVariantes,
     error: errorVariantesListado,
     refreshCurrentView: refreshVariantesView,
-  } = useCatalogoVariantes(isVariantView)
-
+  } = useCatalogoVariantes(isVariantView && resolvedSucursalId !== null, resolvedSucursalId)
   const [cart, setCart] = useState<CartItemData[]>([])
   const [selectedPayment, setSelectedPayment] = useState<PaymentKey | null>(null)
   const [paymentOperationCode, setPaymentOperationCode] = useState("")
@@ -357,7 +385,6 @@ export default function VentasPage() {
   const [discount, setDiscount] = useState<DiscountState>(() => createEmptyDiscountState())
   const [discountDraft, setDiscountDraft] = useState<DiscountState>(() => createEmptyDiscountState())
   const [isDiscountEditorActive, setIsDiscountEditorActive] = useState(false)
-  const [selectedSucursalId, setSelectedSucursalId] = useState<number | null>(null)
   const [selectedComprobanteId, setSelectedComprobanteId] = useState("")
   const [modalProduct, setModalProduct] = useState<ProductoResumen | null>(null)
   const [modalVariantSelection, setModalVariantSelection] =
@@ -370,6 +397,91 @@ export default function VentasPage() {
   const [coloresDisponibles, setColoresDisponibles] = useState<ColorFilterOption[]>([])
   const [colorPage, setColorPage] = useState(0)
   const [colorTotalPages, setColorTotalPages] = useState(1)
+  const handleBarcodeScanSuccess = useCallback(
+    (data: VarianteEscanearResponse) => {
+      const priceOptions: import("@/lib/types/venta-price").VentaLineaPrecioOption[] = [
+        { type: "normal", label: "Precio Unidad", precio: data.precio, description: "Precio regular" },
+      ]
+
+      if (
+        typeof data.precioOferta === "number" &&
+        data.precioOferta > 0 &&
+        data.precioOferta < data.precio &&
+        data.precioVigente === data.precioOferta
+      ) {
+        const expDesc =
+          data.ofertaFin
+            ? `Hasta ${new Date(data.ofertaFin).toLocaleDateString("es-PE")}`
+            : "Oferta vigente"
+        priceOptions.push({ type: "oferta", label: "Precio Oferta", precio: data.precioOferta, description: expDesc })
+      }
+
+      if (typeof data.precioMayor === "number" && data.precioMayor > 0) {
+        priceOptions.push({ type: "mayor", label: "Precio por Mayor", precio: data.precioMayor, description: "Precio por mayor" })
+      }
+
+      const defaultType = priceOptions.some((o) => o.type === "oferta") ? "oferta" as const : "normal" as const
+      const selectedPrice = priceOptions.find((o) => o.type === defaultType)?.precio ?? data.precioVigente
+
+      const imageUrl = data.imagenPrincipal?.urlThumb ?? data.imagenPrincipal?.url ?? null
+
+      setCart((previous) => {
+        const index = previous.findIndex((item) => item.varianteId === data.idProductoVariante)
+        if (index >= 0) {
+          return previous.map((item, idx) => {
+            if (idx !== index) return item
+            return {
+              ...item,
+              cantidad: clampCartQuantity(item.cantidad + 1, data.stock),
+              precio: selectedPrice,
+              precioSeleccionado: item.precioSeleccionado ?? defaultType,
+              preciosDisponibles: priceOptions,
+              stockDisponible: data.stock,
+              imageUrl: imageUrl ?? item.imageUrl ?? null,
+            }
+          })
+        }
+
+        return [
+          ...previous,
+          {
+            id: data.producto.idProducto,
+            varianteId: data.idProductoVariante,
+            nombre: data.producto.nombre,
+            precio: selectedPrice,
+            precioSeleccionado: defaultType,
+            preciosDisponibles: priceOptions,
+            cantidad: 1,
+            stockDisponible: data.stock,
+            talla: data.talla.nombre,
+            color: data.color.nombre,
+            imageUrl,
+          },
+        ]
+      })
+
+      setVentaError(null)
+      toast.success(`${data.producto.nombre} - ${data.color.nombre} ${data.talla.nombre} agregado`)
+    },
+    []
+  )
+
+  const handleBarcodeScanError = useCallback(
+    (message: string) => {
+      setVentaError(message)
+    },
+    []
+  )
+
+  const { scan: scanBarcode, scanning: scanningBarcode } = useBarcodeScan({
+    idSucursal: resolvedSucursalId,
+    onSuccess: handleBarcodeScanSuccess,
+    onError: handleBarcodeScanError,
+  })
+
+  const { active: scannerActive, toggle: toggleScanner } = useGlobalBarcodeScanner({
+    onScan: scanBarcode,
+  })
 
   const {
     sucursalOptions,
@@ -378,14 +490,30 @@ export default function VentasPage() {
     searchSucursal,
     setSearchSucursal,
   } = useSucursalOptions(isAdmin)
+
+  const { sucursalGlobal } = useSucursalGlobal()
+  useEffect(() => {
+    if (!isAdmin || sucursalGlobal === null) return
+    startTransition(() => setSelectedSucursalId(sucursalGlobal.idSucursal))
+  }, [sucursalGlobal, isAdmin])
+
   const { createCliente } = useClienteCreate({
     successMessage: "Cliente creado y seleccionado",
   })
 
+
   useEffect(() => {
     const fetchCategorias = async () => {
+      if (resolvedSucursalId === null) {
+        setCategoriasDisponibles([])
+        setCategoryTotalPages(1)
+        return
+      }
+
       try {
-        const response = await authFetch(`/api/categoria/listar?page=${categoryPage}`)
+        const params = new URLSearchParams({ page: String(categoryPage) })
+        if (resolvedSucursalId) params.set("idSucursal", String(resolvedSucursalId))
+        const response = await authFetch(`/api/categoria/listar?${params.toString()}`)
         const data = await parseJsonSafe(response)
 
         if (!response.ok) {
@@ -414,10 +542,16 @@ export default function VentasPage() {
     }
 
     void fetchCategorias()
-  }, [categoryPage])
+  }, [categoryPage, resolvedSucursalId])
 
   useEffect(() => {
     const fetchColores = async () => {
+      if (resolvedSucursalId === null) {
+        setColoresDisponibles([])
+        setColorTotalPages(1)
+        return
+      }
+
       try {
         const response = await authFetch(`/api/color/listar?page=${colorPage}`)
         const data = await parseJsonSafe(response)
@@ -448,14 +582,7 @@ export default function VentasPage() {
     }
 
     void fetchColores()
-  }, [colorPage])
-
-  const defaultAdminSucursalId =
-    isAdmin && hasValidSucursalId(user?.idSucursal) ? user.idSucursal : null
-  const effectiveSelectedSucursalId = hasValidSucursalId(selectedSucursalId)
-    ? selectedSucursalId
-    : defaultAdminSucursalId
-  const hasSelectedSucursal = hasValidSucursalId(effectiveSelectedSucursalId)
+  }, [colorPage, resolvedSucursalId])
 
   const sucursalComboboxOptions = useMemo<ComboboxOption[]>(
     () =>
@@ -475,14 +602,6 @@ export default function VentasPage() {
         : sucursalOptions,
     [effectiveSelectedSucursalId, hasSelectedSucursal, sucursalOptions]
   )
-
-  const resolvedSucursalId = isAdmin
-    ? hasSelectedSucursal
-      ? effectiveSelectedSucursalId
-      : null
-    : userHasSucursal
-      ? user?.idSucursal ?? null
-      : null
 
   const {
     comprobantes,
@@ -514,6 +633,10 @@ export default function VentasPage() {
       ) ?? null,
     [comprobantes, effectiveSelectedComprobanteId]
   )
+  const clienteTipoDocumentoFilter = useMemo(() => {
+    const tipoComprobante = selectedComprobante?.tipoComprobante?.trim().toUpperCase()
+    return tipoComprobante === "FACTURA" ? "RUC" : null
+  }, [selectedComprobante?.tipoComprobante])
   const showIgvSummary = useMemo(
     () => appliesIgvForComprobante(selectedComprobante?.tipoComprobante),
     [selectedComprobante?.tipoComprobante]
@@ -556,6 +679,8 @@ export default function VentasPage() {
   const search = isVariantView ? searchVariantes : searchProductos
   const idCategoriaFilter = isVariantView ? idCategoriaFilterVariantes : idCategoriaFilterProductos
   const idColorFilter = isVariantView ? idColorFilterVariantes : idColorFilterProductos
+  const conOfertaFilter = isVariantView ? conOfertaFilterVariantes : conOfertaFilterProductos
+  const shouldShowCatalogFilters = resolvedSucursalId !== null
   const displayedTotalElements = isVariantView
     ? displayedTotalElementsVariantes
     : displayedTotalElementsProductos
@@ -603,7 +728,12 @@ export default function VentasPage() {
     cart.length > 0 &&
     resolvedSucursalId !== null &&
     selectedComprobante !== null
-  const canConfirm = canContinueToPayment && selectedPayment !== null && selectedMetodoPago !== null
+  const hasValidPaymentOperationCode = /^\d+$/.test(paymentOperationCode.trim())
+  const canConfirm =
+    canContinueToPayment &&
+    selectedPayment !== null &&
+    selectedMetodoPago !== null &&
+    hasValidPaymentOperationCode
 
   const continueHint = useMemo(() => {
     if (cart.length === 0) return "Agrega al menos una variante"
@@ -631,8 +761,16 @@ export default function VentasPage() {
     if (activeMetodosPago.length === 0) return "No hay metodos de pago activos"
     if (selectedPayment === null) return "Selecciona un metodo de pago"
     if (selectedMetodoPago === null) return "Selecciona un metodo de pago valido"
+    if (!paymentOperationCode.trim()) return "Ingresa el codigo de operacion"
+    if (!hasValidPaymentOperationCode) return "El codigo de operacion debe contener solo numeros"
     return ""
-  }, [activeMetodosPago, selectedMetodoPago, selectedPayment])
+  }, [
+    activeMetodosPago,
+    hasValidPaymentOperationCode,
+    paymentOperationCode,
+    selectedMetodoPago,
+    selectedPayment,
+  ])
   const isPaymentStepActive = isPaymentDrawerOpen
   const footerTotal = isDiscountEditorActive && !isPaymentStepActive ? draftTotal : total
   const footerIgv = useMemo(
@@ -665,11 +803,7 @@ export default function VentasPage() {
 
       setIdCategoriaFilterProductos(value)
     },
-    [
-      isVariantView,
-      setIdCategoriaFilterProductos,
-      setIdCategoriaFilterVariantes,
-    ]
+    [isVariantView, setIdCategoriaFilterProductos, setIdCategoriaFilterVariantes]
   )
 
   const handleColorFilterChange = useCallback(
@@ -682,6 +816,18 @@ export default function VentasPage() {
       setIdColorFilterProductos(value)
     },
     [isVariantView, setIdColorFilterProductos, setIdColorFilterVariantes]
+  )
+
+  const handleConOfertaFilterChange = useCallback(
+    (value: boolean) => {
+      if (isVariantView) {
+        setConOfertaFilterVariantes(value)
+        return
+      }
+
+      setConOfertaFilterProductos(value)
+    },
+    [isVariantView, setConOfertaFilterProductos, setConOfertaFilterVariantes]
   )
 
   const handleDisplayedPageChange = useCallback(
@@ -715,13 +861,10 @@ export default function VentasPage() {
   }, [])
 
   const handleClientCreateRequest = useCallback((prefill: ClienteCreatePrefill) => {
-    setClientCreatePrefill({
-      ...prefill,
-      idSucursal: resolvedSucursalId,
-    })
+    setClientCreatePrefill(prefill)
     setIsClientCreateOpen(true)
     setVentaError(null)
-  }, [resolvedSucursalId])
+  }, [])
 
   const handleClientCreated = useCallback((client: Cliente) => {
     setSelectedClient({
@@ -948,7 +1091,7 @@ export default function VentasPage() {
 
   const handlePaymentOperationCodeChange = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => {
-      setPaymentOperationCode(event.target.value)
+      setPaymentOperationCode(sanitizeNumericInput(event.target.value))
       setVentaError(null)
     },
     []
@@ -1033,6 +1176,16 @@ export default function VentasPage() {
       return
     }
 
+    if (!paymentOperationCode.trim()) {
+      setVentaError("Debe ingresar el codigo de operacion.")
+      return
+    }
+
+    if (!hasValidPaymentOperationCode) {
+      setVentaError("El codigo de operacion debe contener solo numeros.")
+      return
+    }
+
     setSubmittingVenta(true)
     setVentaError(null)
     const ventaPromise = (async () => {
@@ -1058,7 +1211,7 @@ export default function VentasPage() {
           {
             idMetodoPago: selectedMetodoPago.idMetodoPago,
             monto: total,
-            codigoOperacion: paymentOperationCode.trim() || null,
+            codigoOperacion: paymentOperationCode.trim(),
           },
         ],
       }
@@ -1099,7 +1252,7 @@ export default function VentasPage() {
         action: {
           label: ventaId ? "Ver venta" : "Ver historial",
           onClick: () => {
-            router.push(ventaId ? `/ventas/historial?ventaId=${ventaId}` : "/ventas/historial")
+            router.push(ventaId ? `/ventas/historial/${ventaId}` : "/ventas/historial")
           },
         },
       }),
@@ -1134,6 +1287,7 @@ export default function VentasPage() {
     router,
     selectedClient.idCliente,
     selectedComprobante,
+    hasValidPaymentOperationCode,
     payloadDiscountType,
     payloadDiscountValue,
     selectedMetodoPago,
@@ -1177,36 +1331,84 @@ export default function VentasPage() {
                 />
               </div>
 
-              <div className="flex items-center justify-end">
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleConOfertaFilterChange(!conOfertaFilter)}
+                  className={`inline-flex h-11 items-center gap-2 rounded-xl border px-3 text-xs font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/20 ${
+                    conOfertaFilter
+                      ? "border-blue-500 bg-blue-50 text-blue-700 dark:border-blue-500/70 dark:bg-blue-500/10 dark:text-blue-200"
+                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700/70"
+                  }`}
+                  title="Mostrar solo productos y variantes con oferta"
+                  aria-pressed={conOfertaFilter}
+                >
+                  <TagIcon className="h-4 w-4" />
+                  {conOfertaFilter ? "Ofertas activas" : "Solo ofertas"}
+                </button>
+                <button
+                  type="button"
+                  onClick={toggleScanner}
+                  className={`inline-flex h-11 items-center gap-2 rounded-xl border px-3 text-xs font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/20 ${
+                    scannerActive
+                      ? "border-emerald-500 bg-emerald-50 text-emerald-700 dark:border-emerald-500/70 dark:bg-emerald-500/10 dark:text-emerald-200"
+                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700/70"
+                  }`}
+                  title="Escanear codigo de barras"
+                  aria-pressed={scannerActive}
+                >
+                  <QrCodeIcon className="h-4 w-4" />
+                  Escaner
+                  {scanningBarcode && (
+                    <ArrowPathIcon className="h-3.5 w-3.5 animate-spin" />
+                  )}
+                </button>
                 <CatalogViewToggle value={catalogViewMode} onChange={setCatalogViewMode} />
               </div>
             </div>
 
-            <div className="rounded-xl border border-slate-100 bg-white px-3.5 py-3 shadow-sm dark:border-slate-700/60 dark:bg-slate-800/60">
-              <CategoryFilter
-                categories={categoriasDisponibles}
-                colors={coloresDisponibles}
-                activeCategoryId={idCategoriaFilter}
-                onCategoryChange={handleCategoriaFilterChange}
-                activeColorId={idColorFilter}
-                onColorChange={handleColorFilterChange}
-                categoryPage={safeCategoryPage}
-                categoryTotalPages={categoryTotalPages}
-                onCategoryNextPage={handleNextCategoryPage}
-                onCategoryPrevPage={handlePrevCategoryPage}
-                colorPage={safeColorPage}
-                colorTotalPages={colorTotalPages}
-                onColorNextPage={handleNextColorPage}
-                onColorPrevPage={handlePrevColorPage}
-              />
-            </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Mostrando {visibleCatalogCount} {isVariantView ? "variante(s)" : "producto(s)"} en esta pagina.
-            </p>
+            {shouldShowCatalogFilters ? (
+              <>
+                <div className="rounded-xl border border-slate-100 bg-white px-3.5 py-3 shadow-sm dark:border-slate-700/60 dark:bg-slate-800/60">
+                  <CategoryFilter
+                    categories={categoriasDisponibles}
+                    colors={coloresDisponibles}
+                    activeCategoryId={idCategoriaFilter}
+                    onCategoryChange={handleCategoriaFilterChange}
+                    activeColorId={idColorFilter}
+                    onColorChange={handleColorFilterChange}
+                    categoryPage={safeCategoryPage}
+                    categoryTotalPages={categoryTotalPages}
+                    onCategoryNextPage={handleNextCategoryPage}
+                    onCategoryPrevPage={handlePrevCategoryPage}
+                    colorPage={safeColorPage}
+                    colorTotalPages={colorTotalPages}
+                    onColorNextPage={handleNextColorPage}
+                    onColorPrevPage={handlePrevColorPage}
+                  />
+                </div>
+
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Mostrando {visibleCatalogCount} {isVariantView ? "variante(s)" : "producto(s)"} en esta pagina.
+                </p>
+              </>
+            ) : null}
           </div>
 
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pb-4">
-            {displayedLoading ? (
+            {resolvedSucursalId === null ? (
+              <div className="flex h-full flex-col items-center justify-center py-20 text-center">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700">
+                  <BuildingStorefrontIcon className="h-7 w-7 text-slate-400 dark:text-slate-500" />
+                </div>
+                <p className="mt-4 text-sm font-semibold text-slate-600 dark:text-slate-300">
+                  Selecciona una sucursal
+                </p>
+                <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+                  Elige una sucursal para ver el catalogo de productos
+                </p>
+              </div>
+            ) : displayedLoading ? (
               <div className="flex h-full flex-col items-center justify-center gap-3">
                 <ArrowPathIcon className="h-8 w-8 animate-spin text-blue-500" />
                 <p className="text-sm text-slate-400">Cargando catalogo...</p>
@@ -1231,6 +1433,7 @@ export default function VentasPage() {
                     <ProductCard
                       key={variant.key}
                       product={variant.product}
+                      variantItem={variant}
                       onAdd={() => handleSelectCatalogVariant(variant)}
                     />
                   ))}
@@ -1292,6 +1495,12 @@ export default function VentasPage() {
                     onValueChange={(value) => {
                       const nextValue = Number(value)
                       setSelectedSucursalId(Number.isFinite(nextValue) ? nextValue : null)
+                      setCategoryPage(0)
+                      setColorPage(0)
+                      setIdCategoriaFilterProductos(null)
+                      setIdColorFilterProductos(null)
+                      setIdCategoriaFilterVariantes(null)
+                      setIdColorFilterVariantes(null)
                     }}
                     placeholder="Selecciona sucursal"
                     searchPlaceholder="Buscar sucursal..."
@@ -1349,6 +1558,7 @@ export default function VentasPage() {
                   selected={selectedClient}
                   onSelect={setSelectedClient}
                   onCreateClientRequest={handleClientCreateRequest}
+                  tipoDocumentoFilter={clienteTipoDocumentoFilter}
                 />
               </div>
             </div>
@@ -1464,9 +1674,11 @@ export default function VentasPage() {
                       <input
                         id="venta-codigo-operacion"
                         type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                         value={paymentOperationCode}
                         onChange={handlePaymentOperationCodeChange}
-                        placeholder="Opcional. Ej. YAPE-938271"
+                        placeholder="Obligatorio. Solo numeros"
                         className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
                       />
                     </div>

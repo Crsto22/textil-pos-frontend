@@ -20,6 +20,10 @@ function buildQueryString(params: ExportPagoReportePdfParams): string {
     searchParams.set("q", params.search.trim())
   }
 
+  if (params.estadoVenta !== "TODOS") {
+    searchParams.set("estadoVenta", params.estadoVenta)
+  }
+
   if (typeof params.idVenta === "number" && params.idVenta > 0) {
     searchParams.set("idVenta", String(params.idVenta))
   }

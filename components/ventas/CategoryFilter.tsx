@@ -123,7 +123,7 @@ export default function CategoryFilter({
         )}
       </div>
 
-      <div className="h-6 w-px bg-slate-200 dark:bg-slate-700 hidden sm:block" />
+      <div className="hidden h-6 w-px bg-slate-200 dark:bg-slate-700 sm:block" />
 
       <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
         <button

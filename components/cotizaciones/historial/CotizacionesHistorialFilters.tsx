@@ -1,10 +1,12 @@
-import { useMemo } from "react"
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react"
 import { MagnifyingGlassIcon } from "@heroicons/react/24/outline"
 
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
 import { Input } from "@/components/ui/input"
+import { useCanFilterBySucursal, useCanFilterByUsuario } from "@/lib/hooks/useCanFilterByUsuario"
 import { useSucursalOptions } from "@/lib/hooks/useSucursalOptions"
 import { useUsuarioOptions } from "@/lib/hooks/useUsuarioOptions"
+import { useSucursalGlobal } from "@/lib/sucursal-global-context"
 import type { CotizacionHistorialFilters } from "@/lib/types/cotizacion"
 
 interface CotizacionesHistorialFiltersProps {
@@ -34,23 +36,55 @@ export function CotizacionesHistorialFilters({
   onChange,
   onClear,
 }: CotizacionesHistorialFiltersProps) {
+  const canFilterByUsuario = useCanFilterByUsuario()
+  const canFilterBySucursal = useCanFilterBySucursal()
+  const { sucursalGlobal } = useSucursalGlobal()
+  const filtersRef = useRef(filters)
+  const onChangeRef = useRef(onChange)
+  useLayoutEffect(() => {
+    filtersRef.current = filters
+    onChangeRef.current = onChange
+  })
+
+  // Sincronizar con sucursal global cuando cambia
+  useEffect(() => {
+    if (!canFilterBySucursal || sucursalGlobal === null) return
+    onChangeRef.current({ ...filtersRef.current, idSucursal: sucursalGlobal.idSucursal })
+  }, [sucursalGlobal, canFilterBySucursal])
+
   const {
     usuarioOptions,
     loadingUsuarios,
     errorUsuarios,
     searchUsuario,
     setSearchUsuario,
-  } = useUsuarioOptions(true)
+  } = useUsuarioOptions(canFilterByUsuario)
   const {
     sucursalOptions,
     loadingSucursales,
     errorSucursales,
     searchSucursal,
     setSearchSucursal,
-  } = useSucursalOptions(true)
+  } = useSucursalOptions(canFilterBySucursal)
 
   const selectedUsuarioValue = filters.idUsuario === null ? "" : String(filters.idUsuario)
   const selectedSucursalValue = filters.idSucursal === null ? "" : String(filters.idSucursal)
+
+  useEffect(() => {
+    if (canFilterByUsuario || filters.idUsuario === null) return
+    onChange({
+      ...filters,
+      idUsuario: null,
+    })
+  }, [canFilterByUsuario, filters, onChange])
+
+  useEffect(() => {
+    if (canFilterBySucursal || filters.idSucursal === null) return
+    onChange({
+      ...filters,
+      idSucursal: null,
+    })
+  }, [canFilterBySucursal, filters, onChange])
 
   const usuarioComboboxOptions = useMemo<ComboboxOption[]>(
     () =>
@@ -93,7 +127,17 @@ export function CotizacionesHistorialFilters({
             />
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div
+            className={`grid grid-cols-1 gap-3 sm:grid-cols-2 ${
+              canFilterByUsuario
+                ? canFilterBySucursal
+                  ? "xl:grid-cols-4"
+                  : "xl:grid-cols-3"
+                : canFilterBySucursal
+                  ? "xl:grid-cols-3"
+                  : "xl:grid-cols-2"
+            }`}
+          >
             <select
               value={filters.estado}
               onChange={(event) =>
@@ -112,47 +156,51 @@ export function CotizacionesHistorialFilters({
               ))}
             </select>
 
-            <div className="space-y-1">
-              <Combobox
-                value={selectedUsuarioValue}
-                options={[{ value: "", label: "Todos los usuarios" }, ...usuarioComboboxOptions]}
-                searchValue={searchUsuario}
-                onSearchValueChange={setSearchUsuario}
-                onValueChange={(value) => {
-                  const parsed = Number(value)
-                  onChange({
-                    ...filters,
-                    idUsuario: value && Number.isInteger(parsed) && parsed > 0 ? parsed : null,
-                  })
-                }}
-                placeholder="Filtrar por usuario"
-                searchPlaceholder="Buscar usuario..."
-                emptyMessage="No se encontraron usuarios"
-                loading={loadingUsuarios}
-              />
-              {errorUsuarios && <p className="text-[11px] text-red-500">{errorUsuarios}</p>}
-            </div>
+            {canFilterByUsuario && (
+              <div className="space-y-1">
+                <Combobox
+                  value={selectedUsuarioValue}
+                  options={[{ value: "", label: "Todos los usuarios" }, ...usuarioComboboxOptions]}
+                  searchValue={searchUsuario}
+                  onSearchValueChange={setSearchUsuario}
+                  onValueChange={(value) => {
+                    const parsed = Number(value)
+                    onChange({
+                      ...filters,
+                      idUsuario: value && Number.isInteger(parsed) && parsed > 0 ? parsed : null,
+                    })
+                  }}
+                  placeholder="Filtrar por usuario"
+                  searchPlaceholder="Buscar usuario..."
+                  emptyMessage="No se encontraron usuarios"
+                  loading={loadingUsuarios}
+                />
+                {errorUsuarios && <p className="text-[11px] text-red-500">{errorUsuarios}</p>}
+              </div>
+            )}
 
-            <div className="space-y-1">
-              <Combobox
-                value={selectedSucursalValue}
-                options={sucursalComboboxOptions}
-                searchValue={searchSucursal}
-                onSearchValueChange={setSearchSucursal}
-                onValueChange={(value) => {
-                  const parsed = Number(value)
-                  onChange({
-                    ...filters,
-                    idSucursal: value && Number.isInteger(parsed) && parsed > 0 ? parsed : null,
-                  })
-                }}
-                placeholder="Filtrar por sucursal"
-                searchPlaceholder="Buscar sucursal..."
-                emptyMessage="No se encontraron sucursales"
-                loading={loadingSucursales}
-              />
-              {errorSucursales && <p className="text-[11px] text-red-500">{errorSucursales}</p>}
-            </div>
+            {canFilterBySucursal && (
+              <div className="space-y-1">
+                <Combobox
+                  value={selectedSucursalValue}
+                  options={sucursalComboboxOptions}
+                  searchValue={searchSucursal}
+                  onSearchValueChange={setSearchSucursal}
+                  onValueChange={(value) => {
+                    const parsed = Number(value)
+                    onChange({
+                      ...filters,
+                      idSucursal: value && Number.isInteger(parsed) && parsed > 0 ? parsed : null,
+                    })
+                  }}
+                  placeholder="Filtrar por sucursal"
+                  searchPlaceholder="Buscar sucursal..."
+                  emptyMessage="No se encontraron sucursales"
+                  loading={loadingSucursales}
+                />
+                {errorSucursales && <p className="text-[11px] text-red-500">{errorSucursales}</p>}
+              </div>
+            )}
 
             <button
               type="button"

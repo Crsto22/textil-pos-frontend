@@ -4,6 +4,7 @@ import { useCallback, useState } from "react"
 
 import { ClienteDetailPanel } from "@/components/clientes/ClienteDetailPanel"
 import { ClienteMobileDetailDialog } from "@/components/clientes/ClienteMobileDetailDialog"
+import { ClientesFilters } from "@/components/clientes/ClientesFilters"
 import { ClientesHeader } from "@/components/clientes/ClientesHeader"
 import { ClientesPagination } from "@/components/clientes/ClientesPagination"
 import { ClientesSearch } from "@/components/clientes/ClientesSearch"
@@ -11,8 +12,9 @@ import { ClientesTable } from "@/components/clientes/ClientesTable"
 import { ClienteCreateDialog } from "@/components/clientes/modals/ClienteCreateDialog"
 import { ClienteEditDialog } from "@/components/clientes/modals/ClienteEditDialog"
 import { ClienteDeleteDialog } from "@/components/clientes/modals/ClienteDeleteDialog"
+import { useClienteDetalle } from "@/lib/hooks/useClienteDetalle"
 import { useClientes } from "@/lib/hooks/useClientes"
-import type { Cliente } from "@/lib/types/cliente"
+import type { Cliente, ClienteUpdateRequest } from "@/lib/types/cliente"
 
 export default function ClientesPage() {
     const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null)
@@ -23,6 +25,15 @@ export default function ClientesPage() {
     const [deleteTarget, setDeleteTarget] = useState<Cliente | null>(null)
 
     const {
+        detalle,
+        loading: loadingDetalle,
+        error: errorDetalle,
+        openClienteDetalle,
+        retryClienteDetalle,
+        closeClienteDetalle,
+    } = useClienteDetalle()
+
+    const {
         displayedClientes,
         displayedLoading,
         displayedTotalElements,
@@ -30,34 +41,49 @@ export default function ClientesPage() {
         displayedPage,
         search,
         setSearch,
+        tipoDocumentoFilter,
+        setTipoDocumentoFilter,
         setDisplayedPage,
         createCliente,
-        updateCliente,
-        deleteCliente,
+        updateCliente: updateClienteRequest,
+        deleteCliente: deleteClienteRequest,
     } = useClientes()
 
-    const handleSelectCliente = useCallback((cliente: Cliente) => {
-        setSelectedCliente((previous) => {
-            const isAlreadySelected = previous?.idCliente === cliente.idCliente
+    const handleSelectCliente = useCallback(
+        (cliente: Cliente) => {
+            const isAlreadySelected = selectedCliente?.idCliente === cliente.idCliente
 
-            if (!isAlreadySelected && window.innerWidth < 1280) {
-                setMobileDetail(true)
+            if (isAlreadySelected) {
+                setSelectedCliente(null)
+                closeClienteDetalle()
+                return
             }
 
-            return isAlreadySelected ? null : cliente
-        })
-    }, [])
+            setSelectedCliente(cliente)
+            void openClienteDetalle(cliente.idCliente)
 
-    const handleMobileOpenChange = useCallback((open: boolean) => {
-        setMobileDetail(open)
-        if (!open) {
-            setSelectedCliente(null)
-        }
-    }, [])
+            if (window.innerWidth < 1280) {
+                setMobileDetail(true)
+            }
+        },
+        [closeClienteDetalle, openClienteDetalle, selectedCliente?.idCliente]
+    )
+
+    const handleMobileOpenChange = useCallback(
+        (open: boolean) => {
+            setMobileDetail(open)
+            if (!open) {
+                setSelectedCliente(null)
+                closeClienteDetalle()
+            }
+        },
+        [closeClienteDetalle]
+    )
 
     const handleCloseSelectedCliente = useCallback(() => {
         setSelectedCliente(null)
-    }, [])
+        closeClienteDetalle()
+    }, [closeClienteDetalle])
 
     const handleOpenCreate = useCallback(() => {
         setShowCreate(true)
@@ -71,6 +97,47 @@ export default function ClientesPage() {
         setDeleteTarget(cliente)
     }, [])
 
+    const handleUpdateCliente = useCallback(
+        async (id: number, payload: ClienteUpdateRequest) => {
+            const success = await updateClienteRequest(id, payload)
+
+            if (success) {
+                setSelectedCliente((previous) =>
+                    previous?.idCliente === id
+                        ? {
+                              ...previous,
+                              ...payload,
+                          }
+                        : previous
+                )
+
+                if (selectedCliente?.idCliente === id) {
+                    void openClienteDetalle(id)
+                }
+            }
+
+            return success
+        },
+        [openClienteDetalle, selectedCliente?.idCliente, updateClienteRequest]
+    )
+
+    const handleDelete = useCallback(
+        async (id: number) => {
+            const success = await deleteClienteRequest(id)
+
+            if (success && selectedCliente?.idCliente === id) {
+                setSelectedCliente(null)
+                closeClienteDetalle()
+            }
+
+            return success
+        },
+        [closeClienteDetalle, deleteClienteRequest, selectedCliente?.idCliente]
+    )
+
+    const selectedClienteDetalle =
+        detalle?.idCliente === selectedCliente?.idCliente ? detalle : null
+
     return (
         <div className="space-y-6">
             <div className="flex gap-6">
@@ -80,6 +147,10 @@ export default function ClientesPage() {
                             <div className="w-full lg:max-w-md">
                                 <ClientesSearch search={search} onSearchChange={setSearch} />
                             </div>
+                            <ClientesFilters
+                                tipoDocumentoFilter={tipoDocumentoFilter}
+                                onTipoDocumentoFilterChange={setTipoDocumentoFilter}
+                            />
                         </div>
                         <ClientesHeader onOpenCreate={handleOpenCreate} />
                     </div>
@@ -103,6 +174,12 @@ export default function ClientesPage() {
 
                 <ClienteDetailPanel
                     selectedCliente={selectedCliente}
+                    detalleCliente={selectedClienteDetalle}
+                    loadingDetalle={loadingDetalle}
+                    errorDetalle={errorDetalle}
+                    onRetryDetalle={() => {
+                        void retryClienteDetalle()
+                    }}
                     onClose={handleCloseSelectedCliente}
                 />
             </div>
@@ -119,7 +196,7 @@ export default function ClientesPage() {
                 onOpenChange={(open) => {
                     if (!open) setEditTarget(null)
                 }}
-                onUpdate={updateCliente}
+                onUpdate={handleUpdateCliente}
             />
 
             <ClienteDeleteDialog
@@ -128,12 +205,18 @@ export default function ClientesPage() {
                 onOpenChange={(open) => {
                     if (!open) setDeleteTarget(null)
                 }}
-                onDelete={deleteCliente}
+                onDelete={handleDelete}
             />
 
             <ClienteMobileDetailDialog
                 open={mobileDetail}
                 selectedCliente={selectedCliente}
+                detalleCliente={selectedClienteDetalle}
+                loadingDetalle={loadingDetalle}
+                errorDetalle={errorDetalle}
+                onRetryDetalle={() => {
+                    void retryClienteDetalle()
+                }}
                 onOpenChange={handleMobileOpenChange}
             />
         </div>

@@ -125,7 +125,7 @@ function normalizeProductoResumen(producto: Producto | ProductoResumen): Product
   }
 }
 
-export function useProductos(enabled = true) {
+export function useProductos(enabled = true, idSucursal?: number | null) {
   const { isLoading: isAuthLoading, user } = useAuth()
 
   const [productos, setProductos] = useState<ProductoResumen[]>([])
@@ -138,6 +138,7 @@ export function useProductos(enabled = true) {
   const [search, setSearch] = useState("")
   const [idCategoriaFilter, setIdCategoriaFilter] = useState<number | null>(null)
   const [idColorFilter, setIdColorFilter] = useState<number | null>(null)
+  const [conOfertaFilter, setConOfertaFilter] = useState(false)
   const [searchPage, setSearchPage] = useState(0)
   const resetSearchPage = useCallback(() => {
     setSearchPage(0)
@@ -174,6 +175,10 @@ export function useProductos(enabled = true) {
       })
       appendOptionalPositiveInt(params, "idCategoria", idCategoriaFilter)
       appendOptionalPositiveInt(params, "idColor", idColorFilter)
+      appendOptionalPositiveInt(params, "idSucursal", idSucursal)
+      if (conOfertaFilter) {
+        params.set("conOferta", "true")
+      }
 
       const response = await authFetch(`/api/producto/listar-resumen?${params.toString()}`, {
         signal: controller.signal,
@@ -215,7 +220,7 @@ export function useProductos(enabled = true) {
         setLoading(false)
       }
     }
-  }, [idCategoriaFilter, idColorFilter])
+  }, [conOfertaFilter, idCategoriaFilter, idColorFilter, idSucursal])
 
   const fetchBuscar = useCallback(async (query: string, pageNumber: number) => {
     searchAbortRef.current?.abort()
@@ -232,6 +237,10 @@ export function useProductos(enabled = true) {
       })
       appendOptionalPositiveInt(params, "idCategoria", idCategoriaFilter)
       appendOptionalPositiveInt(params, "idColor", idColorFilter)
+      appendOptionalPositiveInt(params, "idSucursal", idSucursal)
+      if (conOfertaFilter) {
+        params.set("conOferta", "true")
+      }
 
       const response = await authFetch(`/api/producto/buscar?${params.toString()}`, {
         signal: controller.signal,
@@ -273,12 +282,12 @@ export function useProductos(enabled = true) {
         setSearching(false)
       }
     }
-  }, [idCategoriaFilter, idColorFilter])
+  }, [conOfertaFilter, idCategoriaFilter, idColorFilter, idSucursal])
 
   useEffect(() => {
     setPage(0)
     setSearchPage(0)
-  }, [idCategoriaFilter, idColorFilter])
+  }, [conOfertaFilter, idCategoriaFilter, idColorFilter, idSucursal])
 
   useEffect(() => {
     if (!enabled || isAuthLoading || isSearchMode) return
@@ -513,6 +522,7 @@ export function useProductos(enabled = true) {
     search,
     idCategoriaFilter,
     idColorFilter,
+    conOfertaFilter,
     debouncedSearch,
     isSearchMode,
     searchResults,
@@ -528,6 +538,7 @@ export function useProductos(enabled = true) {
     setSearch,
     setIdCategoriaFilter,
     setIdColorFilter,
+    setConOfertaFilter,
     setPage,
     setSearchPage,
     fetchProductos,

@@ -29,9 +29,6 @@ function ClientesTableSkeletonComponent({ rows = 6 }: ClientesTableSkeletonProps
                     <td className="hidden px-4 py-3 lg:table-cell">
                         <div className="h-3 w-24 animate-pulse rounded bg-muted" />
                     </td>
-                    <td className="hidden px-4 py-3 xl:table-cell">
-                        <div className="h-3 w-32 animate-pulse rounded bg-muted" />
-                    </td>
                     <td className="px-4 py-3 text-center">
                         <div className="mx-auto h-4 w-16 animate-pulse rounded bg-muted" />
                     </td>

@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react"
 
+import { AlertTriangle, Barcode, Loader2, Sparkles } from "lucide-react"
+
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -21,10 +23,13 @@ interface ProductoVarianteEditDialogProps {
   target: CatalogVariantItem | null
   onOpenChange: (open: boolean) => void
   onUpdate: (id: number, payload: VarianteUpdateRequest) => Promise<boolean>
+  onGenerateBarcode: () => Promise<string | null>
+  isGeneratingBarcode: boolean
 }
 
 interface VarianteEditFormState {
   sku: string
+  codigoBarras: string
   precio: string
   precioMayor: string
   stock: string
@@ -33,6 +38,7 @@ interface VarianteEditFormState {
 function createEmptyForm(): VarianteEditFormState {
   return {
     sku: "",
+    codigoBarras: "",
     precio: "",
     precioMayor: "",
     stock: "",
@@ -80,15 +86,19 @@ export function ProductoVarianteEditDialog({
   target,
   onOpenChange,
   onUpdate,
+  onGenerateBarcode,
+  isGeneratingBarcode,
 }: ProductoVarianteEditDialogProps) {
   const [form, setForm] = useState<VarianteEditFormState>(createEmptyForm)
   const [isUpdating, setIsUpdating] = useState(false)
+  const [showBarcodeConfirm, setShowBarcodeConfirm] = useState(false)
 
   useEffect(() => {
     if (!open || !target) return
 
     setForm({
       sku: target.sku ?? "",
+      codigoBarras: target.codigoBarras ?? "",
       precio: toInputValue(target.regularPrice),
       precioMayor: toOptionalPositiveInputValue(target.wholesalePrice),
       stock: toInputValue(target.stock),
@@ -107,23 +117,38 @@ export function ProductoVarianteEditDialog({
     parsedStock !== null &&
     !parsedPrecioMayor.invalid
 
+  const originalBarcode = target?.codigoBarras ?? ""
+
+  const hasBarcodeChanged =
+    originalBarcode.trim() !== "" &&
+    form.codigoBarras.trim() !== "" &&
+    form.codigoBarras.trim() !== originalBarcode.trim()
+
   const handleOpenChange = (nextOpen: boolean) => {
     if (isUpdating) return
     onOpenChange(nextOpen)
     if (!nextOpen) {
       setForm(createEmptyForm())
+      setShowBarcodeConfirm(false)
     }
   }
 
-  const handleUpdate = async () => {
-    if (!target?.variantId || !isEditValid) {
-      return
+  const handleGenerateBarcode = async () => {
+    const code = await onGenerateBarcode()
+    if (code) {
+      setForm((previous) => ({ ...previous, codigoBarras: code }))
     }
+  }
 
+  const executeUpdate = async () => {
+    if (!target?.variantId || !isEditValid) return
+
+    const codigoBarras = form.codigoBarras.trim() || null
     const payload: VarianteUpdateRequest = {
       colorId: target.colorId,
       tallaId: target.tallaId,
       sku: form.sku.trim(),
+      codigoBarras,
       precio: parsedPrecio ?? 0,
       precioMayor: parsedPrecioMayor.value,
       stock: parsedStock ?? 0,
@@ -139,6 +164,19 @@ export function ProductoVarianteEditDialog({
     } finally {
       setIsUpdating(false)
     }
+  }
+
+  const handleUpdate = () => {
+    if (hasBarcodeChanged) {
+      setShowBarcodeConfirm(true)
+      return
+    }
+    void executeUpdate()
+  }
+
+  const handleConfirmUpdate = () => {
+    setShowBarcodeConfirm(false)
+    void executeUpdate()
   }
 
   return (
@@ -168,16 +206,51 @@ export function ProductoVarianteEditDialog({
             </div>
           </div>
 
-          <div className="grid gap-2">
-            <Label htmlFor="producto-variante-sku">SKU</Label>
-            <Input
-              id="producto-variante-sku"
-              value={form.sku}
-              onChange={(event) => {
-                setForm((previous) => ({ ...previous, sku: event.target.value }))
-              }}
-              placeholder="Ej. CAM-AZU-M"
-            />
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="grid gap-2">
+              <Label htmlFor="producto-variante-sku">SKU</Label>
+              <Input
+                id="producto-variante-sku"
+                value={form.sku}
+                onChange={(event) => {
+                  setForm((previous) => ({ ...previous, sku: event.target.value }))
+                }}
+                placeholder="Ej. CAM-AZU-M"
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="producto-variante-codigo-barras" className="flex items-center gap-1.5">
+                <Barcode className="h-3.5 w-3.5 text-muted-foreground" />
+                Codigo de Barras
+                <span className="text-xs font-normal text-muted-foreground">(Opcional)</span>
+              </Label>
+              <div className="flex gap-2">
+                <Input
+                  id="producto-variante-codigo-barras"
+                  value={form.codigoBarras}
+                  onChange={(event) => {
+                    setForm((previous) => ({ ...previous, codigoBarras: event.target.value }))
+                  }}
+                  placeholder="Ej. 7501234567890"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="shrink-0"
+                  title="Generar código de barras"
+                  disabled={isGeneratingBarcode || isUpdating}
+                  onClick={() => void handleGenerateBarcode()}
+                >
+                  {isGeneratingBarcode ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -244,6 +317,52 @@ export function ProductoVarianteEditDialog({
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      <Dialog open={showBarcodeConfirm} onOpenChange={setShowBarcodeConfirm}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              Cambio de código de barras
+            </DialogTitle>
+            <DialogDescription asChild>
+              <div className="space-y-2">
+                <p>
+                  Estás a punto de cambiar el código de barras de esta variante. Esto
+                  puede afectar el escaneo e identificación del producto.
+                </p>
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm dark:border-amber-900/40 dark:bg-amber-900/10">
+                  <p className="text-muted-foreground">
+                    <span className="font-medium text-foreground">Anterior:</span>{" "}
+                    {originalBarcode}
+                  </p>
+                  <p className="text-muted-foreground">
+                    <span className="font-medium text-foreground">Nuevo:</span>{" "}
+                    {form.codigoBarras.trim()}
+                  </p>
+                </div>
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowBarcodeConfirm(false)}
+              disabled={isUpdating}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              onClick={handleConfirmUpdate}
+              disabled={isUpdating}
+            >
+              {isUpdating ? "Guardando..." : "Confirmar y guardar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   )
 }

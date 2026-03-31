@@ -17,6 +17,8 @@ export async function GET(request: NextRequest) {
     const page = searchParams.get("page") ?? "0"
     const idCategoria = searchParams.get("idCategoria")
     const idColor = searchParams.get("idColor")
+    const conOferta = searchParams.get("conOferta")
+    const idSucursal = searchParams.get("idSucursal")
 
     const authHeader = request.headers.get("authorization")
     const headers: HeadersInit = {}
@@ -37,6 +39,14 @@ export async function GET(request: NextRequest) {
 
       if (idColor?.trim()) {
         backendParams.set("idColor", idColor)
+      }
+
+      if (conOferta?.trim()) {
+        backendParams.set("conOferta", conOferta)
+      }
+
+      if (idSucursal?.trim()) {
+        backendParams.set("idSucursal", idSucursal)
       }
 
       backendRes = await fetch(

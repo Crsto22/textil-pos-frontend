@@ -1,3 +1,4 @@
+import Image from "next/image"
 import {
   ArrowPathIcon,
   ArrowTopRightOnSquareIcon,
@@ -12,6 +13,7 @@ import {
   formatMonto,
   getEstadoBadgeClass,
   getSunatBadgeClass,
+  isSunatNotApplicable,
 } from "@/components/ventas/historial/historial.utils"
 
 interface VentasHistorialTableProps {
@@ -30,6 +32,46 @@ interface VentasHistorialTableProps {
   openingPdfVentaId: number | null
   downloadingPdfVentaId: number | null
   openingTicketVentaId: number | null
+}
+
+function SunatStatusBadge({ estado }: { estado: VentaHistorial["sunatEstado"] }) {
+  const showSunatLogo = !isSunatNotApplicable(estado)
+
+  return (
+    <span
+      className={`inline-flex items-center gap-2 rounded-full px-3  text-xs font-semibold ${getSunatBadgeClass(estado)}`}
+    >
+      {showSunatLogo ? (
+        <Image
+          src="/img/Sunat.png"
+          alt="SUNAT"
+          width={48}
+          height={48}
+          className="h-[48px] w-[48px] shrink-0 object-contain"
+        />
+      ) : null}
+      {estado || "N/A"}
+    </span>
+  )
+}
+
+function SunatLabel({ estado }: { estado: VentaHistorial["sunatEstado"] }) {
+  const showSunatLogo = !isSunatNotApplicable(estado)
+
+  return (
+    <div className="flex items-center gap-2 text-muted-foreground">
+      {showSunatLogo ? (
+        <Image
+          src="/img/Sunat.png"
+          alt="SUNAT"
+          width={18}
+          height={18}
+          className="h-[18px] w-[18px] shrink-0 object-contain"
+        />
+      ) : null}
+      <p>SUNAT</p>
+    </div>
+  )
 }
 
 export function VentasHistorialTable({
@@ -75,7 +117,7 @@ export function VentasHistorialTable({
               <th className="px-3 py-3 text-left">Comprobante</th>
               <th className="px-3 py-3 text-left">Cliente</th>
               <th className="px-3 py-3 text-left">Usuario</th>
-              <th className="px-3 py-3 text-left">Sucursal</th>
+              <th className="px-3 py-3 text-center">SUNAT</th>
               <th className="px-3 py-3 text-center">Items</th>
               <th className="px-3 py-3 text-center">Pagos</th>
               <th className="px-3 py-3 text-right">Total</th>
@@ -107,8 +149,19 @@ export function VentasHistorialTable({
                     </div>
                   </td>
                   <td className="px-3 py-3 font-medium">{venta.nombreCliente || "Sin cliente"}</td>
-                  <td className="px-3 py-3 text-muted-foreground">{venta.nombreUsuario || "Sin usuario"}</td>
-                  <td className="px-3 py-3 text-muted-foreground">{venta.nombreSucursal || "Sin sucursal"}</td>
+                  <td className="px-3 py-3">
+                    <div className="flex flex-col">
+                      <span className="font-medium text-foreground">
+                        {venta.nombreUsuario || "Sin usuario"}
+                      </span>
+                      <span className="text-[11px] text-muted-foreground">
+                        {venta.nombreSucursal || "Sin sucursal"}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-3 py-3 text-center">
+                    <SunatStatusBadge estado={venta.sunatEstado} />
+                  </td>
                   <td className="px-3 py-3 text-center font-semibold">{venta.items}</td>
                   <td className="px-3 py-3 text-center">
                     <span className="rounded-md border px-2 py-0.5 text-xs text-muted-foreground">
@@ -119,18 +172,11 @@ export function VentasHistorialTable({
                     {formatMonto(venta.total, venta.moneda)}
                   </td>
                   <td className="px-3 py-3 text-center">
-                    <div className="flex flex-col items-center gap-1">
-                      <span
-                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${getEstadoBadgeClass(venta.estado)}`}
-                      >
-                        {venta.estado}
-                      </span>
-                      <span
-                        className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${getSunatBadgeClass(venta.sunatEstado)}`}
-                      >
-                        SUNAT {venta.sunatEstado || "N/A"}
-                      </span>
-                    </div>
+                    <span
+                      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${getEstadoBadgeClass(venta.estado)}`}
+                    >
+                      {venta.estado}
+                    </span>
                   </td>
                   <td className="px-3 py-3 text-center">
                     <div className="flex items-center justify-center gap-2">
@@ -185,7 +231,7 @@ export function VentasHistorialTable({
                         onClick={() => onViewDetail(venta)}
                         className="inline-flex rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                       >
-                        Detalle
+                        Ver detalles
                       </button>
                     </div>
                   </td>
@@ -232,24 +278,25 @@ export function VentasHistorialTable({
                   <p className="font-semibold">{formatMonto(venta.total, venta.moneda)}</p>
                 </div>
                 <div className="rounded-lg bg-muted/40 p-2">
-                  <p className="text-muted-foreground">Sucursal</p>
-                  <p className="font-semibold">{venta.nombreSucursal || "Sin sucursal"}</p>
-                </div>
-                <div className="rounded-lg bg-muted/40 p-2">
                   <p className="text-muted-foreground">Items</p>
                   <p className="font-semibold">{venta.items}</p>
                 </div>
                 <div className="rounded-lg bg-muted/40 p-2">
                   <p className="text-muted-foreground">Usuario</p>
                   <p className="font-semibold">{venta.nombreUsuario || "Sin usuario"}</p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    {venta.nombreSucursal || "Sin sucursal"}
+                  </p>
                 </div>
                 <div className="rounded-lg bg-muted/40 p-2">
                   <p className="text-muted-foreground">Pagos</p>
                   <p className="font-semibold">{venta.pagos}</p>
                 </div>
                 <div className="rounded-lg bg-muted/40 p-2">
-                  <p className="text-muted-foreground">SUNAT</p>
-                  <p className="font-semibold">{venta.sunatEstado || "N/A"}</p>
+                  <SunatLabel estado={venta.sunatEstado} />
+                  <div className="mt-1">
+                    <SunatStatusBadge estado={venta.sunatEstado} />
+                  </div>
                 </div>
               </div>
               <div className="mt-3 flex justify-end gap-2">
@@ -304,7 +351,7 @@ export function VentasHistorialTable({
                   onClick={() => onViewDetail(venta)}
                   className="inline-flex rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                 >
-                  Detalle
+                  Ver detalles
                 </button>
               </div>
             </article>

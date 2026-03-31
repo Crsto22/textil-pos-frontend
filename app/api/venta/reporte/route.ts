@@ -4,9 +4,11 @@ const BACKEND_URL = process.env.BACKEND_URL
 
 const ALLOWED_QUERY_KEYS = [
   "agrupar",
+  "periodo",
   "desde",
   "hasta",
   "idSucursal",
+  "idCliente",
   "incluirAnuladas",
 ] as const
 

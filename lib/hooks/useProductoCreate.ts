@@ -25,6 +25,7 @@ import {
   type VariantEditableField,
   type VariantReadonlyOfferInfo,
   type VariantRow,
+  type VariantStatus,
   type VariantValues,
 } from "@/lib/types/producto-create"
 import type {
@@ -39,6 +40,7 @@ import type {
 } from "@/lib/types/producto"
 import type { Talla } from "@/lib/types/talla"
 import type { TallaCreateRequest } from "@/lib/types/talla"
+import { generateBarcode } from "@/lib/barcode-generator"
 
 function hasValidId(value: number | null | undefined): value is number {
   return typeof value === "number" && value > 0
@@ -307,14 +309,25 @@ function formatRequiredFields(fields: string[]): string {
   return `${fields.slice(0, -1).join(", ")} y ${fields.at(-1)}`
 }
 
+function formatVariantCombinationLabel(variant: Pick<VariantRow, "color" | "talla">): string {
+  return `${variant.color.nombre} - Talla ${variant.talla.nombre}`
+}
+
 function createEmptyVariantValues(): VariantValues {
   return {
     idProductoVariante: null,
+    estado: "ACTIVO",
     sku: "",
+    codigoBarras: "",
     precio: "",
     precioMayor: "",
     stock: "",
   }
+}
+
+function normalizeVariantStatus(value: string | null | undefined): VariantStatus {
+  const normalized = String(value ?? "").trim().toUpperCase()
+  return normalized.startsWith("INACTIV") ? "INACTIVO" : "ACTIVO"
 }
 
 function normalizeVariantValues(
@@ -328,7 +341,9 @@ function normalizeVariantValues(
     ...values,
     idProductoVariante:
       typeof values.idProductoVariante === "number" ? values.idProductoVariante : null,
+    estado: normalizeVariantStatus(values.estado),
     sku: typeof values.sku === "string" ? values.sku : "",
+    codigoBarras: typeof values.codigoBarras === "string" ? values.codigoBarras : "",
     precio: typeof values.precio === "string" ? values.precio : "",
     precioMayor: typeof values.precioMayor === "string" ? values.precioMayor : "",
     stock: typeof values.stock === "string" ? values.stock : "",
@@ -381,7 +396,6 @@ function buildVariantKey(idColor: number, idTalla: number) {
 function buildAutoSkuByVariantKey(
   selectedColors: Color[],
   selectedTallas: Talla[],
-  excludedVariantKeys: Set<string>,
   productName: string,
   variantValues: Record<string, VariantValues>,
   startingSequence: number
@@ -392,7 +406,6 @@ function buildAutoSkuByVariantKey(
   selectedColors.forEach((color) => {
     selectedTallas.forEach((talla) => {
       const variantKey = buildVariantKey(color.idColor, talla.idTalla)
-      if (excludedVariantKeys.has(variantKey)) return
 
       const currentValues = normalizeVariantValues(variantValues[variantKey])
       const shouldPreserveExistingSku =
@@ -408,6 +421,25 @@ function buildAutoSkuByVariantKey(
   })
 
   return skuByVariantKey
+}
+
+function hasBlockingAttributeData(
+  variant: Pick<
+    VariantRow,
+    "idProductoVariante" | "sku" | "precio" | "precioMayor" | "stock" | "estado" | "readonlyOffer"
+  >,
+  isAutoSkuEnabled: boolean
+): boolean {
+  if (variant.estado === "INACTIVO") return false
+
+  const draftState = getVariantDraftState(variant)
+  const hasManualSku =
+    draftState.sku !== "" && (!isAutoSkuEnabled || hasValidId(variant.idProductoVariante))
+  const hasPriceOrStockData =
+    draftState.precio !== "" || draftState.precioMayor !== "" || draftState.stock !== ""
+  const hasReadonlyOffer = Boolean(variant.readonlyOffer)
+
+  return hasManualSku || hasPriceOrStockData || hasReadonlyOffer
 }
 
 interface UseProductoCreateOptions {
@@ -445,6 +477,8 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
     setSearchSucursal,
   } = useSucursalOptions(isAdmin)
 
+  const selectedSucursalId = isAdmin ? form.idSucursal : user?.idSucursal ?? null
+
   const {
     categorias,
     loadingCategorias,
@@ -452,7 +486,7 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
     searchCategoria,
     setSearchCategoria,
     createCategoriaAndReturn,
-  } = useCategoriaOptions(true)
+  } = useCategoriaOptions(hasValidId(selectedSucursalId), selectedSucursalId)
 
   const {
     displayedColores,
@@ -493,20 +527,12 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
   const loadingAtributos = loadingColores || loadingTallas
   const errorAtributos = errorColores ?? errorTallas
 
-  const selectedSucursalId = isAdmin ? form.idSucursal : user?.idSucursal ?? null
   const hasValidSucursal = hasValidId(form.idSucursal)
   const hasValidCategoria = hasValidId(form.idCategoria)
 
-  const filteredCategorias = useMemo(() => {
-    if (!hasValidId(selectedSucursalId)) return categorias
-    return categorias.filter(
-      (categoria) => categoria.idSucursal === selectedSucursalId
-    )
-  }, [categorias, selectedSucursalId])
-
   const categoriaMap = useMemo(
-    () => new Map(filteredCategorias.map((categoria) => [categoria.idCategoria, categoria])),
-    [filteredCategorias]
+    () => new Map(categorias.map((categoria) => [categoria.idCategoria, categoria])),
+    [categorias]
   )
 
   const [selectedColorIds, setSelectedColorIds] = useState<number[]>([])
@@ -539,26 +565,6 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
     }
   }, [focusedColorId, selectedColorIds])
 
-  const toggleColorSelection = useCallback(
-    (idColor: number) => {
-      setSelectedColorIds((previous) => {
-        if (previous.includes(idColor)) {
-          return previous.filter((id) => id !== idColor)
-        }
-        return [...previous, idColor]
-      })
-
-      const color = availableColors.find((item) => item.idColor === idColor)
-      if (color) {
-        setSelectedColorCatalog((previous) => ({
-          ...previous,
-          [idColor]: color,
-        }))
-      }
-    },
-    [availableColors]
-  )
-
   const selectColor = useCallback((color: Color) => {
     setSelectedColorCatalog((previous) => ({
       ...previous,
@@ -569,26 +575,6 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
     )
     setFocusedColorId(color.idColor)
   }, [])
-
-  const toggleTallaSelection = useCallback(
-    (idTalla: number) => {
-      setSelectedTallaIds((previous) => {
-        if (previous.includes(idTalla)) {
-          return previous.filter((id) => id !== idTalla)
-        }
-        return [...previous, idTalla]
-      })
-
-      const talla = availableTallas.find((item) => item.idTalla === idTalla)
-      if (talla) {
-        setSelectedTallaCatalog((previous) => ({
-          ...previous,
-          [idTalla]: talla,
-        }))
-      }
-    },
-    [availableTallas]
-  )
 
   const selectTalla = useCallback((talla: Talla) => {
     setSelectedTallaCatalog((previous) => ({
@@ -710,9 +696,10 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
   const [variantReadonlyOffers, setVariantReadonlyOffers] = useState<
     Record<string, VariantReadonlyOfferInfo | null>
   >({})
-  const [excludedVariantKeys, setExcludedVariantKeys] = useState<string[]>([])
+  const [inactiveVariantKeys, setInactiveVariantKeys] = useState<string[]>([])
   const [deletingVariantKeys, setDeletingVariantKeys] = useState<string[]>([])
   const [isAutoSkuEnabled, setIsAutoSkuEnabled] = useState(!isEditing)
+  const [isAutoBarcodeEnabled, setIsAutoBarcodeEnabled] = useState(!isEditing)
   const [nextAutoSkuSequenceSeed, setNextAutoSkuSequenceSeed] = useState(1)
 
   const loadNextAutoSkuSequence = useCallback(
@@ -786,6 +773,7 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
         const nextSelectedTallaIds: number[] = []
         const nextVariantValues: Record<string, VariantValues> = {}
         const nextVariantReadonlyOffers: Record<string, VariantReadonlyOfferInfo | null> = {}
+        const nextInactiveVariantKeys: string[] = []
         const nextMediaByColor: Record<number, MediaItem[]> = {}
 
         const pushUniqueId = (list: number[], value: number) => {
@@ -815,13 +803,19 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
 
           nextVariantValues[variantKey] = {
             idProductoVariante: variant.idProductoVariante,
+            estado: normalizeVariantStatus(variant.estado),
             sku: variant.sku ?? "",
+            codigoBarras: variant.codigoBarras ?? "",
             precio: String(variant.precio),
             precioMayor:
               typeof variant.precioMayor === "number" && variant.precioMayor > 0
                 ? String(variant.precioMayor)
                 : "",
             stock: String(variant.stock),
+          }
+
+          if (normalizeVariantStatus(variant.estado) === "INACTIVO") {
+            nextInactiveVariantKeys.push(variantKey)
           }
 
           nextVariantReadonlyOffers[variantKey] =
@@ -860,6 +854,18 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
             ]
           })
 
+        const initialInactiveVariantKeys = new Set(nextInactiveVariantKeys)
+        nextSelectedColorIds.forEach((idColor) => {
+          nextSelectedTallaIds.forEach((idTalla) => {
+            const variantKey = buildVariantKey(idColor, idTalla)
+            const values = normalizeVariantValues(nextVariantValues[variantKey])
+
+            if (getVariantDraftState(values).isEmpty) {
+              initialInactiveVariantKeys.add(variantKey)
+            }
+          })
+        })
+
         setForm((previous) => ({
           ...previous,
           idSucursal: isAdmin
@@ -875,7 +881,7 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
         setSelectedTallaIds(nextSelectedTallaIds)
         setVariantValues(nextVariantValues)
         setVariantReadonlyOffers(nextVariantReadonlyOffers)
-        setExcludedVariantKeys([])
+        setInactiveVariantKeys(Array.from(initialInactiveVariantKeys))
         setDeletingVariantKeys([])
         setMediaByColor((previous) => {
           Object.values(previous).forEach((media) => revokeMedia(media))
@@ -943,7 +949,7 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
       return changed ? next : previous
     })
 
-    setExcludedVariantKeys((previous) => {
+    setInactiveVariantKeys((previous) => {
       const next = previous.filter((key) => allowedKeys.has(key))
       return next.length === previous.length ? previous : next
     })
@@ -955,7 +961,6 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
     const autoSkuByVariantKey = buildAutoSkuByVariantKey(
       selectedColors,
       selectedTallas,
-      new Set(excludedVariantKeys),
       form.nombre,
       variantValues,
       nextAutoSkuSequenceSeed
@@ -982,7 +987,6 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
       return changed ? next : previous
     })
   }, [
-    excludedVariantKeys,
     form.nombre,
     isAutoSkuEnabled,
     nextAutoSkuSequenceSeed,
@@ -991,22 +995,54 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
     variantValues,
   ])
 
+  useEffect(() => {
+    if (!isAutoBarcodeEnabled) return
+
+    const variantKeys: string[] = []
+    selectedColors.forEach((color) => {
+      selectedTallas.forEach((talla) => {
+        variantKeys.push(`${color.idColor}-${talla.idTalla}`)
+      })
+    })
+
+    if (variantKeys.length === 0) return
+
+    setVariantValues((previous) => {
+      let changed = false
+      const next: Record<string, VariantValues> = { ...previous }
+
+      variantKeys.forEach((variantKey) => {
+        const current = normalizeVariantValues(next[variantKey])
+        if (current.codigoBarras && current.codigoBarras.trim() !== "") return
+
+        next[variantKey] = {
+          ...current,
+          codigoBarras: generateBarcode(),
+        }
+        changed = true
+      })
+
+      return changed ? next : previous
+    })
+  }, [isAutoBarcodeEnabled, selectedColors, selectedTallas])
+
   const variantRows = useMemo<VariantRow[]>(() => {
     const rows: VariantRow[] = []
-    const excludedKeys = new Set(excludedVariantKeys)
+    const inactiveKeys = new Set(inactiveVariantKeys)
 
     selectedColors.forEach((color) => {
       selectedTallas.forEach((talla) => {
         const key = `${color.idColor}-${talla.idTalla}`
-        if (excludedKeys.has(key)) return
         const values = normalizeVariantValues(variantValues[key])
 
         rows.push({
           key,
           idProductoVariante: values.idProductoVariante ?? null,
+          estado: inactiveKeys.has(key) ? "INACTIVO" : values.estado,
           color,
           talla,
           sku: values.sku,
+          codigoBarras: values.codigoBarras,
           precio: values.precio,
           precioMayor: values.precioMayor,
           stock: values.stock,
@@ -1016,11 +1052,14 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
     })
 
     return rows
-  }, [excludedVariantKeys, selectedColors, selectedTallas, variantReadonlyOffers, variantValues])
+  }, [inactiveVariantKeys, selectedColors, selectedTallas, variantReadonlyOffers, variantValues])
 
   const handleVariantFieldChange = useCallback(
     (key: string, field: VariantEditableField, value: string) => {
       if (field === "sku" && isAutoSkuEnabled) {
+        return
+      }
+      if (field === "codigoBarras" && isAutoBarcodeEnabled) {
         return
       }
 
@@ -1036,25 +1075,57 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
         }
       })
     },
-    [isAutoSkuEnabled]
+    [isAutoSkuEnabled, isAutoBarcodeEnabled]
+  )
+
+  const [generatingBarcodeKeys, setGeneratingBarcodeKeys] = useState<Set<string>>(
+    () => new Set()
+  )
+
+  const handleGenerateBarcode = useCallback(
+    (variantKey: string) => {
+      if (isAutoBarcodeEnabled) return
+
+      const codigoBarras = generateBarcode()
+
+      setVariantValues((previous) => {
+        const current = normalizeVariantValues(previous[variantKey])
+        return {
+          ...previous,
+          [variantKey]: { ...current, codigoBarras },
+        }
+      })
+
+      toast.success("Código de barras generado")
+    },
+    [isAutoBarcodeEnabled]
   )
 
   const handleAutoSkuToggle = useCallback((enabled: boolean) => {
     setIsAutoSkuEnabled(enabled)
   }, [])
 
+  const handleAutoBarcodeToggle = useCallback((enabled: boolean) => {
+    setIsAutoBarcodeEnabled(enabled)
+  }, [])
+
   const handleApplyVariantFieldToAll = useCallback(
     (
       field: Extract<VariantEditableField, "precio" | "precioMayor" | "stock">,
-      value: string
+      value: string,
+      variantKeys?: string[]
     ) => {
       if (variantRows.length === 0) return
+      const targetVariantKeys = new Set(variantKeys ?? variantRows.map((variant) => variant.key))
+      if (targetVariantKeys.size === 0) return
 
       setVariantValues((previous) => {
         const next = { ...previous }
         let changed = false
 
         variantRows.forEach((variant) => {
+          if (!targetVariantKeys.has(variant.key)) return
+          if (variant.estado === "INACTIVO") return
           const current = normalizeVariantValues(next[variant.key])
 
           next[variant.key] = {
@@ -1070,66 +1141,140 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
     [variantRows]
   )
 
-  const removeVariantFromDraft = useCallback(
-    (key: string) => {
-      const nextExcludedKeys = new Set(excludedVariantKeys)
-      nextExcludedKeys.add(key)
+  const handleSetVariantStatus = useCallback((key: string, status: VariantStatus) => {
+    const targetVariant = variantRows.find((variant) => variant.key === key) ?? null
 
-      const remainingColorIds = new Set<number>()
-      const remainingTallaIds = new Set<number>()
-      const remainingVariantKeys = new Set<string>()
+    setVariantValues((previous) => {
+      const current = normalizeVariantValues(previous[key])
 
-      selectedColorIds.forEach((idColor) => {
-        selectedTallaIds.forEach((idTalla) => {
-          const variantKey = buildVariantKey(idColor, idTalla)
-          if (nextExcludedKeys.has(variantKey)) return
+      return {
+        ...previous,
+        [key]: {
+          ...current,
+          estado: status,
+        },
+      }
+    })
 
-          remainingColorIds.add(idColor)
-          remainingTallaIds.add(idTalla)
-          remainingVariantKeys.add(variantKey)
-        })
-      })
+    setInactiveVariantKeys((previous) => {
+      const next = new Set(previous)
+      if (status === "INACTIVO") {
+        next.add(key)
+      } else {
+        next.delete(key)
+      }
 
-      setExcludedVariantKeys(Array.from(nextExcludedKeys))
+      if (next.size === previous.length && previous.every((item) => next.has(item))) {
+        return previous
+      }
+
+      return Array.from(next)
+    })
+
+    if (status === "INACTIVO" && targetVariant) {
+      const colorRows = variantRows.filter(
+        (variant) => variant.color.idColor === targetVariant.color.idColor
+      )
+      const willDeactivateColor =
+        colorRows.length > 0 &&
+        colorRows.every((variant) =>
+          variant.key === key ? true : variant.estado === "INACTIVO"
+        )
+
+      if (willDeactivateColor) {
+        setSelectedColorIds((previous) =>
+          previous.filter((idColor) => idColor !== targetVariant.color.idColor)
+        )
+      }
+    }
+  }, [variantRows])
+
+  const toggleColorSelection = useCallback(
+    (idColor: number) => {
+      const isSelected = selectedColorIds.includes(idColor)
+
+      if (isSelected) {
+        const blockingVariants = variantRows.filter(
+          (variant) =>
+            variant.color.idColor === idColor &&
+            hasBlockingAttributeData(variant, isAutoSkuEnabled)
+        )
+
+        if (blockingVariants.length > 0) {
+          const colorName =
+            selectedColorCatalog[idColor]?.nombre ??
+            availableColors.find((item) => item.idColor === idColor)?.nombre ??
+            `Color #${idColor}`
+
+          toast.error(
+            `No se puede quitar el color ${colorName}. Estas combinaciones tienen datos activos: ${blockingVariants
+              .map((variant) => formatVariantCombinationLabel(variant))
+              .join(", ")}. Limpia sus datos o deshabilita esas variantes primero.`
+          )
+          return
+        }
+
+        setSelectedColorIds((previous) => previous.filter((id) => id !== idColor))
+        return
+      }
 
       setSelectedColorIds((previous) =>
-        previous.filter((idColor) => remainingColorIds.has(idColor))
-      )
-      setSelectedTallaIds((previous) =>
-        previous.filter((idTalla) => remainingTallaIds.has(idTalla))
+        previous.includes(idColor) ? previous : [...previous, idColor]
       )
 
-      setVariantValues((previous) => {
-        let changed = false
-        const next: Record<string, VariantValues> = {}
-
-        for (const [variantKey, variantValue] of Object.entries(previous)) {
-          if (!remainingVariantKeys.has(variantKey)) {
-            changed = true
-            continue
-          }
-          next[variantKey] = variantValue
-        }
-
-        return changed ? next : previous
-      })
-
-      setVariantReadonlyOffers((previous) => {
-        let changed = false
-        const next: Record<string, VariantReadonlyOfferInfo | null> = {}
-
-        for (const [variantKey, offerInfo] of Object.entries(previous)) {
-          if (!remainingVariantKeys.has(variantKey)) {
-            changed = true
-            continue
-          }
-          next[variantKey] = offerInfo
-        }
-
-        return changed ? next : previous
-      })
+      const color = availableColors.find((item) => item.idColor === idColor)
+      if (color) {
+        setSelectedColorCatalog((previous) => ({
+          ...previous,
+          [idColor]: color,
+        }))
+      }
     },
-    [excludedVariantKeys, selectedColorIds, selectedTallaIds]
+    [availableColors, isAutoSkuEnabled, selectedColorCatalog, selectedColorIds, variantRows]
+  )
+
+  const toggleTallaSelection = useCallback(
+    (idTalla: number) => {
+      const isSelected = selectedTallaIds.includes(idTalla)
+
+      if (isSelected) {
+        const blockingVariants = variantRows.filter(
+          (variant) =>
+            variant.talla.idTalla === idTalla &&
+            hasBlockingAttributeData(variant, isAutoSkuEnabled)
+        )
+
+        if (blockingVariants.length > 0) {
+          const tallaName =
+            selectedTallaCatalog[idTalla]?.nombre ??
+            availableTallas.find((item) => item.idTalla === idTalla)?.nombre ??
+            `Talla #${idTalla}`
+
+          toast.error(
+            `No se puede quitar la talla ${tallaName}. Estas combinaciones tienen datos activos: ${blockingVariants
+              .map((variant) => formatVariantCombinationLabel(variant))
+              .join(", ")}. Limpia sus datos o deshabilita esas variantes primero.`
+          )
+          return
+        }
+
+        setSelectedTallaIds((previous) => previous.filter((id) => id !== idTalla))
+        return
+      }
+
+      setSelectedTallaIds((previous) =>
+        previous.includes(idTalla) ? previous : [...previous, idTalla]
+      )
+
+      const talla = availableTallas.find((item) => item.idTalla === idTalla)
+      if (talla) {
+        setSelectedTallaCatalog((previous) => ({
+          ...previous,
+          [idTalla]: talla,
+        }))
+      }
+    },
+    [availableTallas, isAutoSkuEnabled, selectedTallaCatalog, selectedTallaIds, variantRows]
   )
 
   const handleRemoveVariant = useCallback(
@@ -1138,10 +1283,10 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
       if (!variant) return false
 
       const variantId = variant.idProductoVariante
-      const isPersistedVariant = isEditing && hasValidId(variantId)
+      const isPersistedVariant = hasValidId(variantId)
 
       if (!isPersistedVariant) {
-        removeVariantFromDraft(key)
+        handleSetVariantStatus(key, "INACTIVO")
         return true
       }
 
@@ -1167,7 +1312,7 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
           return false
         }
 
-        removeVariantFromDraft(key)
+        handleSetVariantStatus(key, "INACTIVO")
         toast.success(getResponseMessage(payload, "Variante eliminada logicamente"))
         return true
       } catch (requestError) {
@@ -1183,7 +1328,7 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
         )
       }
     },
-    [deletingVariantKeys, isEditing, removeVariantFromDraft, variantRows]
+    [deletingVariantKeys, handleSetVariantStatus, variantRows]
   )
 
   const selectedCategoriaName = hasValidId(form.idCategoria)
@@ -1296,7 +1441,6 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
         autoSkuByVariantKeyForSave = buildAutoSkuByVariantKey(
           selectedColors,
           selectedTallas,
-          new Set(excludedVariantKeys),
           nombre,
           variantValues,
           nextSequence
@@ -1341,6 +1485,7 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
 
     for (const variant of effectiveVariantRows) {
       const draftState = getVariantDraftState(variant)
+      const isInactiveVariant = variant.estado === "INACTIVO"
 
       if (draftState.isEmpty) {
         continue
@@ -1348,7 +1493,9 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
 
       if (draftState.missingFields.length > 0) {
         toast.error(
-          `Falta agregar ${formatRequiredFields(draftState.missingFields)} para la variante ${variant.color.nombre}/${variant.talla.nombre}`
+          isInactiveVariant
+            ? `La variante inactiva ${variant.color.nombre}/${variant.talla.nombre} conserva datos incompletos. Completa ${formatRequiredFields(draftState.missingFields)} o habilitala nuevamente antes de guardar.`
+            : `Falta agregar ${formatRequiredFields(draftState.missingFields)} para la variante ${variant.color.nombre}/${variant.talla.nombre}`
         )
         return false
       }
@@ -1396,10 +1543,17 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
         return false
       }
 
+      const codigoBarras = variant.codigoBarras?.trim() || null
+
       variantes.push({
+        ...(hasValidId(variant.idProductoVariante)
+          ? { idProductoVariante: variant.idProductoVariante }
+          : {}),
         colorId: variant.color.idColor,
         tallaId: variant.talla.idTalla,
+        estado: variant.estado,
         sku,
+        ...(codigoBarras !== null ? { codigoBarras } : {}),
         precio,
         ...(precioMayorResult.value !== null
           ? { precioMayor: precioMayorResult.value }
@@ -1567,7 +1721,6 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
     form.descripcion,
     form.idCategoria,
     form.nombre,
-    excludedVariantKeys,
     isEditing,
     isAutoSkuEnabled,
     isSaving,
@@ -1606,7 +1759,7 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
   const categoriaComboboxOptions = useMemo<ComboboxOption[]>(
     () =>
       hasValidCategoria &&
-      !filteredCategorias.some(
+      !categorias.some(
         (categoria) => categoria.idCategoria === form.idCategoria
       )
         ? [
@@ -1614,18 +1767,18 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
               value: String(form.idCategoria),
               label: `Categoria #${form.idCategoria}`,
             },
-            ...filteredCategorias.map((categoria) => ({
+            ...categorias.map((categoria) => ({
               value: String(categoria.idCategoria),
               label: categoria.nombreCategoria,
               description: categoria.nombreSucursal,
             })),
           ]
-        : filteredCategorias.map((categoria) => ({
+        : categorias.map((categoria) => ({
             value: String(categoria.idCategoria),
             label: categoria.nombreCategoria,
             description: categoria.nombreSucursal,
           })),
-    [filteredCategorias, form.idCategoria, hasValidCategoria]
+    [categorias, form.idCategoria, hasValidCategoria]
   )
 
   return {
@@ -1678,6 +1831,7 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
     variantRows,
     deletingVariantKeys,
     isAutoSkuEnabled,
+    isAutoBarcodeEnabled,
     totalSelectedMedia,
     setFocusedColorId,
     handleSucursalChange,
@@ -1690,9 +1844,13 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
     toggleColorSelection,
     toggleTallaSelection,
     handleAutoSkuToggle,
+    handleAutoBarcodeToggle,
     handleVariantFieldChange,
+    handleGenerateBarcode,
+    generatingBarcodeKeys,
     handleApplyVariantFieldToAll,
     handleRemoveVariant,
+    handleSetVariantStatus,
     saveProducto,
   }
 }

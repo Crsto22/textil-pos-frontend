@@ -4,6 +4,7 @@ const BACKEND_URL = process.env.BACKEND_URL
 const ALLOWED_QUERY_KEYS = [
   "page",
   "q",
+  "estadoVenta",
   "idVenta",
   "idUsuario",
   "idMetodoPago",

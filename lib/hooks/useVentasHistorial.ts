@@ -104,6 +104,10 @@ function buildQueryParams(
     params.set("q", normalizedSearch)
   }
 
+  if (filters.estado !== "TODOS") {
+    params.set("estado", filters.estado)
+  }
+
   if (filters.comprobante !== "TODOS") {
     params.set("tipoComprobante", filters.comprobante)
   }
@@ -114,6 +118,10 @@ function buildQueryParams(
 
   if (typeof filters.idSucursal === "number" && filters.idSucursal > 0) {
     params.set("idSucursal", String(filters.idSucursal))
+  }
+
+  if (typeof filters.idCliente === "number" && filters.idCliente > 0) {
+    params.set("idCliente", String(filters.idCliente))
   }
 
   if (!filters.usarRangoFechas && filters.periodo === "FECHA") {
@@ -156,9 +164,11 @@ export function useVentasHistorial(filters: VentaHistorialFilters) {
     setPage(0)
   }, [
     filters.comprobante,
+    filters.estado,
     filters.fecha,
     filters.fechaDesde,
     filters.fechaHasta,
+    filters.idCliente,
     filters.idUsuario,
     filters.idSucursal,
     filters.periodo,

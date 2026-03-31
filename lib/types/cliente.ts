@@ -33,16 +33,37 @@ export interface Cliente {
     direccion: string
     estado: "ACTIVO" | "INACTIVO" | string
     fechaCreacion: string
-    idSucursal: number | null
-    nombreSucursal: string
+    idEmpresa: number | null
+    nombreEmpresa: string
     idUsuarioCreacion: number | null
     nombreUsuarioCreacion: string
+}
+
+export interface ClienteUltimaCompra {
+    idVenta: number
+    fecha: string
+    tipoComprobante: string
+    serie: string
+    correlativo: number
+    moneda: string
+    total: number
+    estado: string
+}
+
+export interface ClienteDetalle extends Cliente {
+    comprasTotales: number
+    montoTotalCompras: number
+    ultimasCompras: ClienteUltimaCompra[]
 }
 
 /* ── Tipo de documento ───────────────────────────────────── */
 
 export const TIPO_DOCUMENTO_VALUES = ["SIN_DOC", "DNI", "RUC", "CE"] as const
 export type TipoDocumento = (typeof TIPO_DOCUMENTO_VALUES)[number]
+export const ALL_CLIENTE_DOCUMENT_FILTER = "ALL" as const
+export type ClienteTipoDocumentoFilter =
+    | TipoDocumento
+    | typeof ALL_CLIENTE_DOCUMENT_FILTER
 
 export interface TipoDocumentoOption {
     value: TipoDocumento
@@ -77,7 +98,6 @@ export interface ClienteCreateRequest {
     telefono: string
     correo: string
     direccion: string
-    idSucursal: number | null
 }
 
 export interface ClienteCreatePrefill {
@@ -87,7 +107,6 @@ export interface ClienteCreatePrefill {
     telefono?: string
     correo?: string
     direccion?: string
-    idSucursal?: number | null
     autoLookup?: boolean
 }
 
@@ -99,7 +118,6 @@ export interface ClienteUpdateRequest {
     correo: string
     direccion: string
     estado: string
-    idSucursal: number | null
 }
 
 export const emptyClienteCreate: ClienteCreateRequest = {
@@ -109,7 +127,6 @@ export const emptyClienteCreate: ClienteCreateRequest = {
     telefono: "",
     correo: "",
     direccion: "",
-    idSucursal: null,
 }
 
 export const emptyClienteUpdate: ClienteUpdateRequest = {
@@ -120,7 +137,6 @@ export const emptyClienteUpdate: ClienteUpdateRequest = {
     correo: "",
     direccion: "",
     estado: "ACTIVO",
-    idSucursal: null,
 }
 
 /**

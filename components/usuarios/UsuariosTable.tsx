@@ -6,11 +6,11 @@ import {
 } from "@heroicons/react/24/outline"
 
 import { UsuariosTableSkeleton } from "@/components/usuarios/UsuariosTableSkeleton"
+import { UserAvatar } from "@/components/ui/user-avatar"
 import type { Usuario } from "@/lib/types/usuario"
 import {
   estadoBadge,
   getAvatarColor,
-  getInitials,
   getSucursalDisplay,
   rolBadge,
 } from "@/components/usuarios/usuarios.utils"
@@ -77,7 +77,6 @@ function UsuariosTableComponent({
             ) : (
               users.map((usuario) => {
                 const color = getAvatarColor(usuario.idUsuario)
-                const initials = getInitials(usuario.nombre, usuario.apellido)
                 const isSelected = selectedUserId === usuario.idUsuario
                 const rol =
                   rolBadge[usuario.rol] ?? {
@@ -107,11 +106,14 @@ function UsuariosTableComponent({
                   >
                     <td className="px-4 py-3">
                       <div className="flex min-w-0 items-center gap-3">
-                        <div
-                          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold ${color.bg} ${color.text}`}
-                        >
-                          {initials}
-                        </div>
+                        <UserAvatar
+                          nombre={usuario.nombre}
+                          apellido={usuario.apellido}
+                          fotoPerfilUrl={usuario.fotoPerfilUrl}
+                          className="h-9 w-9 shrink-0"
+                          fallbackClassName={`${color.bg} ${color.text}`}
+                          textClassName="text-xs font-bold"
+                        />
                         <div className="min-w-0">
                           <span className="block truncate font-semibold">
                             {usuario.nombre} {usuario.apellido}

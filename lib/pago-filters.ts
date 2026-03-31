@@ -46,6 +46,7 @@ export function createDefaultPagoFilters(): PagoFilters {
 
   return {
     search: "",
+    estadoVenta: "TODOS",
     idUsuario: null,
     idMetodoPago: null,
     idSucursal: null,

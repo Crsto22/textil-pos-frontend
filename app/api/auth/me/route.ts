@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { safeParseJson } from "../_helpers"
+import { safeParseJson, setSessionUserCookie } from "../_helpers"
 import type { AuthUser } from "@/lib/auth/types"
 
 const BACKEND_URL = process.env.BACKEND_URL
@@ -47,13 +47,7 @@ export async function GET(request: NextRequest) {
     const response = NextResponse.json(user, { status: 200 })
 
     // Mantener session_user sincronizada con el dato vivo de DB.
-    response.cookies.set("session_user", JSON.stringify(user), {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 7,
-    })
+    setSessionUserCookie(response, user)
 
     return response
   } catch (error) {

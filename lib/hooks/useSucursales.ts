@@ -11,6 +11,7 @@ import {
   useDebouncedValue,
 } from "@/lib/hooks/useDebouncedValue"
 import {
+  normalizeSucursal,
   normalizeSucursalPageResponse,
   sanitizeSucursalPayload,
 } from "@/lib/sucursal"
@@ -228,7 +229,12 @@ export function useSucursales() {
           return false
         }
 
-        toast.success(data?.message ?? "Sucursal registrada exitosamente")
+        const createdSucursal = normalizeSucursal(data)
+        toast.success(
+          createdSucursal
+            ? "Sucursal registrada y configuraciones base generadas"
+            : data?.message ?? "Sucursal registrada y configuraciones base generadas"
+        )
         await refreshCurrentCollection()
         return true
       } catch (requestError) {
@@ -261,7 +267,12 @@ export function useSucursales() {
           return false
         }
 
-        toast.success(data?.message ?? "Sucursal actualizada exitosamente")
+        const updatedSucursal = normalizeSucursal(data)
+        toast.success(
+          updatedSucursal
+            ? "Sucursal actualizada exitosamente"
+            : data?.message ?? "Sucursal actualizada exitosamente"
+        )
         await refreshCurrentCollection()
         return true
       } catch (requestError) {

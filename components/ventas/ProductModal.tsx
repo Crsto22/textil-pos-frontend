@@ -13,6 +13,14 @@ import {
 
 import { formatMonedaPen } from "@/components/productos/productos.utils"
 import { PriceSelectorDropdown } from "@/components/ventas/PriceSelectorDropdown"
+import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { authFetch } from "@/lib/auth/auth-fetch"
 import {
   ofertaEstaVigente,
@@ -121,19 +129,19 @@ function buildGalleryImages(
         return a.orden - b.orden
       })
       .forEach((imagen) => {
-        const url = imagen.urlThumb || imagen.url
+        const url = imagen.url || imagen.urlThumb
         if (url) urls.push(url)
       })
   }
 
   if (selectedColorId !== null) {
     const summaryColor = product.colores.find((color) => color.colorId === selectedColorId)
-    const url = summaryColor?.imagenPrincipal?.urlThumb || summaryColor?.imagenPrincipal?.url
+    const url = summaryColor?.imagenPrincipal?.url || summaryColor?.imagenPrincipal?.urlThumb
     if (url) urls.push(url)
   }
 
   product.colores.forEach((color) => {
-    const url = color.imagenPrincipal?.urlThumb || color.imagenPrincipal?.url
+    const url = color.imagenPrincipal?.url || color.imagenPrincipal?.urlThumb
     if (url) urls.push(url)
   })
 
@@ -492,15 +500,6 @@ export default function ProductModal({
     }
   }, [galleryImages.length, onClose, product])
 
-  useEffect(() => {
-    if (!product) return
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = "hidden"
-    return () => {
-      document.body.style.overflow = previousOverflow
-    }
-  }, [product])
-
   if (!product) return null
 
   const canConfirm =
@@ -582,24 +581,33 @@ export default function ProductModal({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5"
-      onClick={(event) => {
-        if (event.target === event.currentTarget) onClose()
+    <Dialog
+      open={Boolean(product)}
+      onOpenChange={(open) => {
+        if (!open) onClose()
       }}
     >
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <DialogContent
+        className="max-h-[92vh]  xl:max-w-[70rem] overflow-hidden rounded-3xl border border-slate-200 bg-white p-0 shadow-2xl dark:border-slate-700 dark:bg-slate-900"
+        showCloseButton={false}
+      >
+        <DialogHeader className="sr-only">
+          <DialogTitle>{detalle?.producto.nombre || product.nombre}</DialogTitle>
+          <DialogDescription>Selecciona color, talla y cantidad para agregar al pedido.</DialogDescription>
+        </DialogHeader>
 
-      <div className="relative z-10 flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900 sm:flex-row">
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="icon"
           onClick={onClose}
-          className="absolute right-4 top-4 z-20 inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white/90 text-slate-600 backdrop-blur-sm transition-colors hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-300 dark:hover:bg-slate-800"
+          className="absolute right-4 top-4 z-20 rounded-full border-slate-200 bg-white/90 text-slate-600 backdrop-blur-sm hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-300 dark:hover:bg-slate-800"
           aria-label="Cerrar"
         >
           <XMarkIcon className="h-4 w-4" />
-        </button>
+        </Button>
 
+        <div className="flex max-h-[92vh] w-full flex-col overflow-hidden sm:flex-row">
         <section className="relative h-[300px] w-full shrink-0 overflow-hidden border-b border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/40 sm:h-auto sm:w-[44%] sm:border-b-0 sm:border-r">
           {detalleLoading && !detalle ? (
             <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-slate-200 via-slate-100 to-slate-200 dark:from-slate-800 dark:via-slate-700 dark:to-slate-800" />
@@ -627,11 +635,13 @@ export default function ProductModal({
           {galleryImages.length > 1 && (
             <div className="absolute bottom-3 left-0 right-0 z-10 flex justify-center gap-1.5 px-2">
               {galleryImages.map((image, idx) => (
-                <button
+                <Button
                   type="button"
                   key={`${image}-${idx}`}
                   onClick={() => setCurrentImgIdx(idx)}
-                  className={`h-1.5 rounded-full transition-all ${
+                  variant="ghost"
+                  size="icon-xs"
+                  className={`h-1.5 rounded-full p-0 transition-all hover:bg-transparent ${
                     idx === currentImgIdx ? "w-5 bg-white" : "w-2 bg-white/60"
                   }`}
                   aria-label={`Imagen ${idx + 1}`}
@@ -725,13 +735,15 @@ export default function ProductModal({
                 <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-500/35 dark:bg-amber-500/10 dark:text-amber-300">
                   <p className="font-semibold">No se pudo cargar el detalle completo.</p>
                   <p className="mt-1">{detalleError}</p>
-                  <button
+                  <Button
                     type="button"
                     onClick={retryLoadDetalle}
-                    className="mt-2 inline-flex items-center gap-1 rounded-md border border-amber-400 px-2 py-1 font-semibold hover:bg-amber-100 dark:border-amber-500/50 dark:hover:bg-amber-500/20"
+                    variant="outline"
+                    size="sm"
+                    className="mt-2 border-amber-400 text-amber-800 hover:bg-amber-100 dark:border-amber-500/50 dark:text-amber-300 dark:hover:bg-amber-500/20"
                   >
                     <ArrowPathIcon className="h-3.5 w-3.5" /> Reintentar
-                  </button>
+                  </Button>
                 </div>
               )}
 
@@ -745,11 +757,13 @@ export default function ProductModal({
                       </span>
                     ) : (
                       colorOptions.map((color) => (
-                        <button
+                        <Button
                           type="button"
                           key={color.colorId}
                           onClick={() => setSelectedColorId(color.colorId)}
-                          className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                          variant="outline"
+                          size="sm"
+                          className={`inline-flex items-center gap-2 text-xs font-semibold transition-colors ${
                             selectedColorId === color.colorId
                               ? "border-blue-400 bg-blue-50 text-blue-700 dark:border-blue-500/50 dark:bg-blue-500/15 dark:text-blue-300"
                               : "border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
@@ -761,7 +775,7 @@ export default function ProductModal({
                             aria-hidden="true"
                           />
                           {color.nombre}
-                        </button>
+                        </Button>
                       ))
                     )}
                   </div>
@@ -795,17 +809,18 @@ export default function ProductModal({
                             : null
 
                           return (
-                            <button
+                            <Button
                               type="button"
                               key={variante.idProductoVariante}
                               onClick={() => setSelectedTallaId(variante.tallaId)}
-                              className={`rounded-xl border px-3 py-2 text-left transition-colors ${
+                              variant="outline"
+                              className={`h-auto flex-col items-stretch justify-start rounded-xl px-3 py-2 text-left transition-colors ${
                                 selected
                                   ? "border-blue-400 bg-blue-50 dark:border-blue-500/50 dark:bg-blue-500/15"
                                   : "border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
                               } ${agotado ? "opacity-60" : ""}`}
                             >
-                              <div className="flex items-center justify-between gap-2">
+                              <div className="flex w-full items-center justify-between gap-2">
                                 <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">
                                   Talla {variante.tallaNombre}
                                 </span>
@@ -834,11 +849,11 @@ export default function ProductModal({
                                 )}
                               </div>
                               {offerCopy && (
-                                <p className="mt-2 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                                <p className="mt-2 text-[11px] font-medium leading-snug text-emerald-600 dark:text-emerald-400">
                                   {offerCopy}
                                 </p>
                               )}
-                            </button>
+                            </Button>
                           )
                         })
                       )}
@@ -850,26 +865,30 @@ export default function ProductModal({
                   <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Cantidad</p>
                   <div className="flex items-center justify-between gap-4">
                     <div className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-slate-800">
-                      <button
+                      <Button
                         type="button"
                         onClick={() => setCantidad((previous) => Math.max(1, previous - 1))}
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-white dark:text-slate-300 dark:hover:bg-slate-700"
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9 rounded-lg text-slate-600 hover:bg-white dark:text-slate-300 dark:hover:bg-slate-700"
                       >
                         <MinusIcon className="h-4 w-4" />
-                      </button>
+                      </Button>
                       <span className="w-9 text-center text-lg font-bold tabular-nums text-slate-900 dark:text-white">
                         {cantidad}
                       </span>
-                      <button
+                      <Button
                         type="button"
                         onClick={() =>
                           setCantidad((previous) => Math.min(maxCantidad, previous + 1))
                         }
                         disabled={!selectedVariante || selectedVariante.stock <= 0}
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-white disabled:opacity-40 dark:text-slate-300 dark:hover:bg-slate-700"
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9 rounded-lg text-slate-600 hover:bg-white disabled:opacity-40 dark:text-slate-300 dark:hover:bg-slate-700"
                       >
                         <PlusIcon className="h-4 w-4" />
-                      </button>
+                      </Button>
                     </div>
 
                     <div className="text-right">
@@ -881,15 +900,11 @@ export default function ProductModal({
                   </div>
                 </div>
 
-                <button
+                <Button
                   type="button"
                   onClick={handleConfirm}
                   disabled={!canConfirm}
-                  className={`mt-2 inline-flex w-full items-center justify-center gap-2 rounded-2xl py-3.5 text-sm font-bold transition-colors ${
-                    canConfirm
-                      ? "bg-blue-600 text-white hover:bg-blue-700"
-                      : "cursor-not-allowed bg-slate-200 text-slate-500 dark:bg-slate-800 dark:text-slate-500"
-                  }`}
+                  className="mt-2 h-12 w-full rounded-2xl text-sm font-bold"
                 >
                   <ShoppingBagIcon className="h-4 w-4" />
                   {canConfirm
@@ -899,12 +914,13 @@ export default function ProductModal({
                       : !selectedTallaId
                         ? "Selecciona una talla"
                         : "Sin stock disponible"}
-                </button>
+                </Button>
               </div>
             </>
           )}
         </section>
-      </div>
-    </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }

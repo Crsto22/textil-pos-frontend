@@ -8,6 +8,7 @@ import { LoaderOverlay } from "@/components/ui/loader-overlay"
 import { useEffect, type ReactNode } from "react"
 import { Sidebar } from "@/components/Sidebar"
 import { Header } from "@/components/Header"
+import { SucursalGlobalProvider } from "@/lib/sucursal-global-context"
 
 export default function ProtectedLayout({ children }: { children: ReactNode }) {
   const { user, isAuthenticated, isLoading } = useAuth()
@@ -34,7 +35,7 @@ export default function ProtectedLayout({ children }: { children: ReactNode }) {
   if (user && !hasAccess(user.rol, pathname)) return <LoaderOverlay /> // Optional check to prevent rendering flash before redirect
 
   return (
-    <>
+    <SucursalGlobalProvider>
       <div className="flex h-screen overflow-hidden">
         <Sidebar
           isOpen={sidebarOpen}
@@ -53,6 +54,6 @@ export default function ProtectedLayout({ children }: { children: ReactNode }) {
           </main>
         </div>
       </div>
-    </>
+    </SucursalGlobalProvider>
   )
 }

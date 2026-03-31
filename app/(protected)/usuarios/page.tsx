@@ -82,27 +82,18 @@ export default function UsuariosPage() {
 
   const handleUpdate = useCallback(
     async (id: number, payload: UsuarioUpdateRequest) => {
-      const success = await updateUsuario(id, payload)
+      const updatedUser = await updateUsuario(id, payload)
 
-      if (success) {
+      if (updatedUser) {
         setSelectedUser((previous) =>
           previous?.idUsuario === id
-            ? {
-                ...previous,
-                nombre: payload.nombre,
-                apellido: payload.apellido,
-                dni: payload.dni,
-                telefono: payload.telefono,
-                correo: payload.correo,
-                rol: payload.rol,
-                estado: payload.estado,
-                idSucursal: payload.idSucursal,
-              }
+            ? updatedUser
             : previous
         )
+        return true
       }
 
-      return success
+      return false
     },
     [updateUsuario]
   )

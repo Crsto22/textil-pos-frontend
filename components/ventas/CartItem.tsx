@@ -171,7 +171,7 @@ export default function CartItem({
                     </button>
                 </div>
                 <button onClick={() => onRemove(item.id)}
-                    className="flex items-center gap-0.5 text-[10px] font-medium text-slate-300 dark:text-slate-600 hover:text-red-500 dark:hover:text-red-400 transition-colors">
+                    className="flex items-center gap-0.5 text-[10px] font-extrabold text-slate-400 hover:text-red-500 dark:hover:text-red-400 red-400 transition-colors">
                     <TrashIcon className="h-3 w-3" />
                     <span>Quitar</span>
                 </button>

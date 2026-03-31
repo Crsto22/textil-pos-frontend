@@ -62,7 +62,7 @@ export function ProductoVariantDeleteDialog({
         <DialogHeader>
           <DialogTitle>Eliminar Variante</DialogTitle>
           <DialogDescription>
-            {`Estas seguro de eliminar la variante "${target?.color.nombre ?? ""}/${target?.talla.nombre ?? ""}"?`}
+            {`Estas seguro de eliminar la variante "${target?.color.nombre ?? ""}/${target?.talla.nombre ?? ""}"? Esta acción no se puede deshacer.`}
           </DialogDescription>
         </DialogHeader>
 

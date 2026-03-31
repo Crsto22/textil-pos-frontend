@@ -63,6 +63,15 @@ function getCategoriaFromCreatePayload(payload: unknown): Categoria | null {
   return null
 }
 
+function appendOptionalPositiveInt(
+  params: URLSearchParams,
+  key: string,
+  value?: number | null
+) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return
+  params.set(key, String(Math.trunc(value)))
+}
+
 function normalizeName(value: string) {
   return value.trim().toLocaleLowerCase()
 }
@@ -94,7 +103,7 @@ interface CreateCategoriaResult {
   categoria: Categoria | null
 }
 
-export function useCategoriaOptions(enabled: boolean) {
+export function useCategoriaOptions(enabled: boolean, idSucursal?: number | null) {
   const [categorias, setCategorias] = useState<Categoria[]>([])
   const [loadingCategorias, setLoadingCategorias] = useState(false)
   const [errorCategorias, setErrorCategorias] = useState<string | null>(null)
@@ -112,7 +121,9 @@ export function useCategoriaOptions(enabled: boolean) {
     setErrorCategorias(null)
 
     try {
-      const response = await authFetch("/api/categoria/listar?page=0", {
+      const params = new URLSearchParams({ page: "0" })
+      appendOptionalPositiveInt(params, "idSucursal", idSucursal)
+      const response = await authFetch(`/api/categoria/listar?${params.toString()}`, {
         signal: controller.signal,
       })
       const data = await parseJsonSafe(response)
@@ -136,7 +147,7 @@ export function useCategoriaOptions(enabled: boolean) {
         setLoadingCategorias(false)
       }
     }
-  }, [])
+  }, [idSucursal])
 
   const fetchBuscarCategorias = useCallback(async (query: string) => {
     abortRef.current?.abort()
@@ -147,8 +158,10 @@ export function useCategoriaOptions(enabled: boolean) {
     setErrorCategorias(null)
 
     try {
+      const params = new URLSearchParams({ q: query, page: "0" })
+      appendOptionalPositiveInt(params, "idSucursal", idSucursal)
       const response = await authFetch(
-        `/api/categoria/buscar?q=${encodeURIComponent(query)}&page=0`,
+        `/api/categoria/buscar?${params.toString()}`,
         {
           signal: controller.signal,
         }
@@ -174,7 +187,7 @@ export function useCategoriaOptions(enabled: boolean) {
         setLoadingCategorias(false)
       }
     }
-  }, [])
+  }, [idSucursal])
 
   const refreshCurrentView = useCallback(async () => {
     if (searchCategoria.trim()) {
@@ -212,6 +225,13 @@ export function useCategoriaOptions(enabled: boolean) {
     setLoadingCategorias(false)
     setSearchCategoria("")
   }, [enabled])
+
+  useEffect(() => {
+    if (!enabled) return
+    setCategorias([])
+    setErrorCategorias(null)
+    setSearchCategoria("")
+  }, [enabled, idSucursal])
 
   useEffect(() => {
     return () => {

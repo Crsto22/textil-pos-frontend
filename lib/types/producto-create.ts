@@ -34,9 +34,13 @@ export interface VariantReadonlyOfferInfo {
   ofertaFin: string | null
 }
 
+export type VariantStatus = "ACTIVO" | "INACTIVO"
+
 export interface VariantValues {
   idProductoVariante?: number | null
+  estado: VariantStatus
   sku: string
+  codigoBarras: string
   precio: string
   precioMayor: string
   stock: string
@@ -45,13 +49,15 @@ export interface VariantValues {
 export interface VariantRow {
   key: string
   idProductoVariante?: number | null
+  estado: VariantStatus
   color: Color
   talla: Talla
   sku: string
+  codigoBarras: string
   precio: string
   precioMayor: string
   stock: string
   readonlyOffer?: VariantReadonlyOfferInfo | null
 }
 
-export type VariantEditableField = "sku" | "precio" | "precioMayor" | "stock"
+export type VariantEditableField = "sku" | "codigoBarras" | "precio" | "precioMayor" | "stock"

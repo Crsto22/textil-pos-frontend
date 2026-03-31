@@ -5,9 +5,13 @@ const EXCEL_CONTENT_TYPE =
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 const ALLOWED_QUERY_KEYS = [
+  "agrupar",
   "periodo",
   "desde",
   "hasta",
+  "idSucursal",
+  "idCliente",
+  "incluirAnuladas",
 ] as const
 
 function buildForwardQuery(request: NextRequest): string {

@@ -6,6 +6,7 @@ import {
   TagIcon,
   TrashIcon,
 } from "@heroicons/react/24/outline"
+import { Barcode } from "lucide-react"
 
 import { formatMonedaPen } from "@/components/productos/productos.utils"
 import type { CatalogVariantItem } from "@/lib/catalog-view"
@@ -16,6 +17,7 @@ interface ProductosVariantesCardsProps {
   loading: boolean
   onEditVariante: (variant: CatalogVariantItem) => void
   onDeleteVariante: (variant: CatalogVariantItem) => void
+  onShowBarcode: (variant: CatalogVariantItem) => void
 }
 
 function normalizeHexColor(code: string | null | undefined): string {
@@ -34,6 +36,7 @@ function ProductosVariantesCardsComponent({
   loading,
   onEditVariante,
   onDeleteVariante,
+  onShowBarcode,
 }: ProductosVariantesCardsProps) {
   if (loading) {
     return (
@@ -79,6 +82,13 @@ function ProductosVariantesCardsComponent({
                   <PhotoIcon className="h-10 w-10" />
                 </div>
               )}
+
+              <div className="pointer-events-none absolute left-3 top-3 inline-flex items-center gap-1 rounded-full border border-white/60 bg-white/90 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-700 shadow-sm backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/85 dark:text-slate-200">
+                <span className="text-[9px] text-slate-500 dark:text-slate-400">Talla</span>
+                <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                  {variant.tallaName}
+                </span>
+              </div>
             </div>
 
             <div className="space-y-3 p-4">
@@ -103,27 +113,37 @@ function ProductosVariantesCardsComponent({
                 <h3 className="line-clamp-2 text-base font-semibold text-foreground">
                   {variant.productName}
                 </h3>
+                <div className="mt-1.5 space-y-0.5 text-xs text-muted-foreground">
+                  <p>
+                    <span className="font-semibold text-foreground">Talla:</span> {variant.tallaName}
+                  </p>
+                  <p className="inline-flex items-center gap-1.5">
+                    <span className="font-semibold text-foreground">Color:</span>
+                    <span
+                      className="h-3 w-3 rounded-full border border-background"
+                      style={{ backgroundColor: normalizeHexColor(variant.colorHex) }}
+                    />
+                    <span>{variant.colorName}</span>
+                  </p>
+                </div>
                 <p className="mt-1 text-lg font-semibold text-blue-600 dark:text-blue-400">
                   {formatMonedaPen(variant.regularPrice)}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">SKU: {variant.sku || "-"}</p>
               </div>
 
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex min-w-0 flex-wrap items-center gap-2">
-                  <span className="inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] text-foreground">
-                    <span
-                      className="h-3 w-3 rounded-full border border-background"
-                      style={{ backgroundColor: normalizeHexColor(variant.colorHex) }}
-                    />
-                    {variant.colorName}
-                  </span>
-                  <span className="rounded-md border bg-muted/50 px-2 py-0.5 text-[10px] font-medium text-foreground">
-                    {variant.tallaName}
-                  </span>
-                </div>
-
+              <div className="flex items-center justify-end gap-3">
                 <div className="flex items-center gap-1">
+                  {variant.codigoBarras && (
+                    <button
+                      type="button"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-violet-50 hover:text-violet-600 dark:hover:bg-violet-500/10 dark:hover:text-violet-400"
+                      title="Ver código de barras"
+                      onClick={() => onShowBarcode(variant)}
+                    >
+                      <Barcode className="h-4 w-4" />
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-blue-50 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-blue-500/10 dark:hover:text-blue-400"

@@ -33,6 +33,7 @@ export interface ProductoResumenTalla {
   tallaId: number
   nombre: string
   sku?: string | null
+  codigoBarras?: string | null
   precio?: number | null
   precioMayor?: number | null
   precioOferta?: number | null
@@ -56,9 +57,12 @@ export interface ProductoCreateRequest {
 }
 
 export interface ProductoVarianteCreateRequest {
+  idProductoVariante?: number | null
   colorId: number
   tallaId: number
+  estado?: "ACTIVO" | "INACTIVO" | string
   sku: string
+  codigoBarras?: string | null
   precio: number
   precioMayor?: number | null
   precioOferta?: number | null
@@ -135,6 +139,7 @@ export interface ProductoInsertarCompletoResponse {
 export interface ProductoDetalleVariante {
   idProductoVariante: number
   sku: string
+  codigoBarras?: string | null
   colorId: number
   colorNombre: string
   colorHex: string

@@ -28,8 +28,15 @@ import {
     RectangleStackIcon,
     DocumentArrowUpIcon,
     DocumentTextIcon,
+    QueueListIcon,
     ChevronDownIcon,
     MagnifyingGlassIcon,
+    ChartBarIcon,
+    DocumentChartBarIcon,
+    ChartPieIcon,
+    PresentationChartLineIcon,
+    ArchiveBoxIcon,
+    ArrowsRightLeftIcon,
 } from "@heroicons/react/24/outline"
 import {
     BanknotesIcon as BanknotesIconSolid,
@@ -48,6 +55,13 @@ import {
     RectangleStackIcon as RectangleStackIconSolid,
     DocumentArrowUpIcon as DocumentArrowUpIconSolid,
     DocumentTextIcon as DocumentTextIconSolid,
+    QueueListIcon as QueueListIconSolid,
+    ChartBarIcon as ChartBarIconSolid,
+    DocumentChartBarIcon as DocumentChartBarIconSolid,
+    ChartPieIcon as ChartPieIconSolid,
+    PresentationChartLineIcon as PresentationChartLineIconSolid,
+    ArchiveBoxIcon as ArchiveBoxIconSolid,
+    ArrowsRightLeftIcon as ArrowsRightLeftIconSolid,
 } from "@heroicons/react/24/solid"
 
 interface SidebarProps {
@@ -62,6 +76,7 @@ interface SidebarItem {
     href: string
     icon: ComponentType<{ className?: string }>
     iconActive: ComponentType<{ className?: string }>
+    disabled?: boolean
 }
 
 interface SidebarSection {
@@ -77,14 +92,26 @@ const navSections: SidebarSection[] = [
         ],
     },
     {
-        subtitle: "Ventas",
+        subtitle: "Operaciones",
         items: [
-            { label: "Ventas", href: "/ventas", icon: ShoppingCartIcon, iconActive: ShoppingCartIconSolid },
-            { label: "Cotizacion", href: "/ventas/cotizacion", icon: DocumentTextIcon, iconActive: DocumentTextIconSolid },
-            { label: "Historial cotizacion", href: "/ventas/cotizacion/historial", icon: ClipboardDocumentListIcon, iconActive: ClipboardDocumentListIconSolid },
-            { label: "Historial ventas", href: "/ventas/historial", icon: ClipboardDocumentListIcon, iconActive: ClipboardDocumentListIconSolid },
-            { label: "Pagos", href: "/ventas/pagos", icon: BanknotesIcon, iconActive: BanknotesIconSolid },
+            { label: "Ventas POS", href: "/ventas", icon: ShoppingCartIcon, iconActive: ShoppingCartIconSolid },
+            { label: "Cotizaciones", href: "/ventas/cotizacion", icon: DocumentTextIcon, iconActive: DocumentTextIconSolid },
             { label: "Clientes", href: "/clientes", icon: UsersIcon, iconActive: UsersIconSolid },
+        ],
+    },
+    {
+        subtitle: "Facturacion",
+        items: [
+            { label: "Comprobantes", href: "/ventas/historial", icon: ClipboardDocumentListIcon, iconActive: ClipboardDocumentListIconSolid },
+            { label: "Nota de credito", href: "/ventas/nota-credito", icon: DocumentTextIcon, iconActive: DocumentTextIconSolid },
+            { label: "Series", href: "/configuracion/comprobantes", icon: QueueListIcon, iconActive: QueueListIconSolid },
+        ],
+    },
+    {
+        subtitle: "Historial",
+        items: [
+            { label: "Historial cotizaciones", href: "/ventas/cotizacion/historial", icon: ClipboardDocumentListIcon, iconActive: ClipboardDocumentListIconSolid },
+            { label: "Historial pagos", href: "/ventas/pagos", icon: BanknotesIcon, iconActive: BanknotesIconSolid },
         ],
     },
     {
@@ -98,16 +125,46 @@ const navSections: SidebarSection[] = [
         ],
     },
     {
-        subtitle: "Administracion",
+        subtitle: "Stock",
         items: [
-            { label: "Sucursales", href: "/sucursales", icon: BuildingOffice2Icon, iconActive: BuildingOffice2IconSolid },
-            { label: "Usuarios", href: "/usuarios", icon: WrenchScrewdriverIcon, iconActive: WrenchScrewdriverIconSolid },
+            { label: "Movimientos", href: "/stock/movimientos", icon: ArchiveBoxIcon, iconActive: ArchiveBoxIconSolid },
+            { label: "Traspasos", href: "/stock/traspasos", icon: ArrowsRightLeftIcon, iconActive: ArrowsRightLeftIconSolid },
         ],
     },
     {
         subtitle: "Reportes",
         items: [
-            { label: "Reportes", href: "/reportes", icon: ClipboardDocumentListIcon, iconActive: ClipboardDocumentListIconSolid },
+            {
+                label: "Ventas",
+                href: "/reportes/ventas",
+                icon: ChartBarIcon,
+                iconActive: ChartBarIconSolid,
+            },
+            {
+                label: "Productos",
+                href: "/reportes/productos",
+                icon: DocumentChartBarIcon,
+                iconActive: DocumentChartBarIconSolid,
+            },
+            {
+                label: "Clientes",
+                href: "/reportes/clientes",
+                icon: ChartPieIcon,
+                iconActive: ChartPieIconSolid,
+            },
+            {
+                label: "Usuarios",
+                href: "/reportes/usuarios",
+                icon: PresentationChartLineIcon,
+                iconActive: PresentationChartLineIconSolid,
+            },
+        ],
+    },
+    {
+        subtitle: "Administracion",
+        items: [
+            { label: "Sucursales", href: "/sucursales", icon: BuildingOffice2Icon, iconActive: BuildingOffice2IconSolid },
+            { label: "Usuarios", href: "/usuarios", icon: WrenchScrewdriverIcon, iconActive: WrenchScrewdriverIconSolid },
         ],
     },
     {
@@ -184,7 +241,12 @@ export function Sidebar({ isOpen, collapsed, onClose, onToggleCollapse }: Sideba
 
     const showNoResults = normalizedQuery.length > 0 && filteredSections.length === 0
 
-    const handleNav = (href: string) => {
+    const handleNav = (item: SidebarItem) => {
+        if (item.disabled) {
+            return
+        }
+
+        const { href } = item
         router.push(href)
         onClose()
     }
@@ -204,13 +266,18 @@ export function Sidebar({ isOpen, collapsed, onClose, onToggleCollapse }: Sideba
 
     const isActive = (href: string) => activeHref === href
 
-    const itemClass = (active: boolean) =>
+    const itemClass = (active: boolean, disabled = false) =>
         [
             "group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
             collapsed ? "justify-center" : "",
+            disabled
+                ? "cursor-not-allowed text-slate-500 opacity-70"
+                : "",
             active
                 ? "bg-gradient-to-r from-white to-slate-100 text-slate-900 shadow-[0_8px_22px_rgba(15,23,42,0.28)]"
-                : "text-slate-300 hover:bg-white/[0.08] hover:text-white",
+                : disabled
+                    ? ""
+                    : "text-slate-300 hover:bg-white/[0.08] hover:text-white",
         ].join(" ")
 
     const renderNavItem = (item: SidebarItem) => {
@@ -220,10 +287,11 @@ export function Sidebar({ isOpen, collapsed, onClose, onToggleCollapse }: Sideba
         return (
             <div key={item.href} className="relative">
                 <button
-                    onClick={() => handleNav(item.href)}
-                    className={itemClass(active)}
+                    onClick={() => handleNav(item)}
+                    className={itemClass(active, item.disabled)}
                     title={collapsed ? item.label : undefined}
                     aria-current={active ? "page" : undefined}
+                    disabled={item.disabled}
                 >
                     <span
                         className={`absolute left-1 top-1/2 h-6 w-1 -translate-y-1/2 rounded-full transition-all duration-200 ${

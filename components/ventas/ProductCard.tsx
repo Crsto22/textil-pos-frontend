@@ -5,6 +5,7 @@ import Image from "next/image"
 import { PhotoIcon } from "@heroicons/react/24/outline"
 
 import { formatMonedaPen, formatRangoPrecioPen } from "@/components/productos/productos.utils"
+import type { CatalogVariantItem } from "@/lib/catalog-view"
 import { ofertaEstaVigente, obtenerPrecioAplicadoOferta, tienePrecioOfertaValido } from "@/lib/oferta-utils"
 import type { ProductoResumen, ProductoResumenTalla } from "@/lib/types/producto"
 import { cn } from "@/lib/utils"
@@ -12,6 +13,7 @@ import { cn } from "@/lib/utils"
 interface ProductCardProps {
   product: ProductoResumen
   onAdd: (product: ProductoResumen) => void
+  variantItem?: CatalogVariantItem
 }
 
 function normalizeHexColor(code: string | null | undefined): string {
@@ -85,14 +87,17 @@ function getVariantStockBadgeClass(talla: ProductoResumenTalla | null) {
   return "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
 }
 
-export default function ProductCard({ product, onAdd }: ProductCardProps) {
+export default function ProductCard({ product, onAdd, variantItem }: ProductCardProps) {
+  const isVariantCard = Boolean(variantItem)
   const [selectedColorId, setSelectedColorId] = useState<number | null>(() =>
-    getDefaultColorId(product)
+    variantItem?.colorId ?? getDefaultColorId(product)
   )
 
   const selectedColor = useMemo(
-    () => product.colores.find((color) => color.colorId === selectedColorId) ?? product.colores[0],
-    [product.colores, selectedColorId]
+    () =>
+      product.colores.find((color) => color.colorId === (variantItem?.colorId ?? selectedColorId)) ??
+      product.colores[0],
+    [product.colores, selectedColorId, variantItem?.colorId]
   )
 
   const imageUrl =
@@ -133,6 +138,8 @@ export default function ProductCard({ product, onAdd }: ProductCardProps) {
     selectedColorRegularMin !== null &&
     selectedColorAppliedMin !== null &&
     selectedColorAppliedMin < selectedColorRegularMin
+  const variantDetailColorHex = normalizeHexColor(variantItem?.colorHex ?? selectedColor?.hex)
+  const variantSizeLabel = String(variantItem?.tallaName ?? "").trim() || "-"
 
   return (
     <article
@@ -157,6 +164,15 @@ export default function ProductCard({ product, onAdd }: ProductCardProps) {
         ) : (
           <div className="flex h-full w-full items-center justify-center text-muted-foreground">
             <PhotoIcon className="h-10 w-10" />
+          </div>
+        )}
+
+        {isVariantCard && (
+          <div className="pointer-events-none absolute left-3 top-3 inline-flex items-center gap-1 rounded-full border border-white/60 bg-white/90 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-700 shadow-sm backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/85 dark:text-slate-200">
+            <span className="text-[9px] text-slate-500 dark:text-slate-400">Talla</span>
+            <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+              {variantSizeLabel}
+            </span>
           </div>
         )}
       </div>
@@ -202,6 +218,21 @@ export default function ProductCard({ product, onAdd }: ProductCardProps) {
             {product.nombreCategoria || "Sin categoria"}
           </p>
           <h3 className="line-clamp-2 text-base font-semibold text-foreground">{product.nombre}</h3>
+          {isVariantCard && variantItem && (
+            <div className="mt-1.5 space-y-0.5 text-xs text-muted-foreground">
+              <p>
+                <span className="font-semibold text-foreground">Talla:</span> {variantItem.tallaName}
+              </p>
+              <p className="inline-flex items-center gap-1.5">
+                <span className="font-semibold text-foreground">Color:</span>
+                <span
+                  className="h-3 w-3 rounded-full border border-background"
+                  style={{ backgroundColor: variantDetailColorHex }}
+                />
+                <span>{variantItem.colorName}</span>
+              </p>
+            </div>
+          )}
           {showSelectedColorDiscount ? (
             <>
               <p className="mt-1 text-xs font-semibold text-muted-foreground line-through">
@@ -223,63 +254,67 @@ export default function ProductCard({ product, onAdd }: ProductCardProps) {
           )}
         </div>
 
-        <div className="flex items-center gap-1">
-          {product.colores.slice(0, 6).map((color, index) => (
-            <button
-              type="button"
-              key={`${product.idProducto}-${color.colorId}`}
-              onClick={(event) => {
-                event.stopPropagation()
-                setSelectedColorId(color.colorId)
-              }}
-              className={cn(
-                "h-5 w-5 rounded-full border border-background transition-transform",
-                selectedColorId === color.colorId
-                  ? "ring-2 ring-blue-500 ring-offset-1 ring-offset-background"
-                  : "opacity-85 hover:scale-105",
-                index > 0 && "-ml-1"
-              )}
-              style={{ backgroundColor: normalizeHexColor(color.hex) }}
-              aria-label={`Filtrar por color ${color.nombre}`}
-              title={color.nombre}
-            />
-          ))}
-        </div>
+        {!isVariantCard && (
+          <div className="flex items-center gap-1">
+            {product.colores.slice(0, 6).map((color, index) => (
+              <button
+                type="button"
+                key={`${product.idProducto}-${color.colorId}`}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  setSelectedColorId(color.colorId)
+                }}
+                className={cn(
+                  "h-5 w-5 rounded-full border border-background transition-transform",
+                  selectedColorId === color.colorId
+                    ? "ring-2 ring-blue-500 ring-offset-1 ring-offset-background"
+                    : "opacity-85 hover:scale-105",
+                  index > 0 && "-ml-1"
+                )}
+                style={{ backgroundColor: normalizeHexColor(color.hex) }}
+                aria-label={`Filtrar por color ${color.nombre}`}
+                title={color.nombre}
+              />
+            ))}
+          </div>
+        )}
 
-        <div className="flex flex-wrap gap-1.5">
-          {selectedColor && (
-            <span className="rounded-md border px-2 py-0.5 text-[10px] text-muted-foreground">
-              {selectedColor.nombre}
-            </span>
-          )}
-          {visibleTallas.length === 0 ? (
-            <span className="rounded-md border px-2 py-0.5 text-[10px] text-muted-foreground">
-              Sin tallas
-            </span>
-          ) : (
-            <>
-              {visibleTallas.map((talla) => (
-                <span
-                  key={`${product.idProducto}-${selectedColorId}-${talla.tallaId}`}
-                  className={cn(
-                    "rounded-md border px-2 py-0.5 text-[10px] font-medium",
-                    isVariantInStock(talla)
-                      ? "bg-muted/50 text-foreground"
-                      : "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/40 dark:bg-rose-900/20 dark:text-rose-300"
-                  )}
-                >
-                  {talla.nombre}
-                  {!isVariantInStock(talla) && " - Agotado"}
-                </span>
-              ))}
-              {hiddenTallas > 0 && (
-                <span className="rounded-md border px-2 py-0.5 text-[10px] text-muted-foreground">
-                  +{hiddenTallas}
-                </span>
-              )}
-            </>
-          )}
-        </div>
+        {!isVariantCard && (
+          <div className="flex flex-wrap gap-1.5">
+            {selectedColor && (
+              <span className="rounded-md border px-2 py-0.5 text-[10px] text-muted-foreground">
+                {selectedColor.nombre}
+              </span>
+            )}
+            {visibleTallas.length === 0 ? (
+              <span className="rounded-md border px-2 py-0.5 text-[10px] text-muted-foreground">
+                Sin tallas
+              </span>
+            ) : (
+              <>
+                {visibleTallas.map((talla) => (
+                  <span
+                    key={`${product.idProducto}-${selectedColorId}-${talla.tallaId}`}
+                    className={cn(
+                      "rounded-md border px-2 py-0.5 text-[10px] font-medium",
+                      isVariantInStock(talla)
+                        ? "bg-muted/50 text-foreground"
+                        : "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/40 dark:bg-rose-900/20 dark:text-rose-300"
+                    )}
+                  >
+                    {talla.nombre}
+                    {!isVariantInStock(talla) && " - Agotado"}
+                  </span>
+                ))}
+                {hiddenTallas > 0 && (
+                  <span className="rounded-md border px-2 py-0.5 text-[10px] text-muted-foreground">
+                    +{hiddenTallas}
+                  </span>
+                )}
+              </>
+            )}
+          </div>
+        )}
       </div>
     </article>
   )

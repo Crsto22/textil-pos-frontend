@@ -1,6 +1,36 @@
 import { NextRequest, NextResponse } from "next/server"
 
 const BACKEND_URL = process.env.BACKEND_URL
+const ALLOWED_QUERY_KEYS = ["q", "page", "tipoDocumento"] as const
+const ALLOWED_TIPO_DOCUMENTO = new Set(["DNI", "RUC", "CE", "SIN_DOC"])
+
+function buildForwardQuery(request: NextRequest): string {
+    const incomingSearchParams = new URL(request.url).searchParams
+    const outgoingSearchParams = new URLSearchParams()
+
+    ALLOWED_QUERY_KEYS.forEach((key) => {
+        const value = incomingSearchParams.get(key)
+        if (value !== null && value !== "") {
+            outgoingSearchParams.set(key, value)
+        }
+    })
+
+    if (!outgoingSearchParams.has("q")) {
+        outgoingSearchParams.set("q", "")
+    }
+
+    if (!outgoingSearchParams.has("page")) {
+        outgoingSearchParams.set("page", "0")
+    }
+
+    const tipoDocumento = outgoingSearchParams.get("tipoDocumento")
+    if (tipoDocumento && !ALLOWED_TIPO_DOCUMENTO.has(tipoDocumento)) {
+        throw new Error("INVALID_TIPO_DOCUMENTO")
+    }
+
+    const queryString = outgoingSearchParams.toString()
+    return queryString ? `?${queryString}` : ""
+}
 
 export async function GET(request: NextRequest) {
     try {
@@ -12,9 +42,18 @@ export async function GET(request: NextRequest) {
             )
         }
 
-        const { searchParams } = new URL(request.url)
-        const q = searchParams.get("q") ?? ""
-        const page = searchParams.get("page") ?? "0"
+        let queryString = ""
+        try {
+            queryString = buildForwardQuery(request)
+        } catch {
+            return NextResponse.json(
+                {
+                    message:
+                        "tipoDocumento inválido. Valores permitidos: DNI, RUC, CE, SIN_DOC",
+                },
+                { status: 400 }
+            )
+        }
 
         const authHeader = request.headers.get("authorization")
 
@@ -25,13 +64,8 @@ export async function GET(request: NextRequest) {
 
         let backendRes: Response
         try {
-            const backendParams = new URLSearchParams({
-                q,
-                page,
-            })
-
             backendRes = await fetch(
-                `${BACKEND_URL}/api/cliente/buscar?${backendParams.toString()}`,
+                `${BACKEND_URL}/api/cliente/buscar${queryString}`,
                 { headers }
             )
         } catch {

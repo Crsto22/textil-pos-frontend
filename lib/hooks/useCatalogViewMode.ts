@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, startTransition, useState } from "react"
 import type { CatalogViewMode } from "@/lib/catalog-view"
 
 const STORAGE_KEY = "textil-pos:catalogViewMode"
@@ -12,7 +12,7 @@ export function useCatalogViewMode() {
       try {
         const stored = window.localStorage.getItem(STORAGE_KEY)
         if (stored === "productos" || stored === "variantes") {
-          setModeState(stored)
+          startTransition(() => setModeState(stored))
         }
       } catch {}
     }

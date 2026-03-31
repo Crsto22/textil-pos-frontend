@@ -20,8 +20,6 @@ interface CotizacionDetallePayload {
 interface CotizacionWritePayload {
   idSucursal: number
   idCliente: number
-  serie?: string
-  correlativo?: number
   igvPorcentaje?: number
   descuentoTotal?: number | null
   tipoDescuento?: string | null
@@ -181,19 +179,6 @@ export function normalizeCotizacionWritePayload(
     detalles.push(normalizedDetalle.data)
   }
 
-  const serie = getTrimmedString(payload.serie)?.toUpperCase()
-  const correlativo =
-    payload.correlativo === undefined || payload.correlativo === null
-      ? undefined
-      : getPositiveInteger(payload.correlativo)
-  if (
-    payload.correlativo !== undefined &&
-    payload.correlativo !== null &&
-    correlativo === null
-  ) {
-    return { ok: false, message: "correlativo invalido" }
-  }
-
   const igvPorcentaje =
     payload.igvPorcentaje === undefined || payload.igvPorcentaje === null
       ? undefined
@@ -225,8 +210,6 @@ export function normalizeCotizacionWritePayload(
     data: {
       idSucursal,
       idCliente,
-      ...(serie ? { serie } : {}),
-      ...(typeof correlativo === "number" ? { correlativo } : {}),
       ...(typeof igvPorcentaje === "number" ? { igvPorcentaje } : {}),
       ...(descuentoTotal !== undefined ? { descuentoTotal } : {}),
       tipoDescuento: getTrimmedString(payload.tipoDescuento)?.toUpperCase() ?? null,

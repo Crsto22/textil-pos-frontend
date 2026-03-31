@@ -7,7 +7,6 @@ import { useAuth } from "@/lib/auth/auth-context"
 import { authFetch } from "@/lib/auth/auth-fetch"
 import {
   buildCatalogVariantItems,
-  matchesCatalogVariantQuery,
 } from "@/lib/catalog-view"
 import {
   SEARCH_DEBOUNCE_MS,
@@ -52,17 +51,19 @@ function appendOptionalPositiveInt(
 }
 
 function normalizeVariantePayload(payload: VarianteUpdateRequest): VarianteUpdateRequest {
+  const codigoBarras = payload.codigoBarras?.trim() || null
   return {
     colorId: Math.trunc(payload.colorId),
     tallaId: Math.trunc(payload.tallaId),
     sku: payload.sku.trim(),
+    ...(codigoBarras !== null ? { codigoBarras } : {}),
     precio: payload.precio,
     precioMayor: payload.precioMayor ?? null,
     stock: Math.trunc(payload.stock),
   }
 }
 
-export function useCatalogoVariantes(enabled = true) {
+export function useCatalogoVariantes(enabled = true, idSucursal?: number | null) {
   const { isLoading: isAuthLoading } = useAuth()
 
   const [productos, setProductos] = useState<ProductoResumen[]>([])
@@ -74,6 +75,7 @@ export function useCatalogoVariantes(enabled = true) {
   const [search, setSearch] = useState("")
   const [idCategoriaFilter, setIdCategoriaFilter] = useState<number | null>(null)
   const [idColorFilter, setIdColorFilter] = useState<number | null>(null)
+  const [conOfertaFilter, setConOfertaFilter] = useState(false)
 
   const debouncedSearch = useDebouncedValue(search, SEARCH_DEBOUNCE_MS)
   const abortRef = useRef<AbortController | null>(null)
@@ -92,8 +94,12 @@ export function useCatalogoVariantes(enabled = true) {
       })
       appendOptionalPositiveInt(params, "idCategoria", idCategoriaFilter)
       appendOptionalPositiveInt(params, "idColor", idColorFilter)
+      appendOptionalPositiveInt(params, "idSucursal", idSucursal)
       if (debouncedSearch.trim()) {
         params.set("q", debouncedSearch.trim())
+      }
+      if (conOfertaFilter) {
+        params.set("conOferta", "true")
       }
 
       const response = await authFetch(`/api/variante/listar-resumen?${params.toString()}`, {
@@ -131,11 +137,11 @@ export function useCatalogoVariantes(enabled = true) {
         setLoading(false)
       }
     }
-  }, [idCategoriaFilter, idColorFilter, debouncedSearch])
+  }, [conOfertaFilter, idCategoriaFilter, idColorFilter, idSucursal, debouncedSearch])
 
   useEffect(() => {
     setPage(0)
-  }, [idCategoriaFilter, idColorFilter, debouncedSearch])
+  }, [conOfertaFilter, idCategoriaFilter, idColorFilter, idSucursal, debouncedSearch])
 
   useEffect(() => {
     if (!enabled || isAuthLoading) return
@@ -237,8 +243,10 @@ export function useCatalogoVariantes(enabled = true) {
     setSearch,
     idCategoriaFilter,
     idColorFilter,
+    conOfertaFilter,
     setIdCategoriaFilter,
     setIdColorFilter,
+    setConOfertaFilter,
     displayedCatalogVariants,
     displayedTotalElements,
     displayedTotalPages: totalPages,

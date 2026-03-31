@@ -77,6 +77,7 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
     variantRows,
     deletingVariantKeys,
     isAutoSkuEnabled,
+    isAutoBarcodeEnabled,
     totalSelectedMedia,
     setFocusedColorId,
     handleSucursalChange,
@@ -91,9 +92,13 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
     toggleColorSelection,
     toggleTallaSelection,
     handleAutoSkuToggle,
+    handleAutoBarcodeToggle,
     handleVariantFieldChange,
+    handleGenerateBarcode,
+    generatingBarcodeKeys,
     handleApplyVariantFieldToAll,
     handleRemoveVariant,
+    handleSetVariantStatus,
     saveProducto,
   } = useProductoCreate({ productoId })
 
@@ -106,7 +111,8 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
     ? (mediaByColor[activePreviewColorId]?.at(-1)?.previewUrl ?? null)
     : null
 
-  const canCreateCategoria = !isAdmin || hasValidId(form.idSucursal)
+  const hasSucursal = !isAdmin || hasValidId(form.idSucursal)
+  const canCreateCategoria = hasSucursal
   const categoriaCreateDisabledReason =
     isAdmin && !hasValidId(form.idSucursal)
       ? "Selecciona una sucursal antes de crear una categoria."
@@ -167,11 +173,12 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
 
   const handleOpenAttributesSidebar = useCallback(
     (section: ProductoAttributeSidebarSection) => {
+      if (!hasSucursal) return
       setIsMediaSidebarOpen(false)
       setAttributeSidebarSection(section)
       setIsAttributesSidebarOpen(true)
     },
-    []
+    [hasSucursal]
   )
 
   const handleSaveProducto = useCallback(async () => {
@@ -217,7 +224,8 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
         <div className="min-w-0 xl:sticky xl:top-6 xl:self-start">
           <ProductoGeneralInfoCard
             isAdmin={isAdmin}
-            nombreSucursal={user?.nombreSucursal}
+            hasSucursal={hasSucursal}
+            nombreSucursal={user?.nombreSucursal ?? undefined}
             form={form}
             sucursalOptions={sucursalComboboxOptions}
             categoriaOptions={categoriaComboboxOptions}
@@ -263,11 +271,16 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
             mediaByColor={mediaByColor}
             variantRows={variantRows}
             isAutoSkuEnabled={isAutoSkuEnabled}
+            isAutoBarcodeEnabled={isAutoBarcodeEnabled}
             onAutoSkuToggle={handleAutoSkuToggle}
+            onAutoBarcodeToggle={handleAutoBarcodeToggle}
             onVariantFieldChange={handleVariantFieldChange}
+            onGenerateBarcode={handleGenerateBarcode}
+            generatingBarcodeKeys={generatingBarcodeKeys}
             onApplyVariantFieldToAll={handleApplyVariantFieldToAll}
             deletingVariantKeys={deletingVariantKeys}
             onRemoveVariant={handleRemoveVariant}
+            onSetVariantStatus={handleSetVariantStatus}
           />
         </div>
       </div>
