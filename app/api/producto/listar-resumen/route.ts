@@ -18,6 +18,7 @@ export async function GET(request: NextRequest) {
     const idColor = searchParams.get("idColor")
     const conOferta = searchParams.get("conOferta")
     const idSucursal = searchParams.get("idSucursal")
+    const soloDisponibles = searchParams.get("soloDisponibles")
 
     const authHeader = request.headers.get("authorization")
     const headers: HeadersInit = {}
@@ -45,6 +46,10 @@ export async function GET(request: NextRequest) {
 
       if (idSucursal?.trim()) {
         backendParams.set("idSucursal", idSucursal)
+      }
+
+      if (soloDisponibles?.trim()) {
+        backendParams.set("soloDisponibles", soloDisponibles)
       }
 
       backendRes = await fetch(

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, startTransition, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 
 import {
   Dialog,
@@ -9,25 +9,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
+import { RoleMasterDetail } from "@/components/usuarios/RoleMasterDetail"
 import { useSucursalOptions } from "@/lib/hooks/useSucursalOptions"
-import { useSucursalGlobal } from "@/lib/sucursal-global-context"
 import {
-  emptyCreate,
+  emptyCreateForm,
+  getUsuarioRoleOptionsBySucursalType,
   isUsuarioRol,
-  usuarioRolRequiresSucursal,
-  USUARIO_ROLE_OPTIONS,
+  validateUsuarioRoleAssignment,
+  type UsuarioCreateFormState,
   type UsuarioCreateRequest,
 } from "@/lib/types/usuario"
 
@@ -37,55 +31,71 @@ interface UsuarioCreateDialogProps {
   onCreate: (payload: UsuarioCreateRequest) => Promise<boolean>
 }
 
+function hasValidSucursalId(idSucursal?: number | null): idSucursal is number {
+  return typeof idSucursal === "number" && idSucursal > 0
+}
+
 export function UsuarioCreateDialog({
   open,
   onOpenChange,
   onCreate,
 }: UsuarioCreateDialogProps) {
-  const { sucursalGlobal } = useSucursalGlobal()
-  const sucursalGlobalRef = useRef(sucursalGlobal)
-  useLayoutEffect(() => {
-    sucursalGlobalRef.current = sucursalGlobal
-  })
-
-  const [form, setForm] = useState<UsuarioCreateRequest>(emptyCreate)
+  const [form, setForm] = useState<UsuarioCreateFormState>(emptyCreateForm)
   const [isSaving, setIsSaving] = useState(false)
 
   useEffect(() => {
     if (!open) return
-    const globalId = sucursalGlobalRef.current?.idSucursal
-    if (!globalId) return
-    startTransition(() =>
-      setForm((prev) => ({ ...prev, idSucursal: globalId }))
-    )
+    setForm(emptyCreateForm)
   }, [open])
 
   const {
     sucursalOptions,
+    getSucursalById,
+    getSucursalOptionById,
     loadingSucursales,
     errorSucursales,
     searchSucursal,
     setSearchSucursal,
   } = useSucursalOptions(open)
 
-  const requiresSucursal = usuarioRolRequiresSucursal(form.rol)
-  const hasValidSucursal =
-    typeof form.idSucursal === "number" && form.idSucursal > 0
+  const hasValidSucursal = hasValidSucursalId(form.idSucursal)
+
+  const selectedSucursalType = useMemo(() => {
+    if (!hasValidSucursal) return null
+    return getSucursalById(Number(form.idSucursal))?.tipo ?? null
+  }, [form.idSucursal, getSucursalById, hasValidSucursal])
+
+  const availableRoleOptions = useMemo(
+    () => getUsuarioRoleOptionsBySucursalType(selectedSucursalType),
+    [selectedSucursalType]
+  )
+
+  const validation = useMemo(
+    () =>
+      validateUsuarioRoleAssignment(
+        form.rol,
+        form.idSucursal,
+        selectedSucursalType
+      ),
+    [form.idSucursal, form.rol, selectedSucursalType]
+  )
 
   const comboboxOptions = useMemo<ComboboxOption[]>(
     () =>
-      hasValidSucursal &&
-      !sucursalOptions.some((option) => option.value === String(form.idSucursal))
-        ? [
-            {
-              value: String(form.idSucursal),
-              label: `Sucursal #${form.idSucursal}`,
-            },
-            ...sucursalOptions,
-          ]
-        : sucursalOptions,
-    [form.idSucursal, hasValidSucursal, sucursalOptions]
+      [
+        { value: "", label: "Sin sucursal" },
+        ...(
+          hasValidSucursal &&
+          !sucursalOptions.some((option) => option.value === String(form.idSucursal))
+            ? [getSucursalOptionById(Number(form.idSucursal))]
+            : []
+        ),
+        ...sucursalOptions,
+      ],
+    [form.idSucursal, getSucursalOptionById, hasValidSucursal, sucursalOptions]
   )
+
+  const showSucursalField = form.rol !== "" && form.rol !== "ADMINISTRADOR"
 
   const isCreateValid = useMemo(
     () =>
@@ -95,34 +105,32 @@ export function UsuarioCreateDialog({
       form.telefono.length === 9 &&
       form.email.trim() !== "" &&
       form.password.length >= 8 &&
-      isUsuarioRol(form.rol) &&
-      (!requiresSucursal || hasValidSucursal),
-    [form, hasValidSucursal, requiresSucursal]
+      validation.isValid,
+    [form, validation.isValid]
   )
 
   const handleOpenChange = (nextOpen: boolean) => {
     onOpenChange(nextOpen)
     if (!nextOpen) {
-      setForm(emptyCreate)
+      setForm(emptyCreateForm)
       setSearchSucursal("")
     }
   }
 
   const handleCreate = async () => {
-    if (!isCreateValid) return
+    if (!isCreateValid || !isUsuarioRol(form.rol)) return
 
     const payload: UsuarioCreateRequest = {
       ...form,
-      idSucursal: requiresSucursal ? form.idSucursal : null,
+      rol: form.rol,
+      idSucursal: form.rol === "ADMINISTRADOR" ? null : form.idSucursal,
       ...(form.estado === "INACTIVO" ? { estado: "INACTIVO" } : {}),
     }
 
     setIsSaving(true)
     try {
       const success = await onCreate(payload)
-      if (success) {
-        handleOpenChange(false)
-      }
+      if (success) handleOpenChange(false)
     } finally {
       setIsSaving(false)
     }
@@ -130,7 +138,7 @@ export function UsuarioCreateDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-120">
+      <DialogContent className="sm:max-w-[740px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Nuevo Usuario</DialogTitle>
           <DialogDescription>
@@ -146,11 +154,8 @@ export function UsuarioCreateDialog({
                 id="c-nombre"
                 placeholder="Juan"
                 value={form.nombre}
-                onChange={(event) =>
-                  setForm((previous) => ({
-                    ...previous,
-                    nombre: event.target.value,
-                  }))
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, nombre: e.target.value }))
                 }
               />
             </div>
@@ -158,13 +163,10 @@ export function UsuarioCreateDialog({
               <Label htmlFor="c-apellido">Apellido</Label>
               <Input
                 id="c-apellido"
-                placeholder="Pérez"
+                placeholder="Perez"
                 value={form.apellido}
-                onChange={(event) =>
-                  setForm((previous) => ({
-                    ...previous,
-                    apellido: event.target.value,
-                  }))
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, apellido: e.target.value }))
                 }
               />
             </div>
@@ -178,38 +180,38 @@ export function UsuarioCreateDialog({
                 placeholder="12345678"
                 maxLength={8}
                 value={form.dni}
-                onChange={(event) =>
-                  setForm((previous) => ({
-                    ...previous,
-                    dni: event.target.value.replace(/\D/g, "").slice(0, 8),
+                onChange={(e) =>
+                  setForm((p) => ({
+                    ...p,
+                    dni: e.target.value.replace(/\D/g, "").slice(0, 8),
                   }))
                 }
               />
-              {form.dni.length > 0 && form.dni.length < 8 && (
+              {form.dni.length > 0 && form.dni.length < 8 ? (
                 <p className="text-xs text-red-500">
-                  Debe tener 8 dígitos ({form.dni.length}/8)
+                  Debe tener 8 digitos ({form.dni.length}/8)
                 </p>
-              )}
+              ) : null}
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="c-telefono">Teléfono</Label>
+              <Label htmlFor="c-telefono">Telefono</Label>
               <Input
                 id="c-telefono"
                 placeholder="987654321"
                 maxLength={9}
                 value={form.telefono}
-                onChange={(event) =>
-                  setForm((previous) => ({
-                    ...previous,
-                    telefono: event.target.value.replace(/\D/g, "").slice(0, 9),
+                onChange={(e) =>
+                  setForm((p) => ({
+                    ...p,
+                    telefono: e.target.value.replace(/\D/g, "").slice(0, 9),
                   }))
                 }
               />
-              {form.telefono.length > 0 && form.telefono.length < 9 && (
+              {form.telefono.length > 0 && form.telefono.length < 9 ? (
                 <p className="text-xs text-red-500">
-                  Debe tener 9 dígitos ({form.telefono.length}/9)
+                  Debe tener 9 digitos ({form.telefono.length}/9)
                 </p>
-              )}
+              ) : null}
             </div>
           </div>
 
@@ -220,72 +222,36 @@ export function UsuarioCreateDialog({
               type="email"
               placeholder="usuario@email.com"
               value={form.email}
-              onChange={(event) =>
-                setForm((previous) => ({
-                  ...previous,
-                  email: event.target.value,
-                }))
+              onChange={(e) =>
+                setForm((p) => ({ ...p, email: e.target.value }))
               }
             />
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="c-password">Contraseña</Label>
+            <Label htmlFor="c-password">Contrasena</Label>
             <Input
               id="c-password"
               type="password"
-              placeholder="••••••••"
+              placeholder="********"
               value={form.password}
-              onChange={(event) =>
-                setForm((previous) => ({
-                  ...previous,
-                  password: event.target.value,
-                }))
+              onChange={(e) =>
+                setForm((p) => ({ ...p, password: e.target.value }))
               }
             />
-            {form.password.length > 0 && form.password.length < 8 && (
+            {form.password.length > 0 && form.password.length < 8 ? (
               <p className="text-xs text-red-500">
                 Debe tener al menos 8 caracteres ({form.password.length}/8)
               </p>
-            )}
+            ) : null}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="c-rol">Rol</Label>
-              <Select
-                value={form.rol}
-                onValueChange={(value) =>
-                  setForm((previous) => {
-                    if (!isUsuarioRol(value)) return previous
-                    return {
-                      ...previous,
-                      rol: value,
-                      idSucursal: usuarioRolRequiresSucursal(value)
-                        ? previous.idSucursal
-                        : null,
-                    }
-                  })
-                }
-              >
-                <SelectTrigger className="w-full" id="c-rol">
-                  <SelectValue placeholder="Selecciona rol" />
-                </SelectTrigger>
-                <SelectContent>
-                  {USUARIO_ROLE_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="c-estado">Estado</Label>
-              <div className="flex h-9 items-center justify-between rounded-md border px-3">
+          <div className="grid gap-2">
+            <div className="flex items-center justify-between">
+              <Label>Rol y permisos</Label>
+              <div className="flex items-center gap-2">
                 <span
-                  className={`text-sm font-medium ${
+                  className={`text-xs font-medium ${
                     form.estado === "ACTIVO" ? "text-emerald-600" : "text-slate-500"
                   }`}
                 >
@@ -295,8 +261,8 @@ export function UsuarioCreateDialog({
                   id="c-estado"
                   checked={form.estado === "ACTIVO"}
                   onCheckedChange={(checked) =>
-                    setForm((previous) => ({
-                      ...previous,
+                    setForm((p) => ({
+                      ...p,
                       estado: checked ? "ACTIVO" : "INACTIVO",
                     }))
                   }
@@ -304,9 +270,26 @@ export function UsuarioCreateDialog({
                 />
               </div>
             </div>
+
+            <RoleMasterDetail
+              availableRoles={availableRoleOptions}
+              selectedRol={form.rol}
+              onSelect={(value) => {
+                if (!isUsuarioRol(value)) return
+                setForm((p) => ({
+                  ...p,
+                  rol: value,
+                  idSucursal: value === "ADMINISTRADOR" ? null : p.idSucursal,
+                }))
+              }}
+            />
+
+            {validation.rolError && form.rol !== "" ? (
+              <p className="text-xs text-red-500">{validation.rolError}</p>
+            ) : null}
           </div>
 
-          {requiresSucursal ? (
+          {showSucursalField ? (
             <div className="grid gap-2">
               <Label htmlFor="c-sucursal">Sucursal</Label>
               <Combobox
@@ -315,26 +298,32 @@ export function UsuarioCreateDialog({
                 options={comboboxOptions}
                 searchValue={searchSucursal}
                 onSearchValueChange={setSearchSucursal}
-                onValueChange={(value) =>
-                  setForm((previous) => ({
-                    ...previous,
-                    idSucursal: Number(value),
-                  }))
-                }
+                onValueChange={(value) => {
+                  const parsed = Number(value)
+                  const resolvedId =
+                    Number.isInteger(parsed) && parsed > 0 ? parsed : null
+
+                  setForm((p) => ({ ...p, idSucursal: resolvedId }))
+                }}
                 placeholder="Selecciona una sucursal"
                 searchPlaceholder="Buscar sucursal..."
                 emptyMessage="No se encontraron sucursales"
                 loading={loadingSucursales}
               />
-              {errorSucursales && (
+
+              {validation.sucursalError ? (
+                <p className="text-xs text-red-500">{validation.sucursalError}</p>
+              ) : null}
+              {errorSucursales ? (
                 <p className="text-xs text-red-500">{errorSucursales}</p>
-              )}
+              ) : null}
             </div>
-          ) : (
+          ) : form.rol === "ADMINISTRADOR" ? (
             <p className="text-xs text-muted-foreground">
-              El rol Administrador no requiere sucursal.
+              El rol Administrador no requiere sucursal y se guardara sin
+              sucursal asignada.
             </p>
-          )}
+          ) : null}
         </div>
 
         <DialogFooter>
@@ -343,7 +332,11 @@ export function UsuarioCreateDialog({
               Cancelar
             </Button>
           </DialogClose>
-          <Button type="button" onClick={handleCreate} disabled={!isCreateValid || isSaving}>
+          <Button
+            type="button"
+            onClick={handleCreate}
+            disabled={!isCreateValid || isSaving}
+          >
             {isSaving ? "Guardando..." : "Guardar"}
           </Button>
         </DialogFooter>

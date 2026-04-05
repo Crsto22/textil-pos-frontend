@@ -9,21 +9,44 @@ export async function POST(request: NextRequest) {
     }
 
     const authHeader = request.headers.get("authorization")
-    const contentType = request.headers.get("content-type") ?? ""
-
-    const headers: HeadersInit = {
-      "Content-Type": contentType,
+    if (!authHeader) {
+      return NextResponse.json({ message: "No autenticado" }, { status: 401 })
     }
-    if (authHeader) headers["Authorization"] = authHeader
+
+    let formData: FormData
+    try {
+      formData = await request.formData()
+    } catch {
+      return NextResponse.json(
+        { message: "Debe enviar el certificado digital" },
+        { status: 400 }
+      )
+    }
+
+    const file = formData.get("file")
+    if (!(file instanceof File) || file.size === 0) {
+      return NextResponse.json(
+        { message: "Debe enviar el certificado digital" },
+        { status: 400 }
+      )
+    }
+
+    const backendFormData = new FormData()
+    backendFormData.append("file", file, file.name)
+
+    const certificadoPassword = formData.get("certificadoPassword")
+    if (typeof certificadoPassword === "string" && certificadoPassword.trim() !== "") {
+      backendFormData.append("certificadoPassword", certificadoPassword.trim())
+    }
 
     let backendRes: Response
     try {
       backendRes = await fetch(`${BACKEND_URL}/api/config/sunat/certificado`, {
         method: "POST",
-        headers,
-        body: request.body,
-        // @ts-expect-error duplex is required by Next/Node runtime when streaming bodies
-        duplex: "half",
+        headers: {
+          Authorization: authHeader,
+        },
+        body: backendFormData,
       })
     } catch {
       return NextResponse.json(

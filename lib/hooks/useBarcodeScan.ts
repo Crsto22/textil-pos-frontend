@@ -2,10 +2,15 @@ import { useCallback, useRef, useState } from "react"
 import { authFetch } from "@/lib/auth/auth-fetch"
 import type { VarianteEscanearResponse } from "@/lib/types/variante"
 
+export interface BarcodeScanErrorContext {
+  codigoBarras: string
+  idSucursal: number
+}
+
 interface UseBarcodeScanOptions {
   idSucursal: number | null
   onSuccess: (variante: VarianteEscanearResponse) => void
-  onError: (message: string) => void
+  onError: (message: string, context?: BarcodeScanErrorContext) => void
 }
 
 export function useBarcodeScan({ idSucursal, onSuccess, onError }: UseBarcodeScanOptions) {
@@ -46,7 +51,7 @@ export function useBarcodeScan({ idSucursal, onSuccess, onError }: UseBarcodeSca
             (body && typeof body === "object" && "message" in body && typeof body.message === "string"
               ? body.message
               : null) ?? "Error al escanear el codigo de barras."
-          onError(message)
+          onError(message, { codigoBarras: trimmed, idSucursal })
           return
         }
 

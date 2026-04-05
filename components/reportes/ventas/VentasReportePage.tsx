@@ -1,6 +1,6 @@
 "use client"
 
-import { startTransition, useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import {
   ArrowTrendingUpIcon,
   BanknotesIcon,
@@ -20,7 +20,6 @@ import { VentasReporteFilters } from "@/components/reportes/ventas/VentasReporte
 import { useAuth } from "@/lib/auth/auth-context"
 import { useSucursalOptions } from "@/lib/hooks/useSucursalOptions"
 import { useVentaResumenReporte } from "@/lib/hooks/useVentaResumenReporte"
-import { useSucursalGlobal } from "@/lib/sucursal-global-context"
 import type { VentaResumenReporteFiltro } from "@/lib/types/venta-resumen-reporte"
 
 const FILTER_OPTIONS: { key: VentaResumenReporteFiltro; label: string }[] = [
@@ -103,14 +102,14 @@ export function VentasReportePage() {
   const userHasSucursal = hasValidSucursalId(user?.idSucursal)
   const [activeFilter, setActiveFilter] = useState<VentaResumenReporteFiltro>("ULT_30_DIAS")
   const [selectedSucursalId, setSelectedSucursalId] = useState<number | null>(null)
-  const { sucursalOptions, loadingSucursales, errorSucursales } = useSucursalOptions(isAdmin)
-  const { sucursalGlobal } = useSucursalGlobal()
-
-  // Sincronizar con sucursal global cuando cambia
-  useEffect(() => {
-    if (!isAdmin || sucursalGlobal === null) return
-    startTransition(() => setSelectedSucursalId(sucursalGlobal.idSucursal))
-  }, [sucursalGlobal, isAdmin])
+  const {
+    sucursalOptions,
+    getSucursalOptionById,
+    loadingSucursales,
+    errorSucursales,
+    searchSucursal,
+    setSearchSucursal,
+  } = useSucursalOptions(isAdmin)
 
   const resolvedSucursalId = isAdmin
     ? selectedSucursalId
@@ -148,6 +147,17 @@ export function VentasReportePage() {
   const currentSucursalLabel = userHasSucursal
     ? user?.nombreSucursal || `Sucursal #${user?.idSucursal}`
     : null
+  const ventasReporteSucursalOptions = useMemo(
+    () =>
+      hasValidSucursalId(selectedSucursalId) &&
+      !sucursalOptions.some((option) => option.value === String(selectedSucursalId))
+        ? [
+            getSucursalOptionById(selectedSucursalId),
+            ...sucursalOptions,
+          ]
+        : sucursalOptions,
+    [getSucursalOptionById, selectedSucursalId, sucursalOptions]
+  )
 
   if (!user) return null
 
@@ -172,12 +182,11 @@ export function VentasReportePage() {
         isAdmin={isAdmin}
         selectedSucursalId={selectedSucursalId}
         onSucursalChange={setSelectedSucursalId}
-        sucursalOptions={sucursalOptions.map((option) => ({
-          value: option.value,
-          label: option.label,
-        }))}
+        sucursalOptions={ventasReporteSucursalOptions}
         loadingSucursales={loadingSucursales}
         errorSucursales={errorSucursales}
+        searchSucursal={searchSucursal}
+        onSearchSucursalChange={setSearchSucursal}
         currentSucursalLabel={currentSucursalLabel}
         loading={loading}
         onRefresh={() => {

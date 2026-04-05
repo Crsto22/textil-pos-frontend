@@ -43,7 +43,8 @@ function getTemplateHeadersByRole(rol?: string): string[] {
   const needsSucursalColumn =
     normalizedRole === "ADMINISTRADOR" ||
     normalizedRole === "VENTAS" ||
-    normalizedRole === "ALMACEN"
+    normalizedRole === "ALMACEN" ||
+    normalizedRole === "VENTAS_ALMACEN"
 
   return needsSucursalColumn
     ? [...BASE_TEMPLATE_HEADERS, "sucursal"]

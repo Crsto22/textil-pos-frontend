@@ -331,7 +331,7 @@ export function Sidebar({ isOpen, collapsed, onClose, onToggleCollapse }: Sideba
                             {company?.logoUrl ? (
                                 <Image
                                     src={company.logoUrl}
-                                    alt={`Logo ${company.nombre}`}
+                                    alt={`Logo ${companyDisplayName}`}
                                     width={32}
                                     height={32}
                                     className="h-8 w-8 rounded-xl object-contain"

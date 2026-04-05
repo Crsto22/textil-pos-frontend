@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import Image from "next/image"
-import { PhotoIcon } from "@heroicons/react/24/outline"
+import { NoSymbolIcon, PhotoIcon, PlusCircleIcon } from "@heroicons/react/24/outline"
 
 import { formatMonedaPen, formatRangoPrecioPen } from "@/components/productos/productos.utils"
 import type { CatalogVariantItem } from "@/lib/catalog-view"
@@ -12,8 +12,9 @@ import { cn } from "@/lib/utils"
 
 interface ProductCardProps {
   product: ProductoResumen
-  onAdd: (product: ProductoResumen) => void
+  onAdd: (product: ProductoResumen, colorId: number | null) => void
   variantItem?: CatalogVariantItem
+  onAddStock?: () => void
 }
 
 function normalizeHexColor(code: string | null | undefined): string {
@@ -87,7 +88,7 @@ function getVariantStockBadgeClass(talla: ProductoResumenTalla | null) {
   return "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
 }
 
-export default function ProductCard({ product, onAdd, variantItem }: ProductCardProps) {
+export default function ProductCard({ product, onAdd, variantItem, onAddStock }: ProductCardProps) {
   const isVariantCard = Boolean(variantItem)
   const [selectedColorId, setSelectedColorId] = useState<number | null>(() =>
     variantItem?.colorId ?? getDefaultColorId(product)
@@ -120,6 +121,10 @@ export default function ProductCard({ product, onAdd, variantItem }: ProductCard
   const singleVariantStock =
     typeof singleVariant?.stock === "number" ? singleVariant.stock : null
 
+  // Variant-level no-stock detection
+  const variantStock = typeof variantItem?.stock === "number" ? variantItem.stock : null
+  const variantNoStock = isVariantCard && variantStock !== null && variantStock <= 0
+
   const selectedColorTallas = selectedColor?.tallas ?? []
   const selectedColorDiscountedRegularPrices = selectedColorTallas
     .filter((talla) => tienePrecioOfertaValido(talla) && ofertaEstaVigente(talla))
@@ -144,7 +149,7 @@ export default function ProductCard({ product, onAdd, variantItem }: ProductCard
   return (
     <article
       onClick={() => {
-        if (canAdd) onAdd(product)
+        if (canAdd) onAdd(product, selectedColorId)
       }}
       className={cn(
         "group overflow-hidden rounded-2xl border bg-card shadow-sm transition-all",
@@ -167,7 +172,44 @@ export default function ProductCard({ product, onAdd, variantItem }: ProductCard
           </div>
         )}
 
-        {isVariantCard && (
+        {/* Banda "No disponible" - global agotado */}
+        {allOutOfStock && !variantNoStock && (
+          <div className="absolute bottom-0 left-0 right-0 flex items-center justify-center gap-1.5 bg-rose-600/90 py-1.5 backdrop-blur-sm">
+            <NoSymbolIcon className="h-3.5 w-3.5 text-white" />
+            <span className="text-xs font-semibold uppercase tracking-wide text-white">
+              No disponible
+            </span>
+          </div>
+        )}
+
+        {/* Banda "Sin stock" - variante agotada */}
+        {variantNoStock && (
+          <div className="absolute bottom-0 left-0 right-0 flex items-center justify-center gap-1.5 bg-rose-600/90 py-1.5 backdrop-blur-sm">
+            <NoSymbolIcon className="h-3.5 w-3.5 text-white" />
+            <span className="text-xs font-semibold uppercase tracking-wide text-white">
+              Sin stock · Talla {variantSizeLabel}
+            </span>
+          </div>
+        )}
+
+        {/* Botón "Agregar stock" en hover — solo si no hay stock y se pasa callback */}
+        {onAddStock && isVariantCard && (allOutOfStock || variantNoStock) && (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation()
+              onAddStock()
+            }}
+            className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-1.5 bg-black/40 opacity-0 backdrop-blur-[1px] transition-opacity group-hover:opacity-100"
+          >
+            <PlusCircleIcon className="h-7 w-7 text-white drop-shadow" />
+            <span className="rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-slate-800 shadow">
+              Agregar stock
+            </span>
+          </button>
+        )}
+
+        {isVariantCard && !variantNoStock && (
           <div className="pointer-events-none absolute left-3 top-3 inline-flex items-center gap-1 rounded-full border border-white/60 bg-white/90 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-700 shadow-sm backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/85 dark:text-slate-200">
             <span className="text-[9px] text-slate-500 dark:text-slate-400">Talla</span>
             <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-700 dark:bg-slate-800 dark:text-slate-200">

@@ -3,15 +3,12 @@
 import { useMemo } from "react"
 
 import { useAuth } from "@/lib/auth/auth-context"
-
-function isAdminRole(role: string | null | undefined): boolean {
-  return role?.toUpperCase() === "ADMINISTRADOR"
-}
+import { isAdministratorRole } from "@/lib/auth/roles"
 
 function useCanFilterByAdminRole(): boolean {
   const { user } = useAuth()
 
-  return useMemo(() => isAdminRole(user?.rol), [user?.rol])
+  return useMemo(() => isAdministratorRole(user?.rol), [user?.rol])
 }
 
 export function useCanFilterByUsuario(): boolean {

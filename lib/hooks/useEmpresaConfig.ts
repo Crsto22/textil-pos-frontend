@@ -6,8 +6,16 @@ import { toast } from "sonner"
 import { authFetch } from "@/lib/auth/auth-fetch"
 import { useAuth } from "@/lib/auth/auth-context"
 import { useCompany } from "@/lib/company/company-context"
-import { normalizeEmpresa, normalizeEmpresaList } from "@/lib/empresa"
-import type { Empresa, EmpresaUpdateRequest } from "@/lib/types/empresa"
+import {
+    normalizeEmpresa,
+    normalizeEmpresaList,
+    sanitizeEmpresaPayload,
+} from "@/lib/empresa"
+import type {
+    Empresa,
+    EmpresaLocationFields,
+    EmpresaUpdateRequest,
+} from "@/lib/types/empresa"
 
 export interface EmpresaFormErrors {
     nombre?: string
@@ -16,14 +24,19 @@ export interface EmpresaFormErrors {
     razonSocial?: string
     correo?: string
     telefono?: string
+    direccion?: string
+    ubigeo?: string
+    codigoEstablecimientoSunat?: string
 }
 
 const isValidEmail = (value: string) =>
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
 const isValidRuc = (value: string) => /^\d{11}$/.test(value.trim())
 const isValidPhone = (value: string) => /^\d{7,15}$/.test(value.trim())
+const isValidUbigeo = (value: string) => /^\d{6}$/.test(value.trim())
+const isValidSunatCode = (value: string) => /^\d{4}$/.test(value.trim())
 
-export { isValidEmail, isValidRuc, isValidPhone }
+export { isValidEmail, isValidPhone, isValidRuc, isValidSunatCode, isValidUbigeo }
 
 export function useEmpresaConfig() {
     const { isLoading: isAuthLoading } = useAuth()
@@ -45,6 +58,13 @@ export function useEmpresaConfig() {
     const [razonSocial, setRazonSocial] = useState("")
     const [correo, setCorreo] = useState("")
     const [telefono, setTelefono] = useState("")
+    const [direccion, setDireccion] = useState("")
+    const [ubigeo, setUbigeo] = useState("")
+    const [departamento, setDepartamento] = useState("")
+    const [provincia, setProvincia] = useState("")
+    const [distrito, setDistrito] = useState("")
+    const [codigoEstablecimientoSunat, setCodigoEstablecimientoSunat] =
+        useState("")
     const [generaFacturacionElectronica, setGeneraFacturacionElectronica] =
         useState(false)
     const [logoPreview, setLogoPreview] = useState<string | null>(null)
@@ -56,6 +76,14 @@ export function useEmpresaConfig() {
         setRazonSocial(currentEmpresa.razonSocial)
         setCorreo(currentEmpresa.correo)
         setTelefono(currentEmpresa.telefono)
+        setDireccion(currentEmpresa.direccion)
+        setUbigeo(currentEmpresa.ubigeo)
+        setDepartamento(currentEmpresa.departamento)
+        setProvincia(currentEmpresa.provincia)
+        setDistrito(currentEmpresa.distrito)
+        setCodigoEstablecimientoSunat(
+            currentEmpresa.codigoEstablecimientoSunat
+        )
         setGeneraFacturacionElectronica(
             currentEmpresa.generaFacturacionElectronica
         )
@@ -70,6 +98,13 @@ export function useEmpresaConfig() {
             razonSocial !== empresa.razonSocial ||
             correo !== empresa.correo ||
             telefono !== empresa.telefono ||
+            direccion !== empresa.direccion ||
+            ubigeo !== empresa.ubigeo ||
+            departamento !== empresa.departamento ||
+            provincia !== empresa.provincia ||
+            distrito !== empresa.distrito ||
+            codigoEstablecimientoSunat !==
+                empresa.codigoEstablecimientoSunat ||
             generaFacturacionElectronica !==
                 empresa.generaFacturacionElectronica)
 
@@ -153,30 +188,83 @@ export function useEmpresaConfig() {
         else if (!isValidPhone(telefono)) {
             errors.telefono = "El telefono debe tener entre 7 y 15 digitos"
         }
+        if (!direccion.trim()) {
+            errors.direccion = "La direccion es requerida"
+        }
+        if (
+            !departamento.trim() ||
+            !provincia.trim() ||
+            !distrito.trim() ||
+            !ubigeo.trim()
+        ) {
+            errors.ubigeo =
+                "Selecciona departamento, provincia y distrito"
+        } else if (!isValidUbigeo(ubigeo)) {
+            errors.ubigeo = "El ubigeo debe tener exactamente 6 digitos"
+        }
+        if (!codigoEstablecimientoSunat.trim()) {
+            errors.codigoEstablecimientoSunat =
+                "El codigo SUNAT es requerido"
+        } else if (!isValidSunatCode(codigoEstablecimientoSunat)) {
+            errors.codigoEstablecimientoSunat =
+                "El codigo SUNAT debe tener exactamente 4 digitos"
+        }
 
         setFormErrors(errors)
         return Object.keys(errors).length === 0
-    }, [nombre, nombreComercial, ruc, razonSocial, correo, telefono])
+    }, [
+        codigoEstablecimientoSunat,
+        correo,
+        departamento,
+        direccion,
+        distrito,
+        nombre,
+        nombreComercial,
+        provincia,
+        razonSocial,
+        ruc,
+        telefono,
+        ubigeo,
+    ])
 
     const resetForm = useCallback(() => {
         if (empresa) syncForm(empresa)
         setFormErrors({})
     }, [empresa, syncForm])
 
+    const handleLocationChange = useCallback(
+        (location: EmpresaLocationFields) => {
+            setUbigeo(location.ubigeo)
+            setDepartamento(location.departamento)
+            setProvincia(location.provincia)
+            setDistrito(location.distrito)
+            setFormErrors((current) => ({ ...current, ubigeo: undefined }))
+        },
+        []
+    )
+
     const handleSave = useCallback(async () => {
         if (!empresa || !validate()) return
 
         setIsSaving(true)
         try {
-            const payload: EmpresaUpdateRequest = {
+            const payload = sanitizeEmpresaPayload<EmpresaUpdateRequest>({
                 nombre: nombre.trim(),
                 nombreComercial: nombreComercial.trim(),
                 ruc: ruc.trim(),
                 razonSocial: razonSocial.trim(),
                 correo: correo.trim(),
                 telefono: telefono.trim(),
+                direccion: direccion.trim(),
+                ubigeo: ubigeo.trim(),
+                departamento: departamento.trim(),
+                provincia: provincia.trim(),
+                distrito: distrito.trim(),
+                codigoEstablecimientoSunat:
+                    codigoEstablecimientoSunat.trim(),
+                logoUrl: empresa.logoUrl ?? null,
                 generaFacturacionElectronica,
-            }
+            })
 
             const response = await authFetch(
                 `/api/empresa/actualizar/${empresa.idEmpresa}`,
@@ -206,6 +294,7 @@ export function useEmpresaConfig() {
                       ...normalizedResponse,
                       logoUrl:
                           normalizedResponse.logoUrl?.trim() ||
+                          payload.logoUrl?.trim() ||
                           empresa.logoUrl?.trim() ||
                           undefined,
                   }
@@ -232,6 +321,12 @@ export function useEmpresaConfig() {
         razonSocial,
         correo,
         telefono,
+        direccion,
+        ubigeo,
+        departamento,
+        provincia,
+        distrito,
+        codigoEstablecimientoSunat,
         generaFacturacionElectronica,
         setGlobalCompany,
         syncForm,
@@ -341,11 +436,20 @@ export function useEmpresaConfig() {
         setCorreo,
         telefono,
         setTelefono,
+        direccion,
+        setDireccion,
+        ubigeo,
+        departamento,
+        provincia,
+        distrito,
+        codigoEstablecimientoSunat,
+        setCodigoEstablecimientoSunat,
         generaFacturacionElectronica,
         setGeneraFacturacionElectronica,
 
         fetchEmpresa,
         resetForm,
+        handleLocationChange,
         handleSave,
         handleUpload,
         clearFieldError,

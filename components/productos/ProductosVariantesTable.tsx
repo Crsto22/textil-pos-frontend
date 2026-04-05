@@ -1,10 +1,13 @@
 import Image from "next/image"
 import { memo } from "react"
 import {
+  ExclamationTriangleIcon,
   PencilSquareIcon,
   PhotoIcon,
+  TagIcon,
   TrashIcon,
 } from "@heroicons/react/24/outline"
+import { Barcode } from "lucide-react"
 
 import { formatMonedaPen } from "@/components/productos/productos.utils"
 import type { CatalogVariantItem } from "@/lib/catalog-view"
@@ -15,6 +18,7 @@ interface ProductosVariantesTableProps {
   loading: boolean
   onEditVariante: (variant: CatalogVariantItem) => void
   onDeleteVariante: (variant: CatalogVariantItem) => void
+  onShowBarcode?: (variant: CatalogVariantItem) => void
 }
 
 function normalizeHexColor(code: string | null | undefined): string {
@@ -24,8 +28,73 @@ function normalizeHexColor(code: string | null | undefined): string {
   return "#94a3b8"
 }
 
+function isLightColor(hex: string): boolean {
+  const clean = hex.replace("#", "")
+  const full =
+    clean.length === 3
+      ? clean.split("").map((c) => c + c).join("")
+      : clean
+  const r = parseInt(full.substring(0, 2), 16)
+  const g = parseInt(full.substring(2, 4), 16)
+  const b = parseInt(full.substring(4, 6), 16)
+  return (r * 299 + g * 587 + b * 114) / 1000 > 200
+}
+
 function isActiveStatus(value: string | null | undefined) {
   return String(value ?? "").trim().toUpperCase() === "ACTIVO"
+}
+
+function getStockValueClass(stock: number): string {
+  if (stock <= 0) return "font-semibold text-rose-600 dark:text-rose-400"
+  if (stock <= 5) return "font-semibold text-amber-600 dark:text-amber-400"
+  return "font-medium text-emerald-600 dark:text-emerald-400"
+}
+
+function getStockRowClass(stock: number): string {
+  if (stock <= 0) return "bg-rose-50/60 dark:bg-rose-900/10"
+  if (stock <= 5) return "bg-amber-50/60 dark:bg-amber-900/10"
+  return ""
+}
+
+function TableSkeleton() {
+  return (
+    <>
+      {Array.from({ length: 8 }, (_, i) => (
+        <tr key={i} className="border-b last:border-0">
+          <td className="px-4 py-3">
+            <div className="flex items-center gap-3">
+              <div className="h-14 w-14 animate-pulse rounded-lg bg-muted" />
+              <div className="space-y-2">
+                <div className="h-4 w-32 animate-pulse rounded bg-muted" />
+                <div className="h-3 w-20 animate-pulse rounded bg-muted" />
+              </div>
+            </div>
+          </td>
+          <td className="px-4 py-3">
+            <div className="space-y-2">
+              <div className="h-4 w-20 animate-pulse rounded bg-muted" />
+              <div className="h-3 w-16 animate-pulse rounded bg-muted" />
+            </div>
+          </td>
+          <td className="px-4 py-3">
+            <div className="h-4 w-24 animate-pulse rounded bg-muted" />
+          </td>
+          <td className="px-4 py-3">
+            <div className="h-4 w-28 animate-pulse rounded bg-muted" />
+          </td>
+          <td className="px-4 py-3">
+            <div className="h-5 w-16 animate-pulse rounded-full bg-muted" />
+          </td>
+          <td className="px-4 py-3">
+            <div className="flex justify-end gap-2">
+              <div className="h-7 w-7 animate-pulse rounded-lg bg-muted" />
+              <div className="h-7 w-7 animate-pulse rounded-lg bg-muted" />
+            </div>
+          </td>
+        </tr>
+      ))}
+    </>
+  )
 }
 
 function ProductosVariantesTableComponent({
@@ -33,6 +102,7 @@ function ProductosVariantesTableComponent({
   loading,
   onEditVariante,
   onDeleteVariante,
+  onShowBarcode,
 }: ProductosVariantesTableProps) {
   return (
     <div className="overflow-hidden rounded-2xl border bg-card">
@@ -44,13 +114,13 @@ function ProductosVariantesTableComponent({
                 Producto
               </th>
               <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Variante
+                Color / Talla
               </th>
               <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">
                 Precios
               </th>
               <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Stock
+                Stock por sucursal
               </th>
               <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">
                 Estado
@@ -62,11 +132,7 @@ function ProductosVariantesTableComponent({
           </thead>
           <tbody>
             {loading ? (
-              <tr>
-                <td colSpan={6} className="px-4 py-12 text-center text-muted-foreground">
-                  Cargando variantes...
-                </td>
-              </tr>
+              <TableSkeleton />
             ) : variants.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-4 py-12 text-center text-muted-foreground">
@@ -79,21 +145,25 @@ function ProductosVariantesTableComponent({
                 const variantActive = isActiveStatus(variant.estado)
                 const productActive = isActiveStatus(variant.productStatus)
                 const globalActive = productActive && variantActive
+                const hex = normalizeHexColor(variant.colorHex)
+                const light = isLightColor(hex)
+                const totalStock = variant.stocksSucursalesVenta.reduce((sum, s) => sum + s.stock, 0)
 
                 return (
                   <tr
                     key={variant.key}
                     className="border-b transition-colors last:border-0 hover:bg-muted/20"
                   >
+                    {/* Producto (imagen + nombre) */}
                     <td className="px-4 py-3">
-                      <div className="flex min-w-[260px] items-center gap-3">
-                        <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border bg-slate-50 dark:bg-slate-900/40">
+                      <div className="flex min-w-[220px] items-center gap-3">
+                        <div className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-slate-50 dark:bg-slate-900/40">
                           {variant.imageUrl ? (
                             <Image
+                              key={`${variant.variantId}-${variant.imageUrl}`}
                               src={variant.imageUrl}
                               alt={`${variant.productName} - ${variant.colorName}`}
                               fill
-                              unoptimized
                               sizes="56px"
                               className="object-contain p-1.5"
                             />
@@ -103,13 +173,12 @@ function ProductosVariantesTableComponent({
                             </div>
                           )}
                         </div>
-
-                        <div className="min-w-0 space-y-1">
+                        <div className="min-w-0">
                           <p className="truncate font-semibold text-foreground">
                             {variant.productName}
                           </p>
                           <p className="truncate text-xs text-muted-foreground">
-                            Categoria: {variant.categoryName}
+                            {variant.categoryName || "Sin categoria"}
                           </p>
                           <p className="truncate text-xs text-muted-foreground">
                             SKU: {variant.sku || "-"}
@@ -118,42 +187,100 @@ function ProductosVariantesTableComponent({
                       </div>
                     </td>
 
+                    {/* Color + Talla */}
                     <td className="px-4 py-3">
                       <div className="space-y-2">
                         <div className="flex items-center gap-2">
                           <span
-                            className="h-4 w-4 rounded-full border border-background"
-                            style={{ backgroundColor: normalizeHexColor(variant.colorHex) }}
+                            className={cn(
+                              "h-5 w-5 shrink-0 rounded-full border",
+                              light ? "border-gray-300 dark:border-gray-500" : "border-transparent"
+                            )}
+                            style={{ backgroundColor: hex }}
                             title={variant.colorName}
                           />
                           <span className="font-medium text-foreground">{variant.colorName}</span>
                         </div>
-                        <p className="text-xs text-muted-foreground">
-                          Talla: {variant.tallaName}
-                        </p>
+                        <span className="inline-flex rounded-md border border-blue-500 bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                          {variant.tallaName}
+                        </span>
                       </div>
                     </td>
 
+                    {/* Precios */}
                     <td className="px-4 py-3">
-                      <div className="space-y-1 text-xs">
-                        <p className="font-medium text-foreground">
-                          Normal: {formatMonedaPen(variant.regularPrice)}
-                        </p>
-                        <p className="text-muted-foreground">
-                          Mayor: {formatMonedaPen(variant.wholesalePrice)}
-                        </p>
-                        <p className="text-muted-foreground">
-                          Oferta: {formatMonedaPen(variant.offerPrice)}
-                        </p>
+                      <div className="space-y-1">
+                        {typeof variant.offerPrice === "number" && variant.offerPrice > 0 ? (
+                          <div className="flex flex-wrap items-baseline gap-1.5">
+                            <span className="font-semibold text-red-600 dark:text-red-400">
+                              {formatMonedaPen(variant.offerPrice)}
+                            </span>
+                            <span className="text-xs text-muted-foreground line-through">
+                              {formatMonedaPen(variant.regularPrice)}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="font-medium text-foreground">
+                            {formatMonedaPen(variant.regularPrice)}
+                          </span>
+                        )}
+                        {typeof variant.wholesalePrice === "number" && variant.wholesalePrice > 0 && (
+                          <span className="inline-block rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                            Mayor: {formatMonedaPen(variant.wholesalePrice)}
+                          </span>
+                        )}
+                        {typeof variant.offerPrice === "number" && variant.offerPrice > 0 && (
+                          <span className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:border-amber-900/40 dark:bg-amber-900/10 dark:text-amber-300">
+                            <TagIcon className="h-3 w-3" />
+                            Oferta
+                          </span>
+                        )}
                       </div>
                     </td>
 
-                    <td className="px-4 py-3 font-medium text-foreground">
-                      {typeof variant.stock === "number" ? variant.stock : "-"}
+                    {/* Stock por sucursal */}
+                    <td className="px-4 py-3">
+                      {variant.stocksSucursalesVenta.length > 0 ? (
+                        <div className="min-w-[160px] overflow-hidden rounded-lg border text-xs">
+                          {variant.stocksSucursalesVenta.map((s) => (
+                            <div
+                              key={s.idSucursal}
+                              className={cn(
+                                "flex items-center justify-between gap-3 px-2 py-1",
+                                getStockRowClass(s.stock)
+                              )}
+                            >
+                              <span className="text-muted-foreground">{s.nombreSucursal}</span>
+                              <span className={getStockValueClass(s.stock)}>
+                                {s.stock <= 0 ? "Sin stock" : s.stock}
+                              </span>
+                            </div>
+                          ))}
+                          {variant.stocksSucursalesVenta.length > 1 && (
+                            <div
+                              className={cn(
+                                "flex items-center justify-between gap-3 border-t px-2 py-1",
+                                totalStock <= 0 ? "bg-rose-50 dark:bg-rose-900/10" : "bg-muted/20"
+                              )}
+                            >
+                              <span className="font-semibold text-muted-foreground">Total</span>
+                              <span className={cn("font-semibold", getStockValueClass(totalStock))}>
+                                {totalStock}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 dark:border-amber-900/40 dark:bg-amber-900/10">
+                          <ExclamationTriangleIcon className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+                          <span className="text-xs text-amber-700 dark:text-amber-400">Sin stock registrado</span>
+                        </div>
+                      )}
                     </td>
 
+                    {/* Estado */}
                     <td className="px-4 py-3">
-                      <div className="flex flex-col items-start gap-1.5">
+                      <div className="flex flex-col items-start gap-1">
                         <span
                           className={cn(
                             "inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium",
@@ -172,8 +299,19 @@ function ProductosVariantesTableComponent({
                       </div>
                     </td>
 
+                    {/* Acciones */}
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
+                        {variant.codigoBarras && onShowBarcode && (
+                          <button
+                            type="button"
+                            onClick={() => onShowBarcode(variant)}
+                            className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-violet-50 hover:text-violet-600 dark:hover:bg-violet-500/10 dark:hover:text-violet-400"
+                            title="Ver codigo de barras"
+                          >
+                            <Barcode className="h-4 w-4" />
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => onEditVariante(variant)}

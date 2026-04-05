@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
@@ -21,7 +21,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useSucursalOptions } from "@/lib/hooks/useSucursalOptions"
-import { useSucursalGlobal } from "@/lib/sucursal-global-context"
 import { getComprobanteTipoOptions } from "@/lib/comprobante"
 import type { ComprobanteCreateRequest } from "@/lib/types/comprobante"
 
@@ -56,17 +55,11 @@ export function ComprobanteCreateDialog({
   onCreate,
   initialIdSucursal = null,
 }: ComprobanteCreateDialogProps) {
-  const { sucursalGlobal } = useSucursalGlobal()
-  const sucursalGlobalRef = useRef(sucursalGlobal)
-  useLayoutEffect(() => {
-    sucursalGlobalRef.current = sucursalGlobal
-  })
-
   const buildInitialForm = useCallback(
     (): CreateFormState => ({
       idSucursal: hasValidSucursalId(initialIdSucursal)
         ? initialIdSucursal
-        : (sucursalGlobalRef.current?.idSucursal ?? null),
+        : null,
       tipoComprobante: "",
       serie: "",
       ultimoCorrelativo: "0",
@@ -80,6 +73,7 @@ export function ComprobanteCreateDialog({
 
   const {
     sucursalOptions,
+    getSucursalOptionById,
     loadingSucursales,
     errorSucursales,
     searchSucursal,
@@ -98,14 +92,11 @@ export function ComprobanteCreateDialog({
       hasValidSucursal &&
       !sucursalOptions.some((option) => option.value === String(form.idSucursal))
         ? [
-            {
-              value: String(form.idSucursal),
-              label: `Sucursal #${form.idSucursal}`,
-            },
+            getSucursalOptionById(Number(form.idSucursal)),
             ...sucursalOptions,
           ]
         : sucursalOptions,
-    [form.idSucursal, hasValidSucursal, sucursalOptions]
+    [form.idSucursal, getSucursalOptionById, hasValidSucursal, sucursalOptions]
   )
 
   const isCreateValid =

@@ -1,14 +1,20 @@
 import type { Color } from "@/lib/types/color"
+import type { TipoSucursal } from "@/lib/types/sucursal"
 import type { Talla } from "@/lib/types/talla"
 
 export const MAX_MEDIA_PER_COLOR = 5
 export const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024
 
 export interface ProductoCreateFormState {
-  idSucursal: number | null
   idCategoria: number | null
   nombre: string
   descripcion: string
+}
+
+export interface VariantSucursalStockInput {
+  idSucursal: number
+  nombreSucursal: string
+  tipoSucursal: TipoSucursal | string
 }
 
 export interface ListResponse<T> {
@@ -43,6 +49,7 @@ export interface VariantValues {
   codigoBarras: string
   precio: string
   precioMayor: string
+  stocksSucursales: Record<number, string>
   stock: string
 }
 
@@ -56,8 +63,9 @@ export interface VariantRow {
   codigoBarras: string
   precio: string
   precioMayor: string
+  stocksSucursales: Record<number, string>
   stock: string
   readonlyOffer?: VariantReadonlyOfferInfo | null
 }
 
-export type VariantEditableField = "sku" | "codigoBarras" | "precio" | "precioMayor" | "stock"
+export type VariantEditableField = "sku" | "codigoBarras" | "precio" | "precioMayor"

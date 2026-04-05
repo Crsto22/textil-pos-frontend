@@ -28,6 +28,7 @@ import type {
 import {
   ALL_USUARIO_BRANCH_FILTER,
   ALL_USUARIO_ROLE_FILTER,
+  validateUsuarioRoleAssignment,
   usuarioRolRequiresSucursal,
 } from "@/lib/types/usuario"
 
@@ -50,10 +51,6 @@ async function parseJsonSafe(response: Response) {
 
 function isAbortError(error: unknown) {
   return error instanceof DOMException && error.name === "AbortError"
-}
-
-function hasValidSucursalId(idSucursal: number | null): idSucursal is number {
-  return typeof idSucursal === "number" && idSucursal > 0
 }
 
 function isUsuarioResponse(data: unknown): data is Usuario {
@@ -274,20 +271,26 @@ export function useUsuarios() {
   ])
 
   const createUsuario = useCallback(
-    async (payload: UsuarioCreateRequest) => {
+    async (payload: UsuarioCreateRequest): Promise<boolean> => {
       const normalizedPayload: UsuarioCreateRequest = {
         ...payload,
         idSucursal: usuarioRolRequiresSucursal(payload.rol) ? payload.idSucursal : null,
       }
 
-      if (
-        usuarioRolRequiresSucursal(normalizedPayload.rol) &&
-        !hasValidSucursalId(normalizedPayload.idSucursal)
-      ) {
-        const message = "Debe seleccionar una sucursal para el rol seleccionado"
+      const validation = validateUsuarioRoleAssignment(
+        normalizedPayload.rol,
+        normalizedPayload.idSucursal,
+        null
+      )
+
+      if (!validation.isValid) {
+        const message =
+          validation.rolError ??
+          validation.sucursalError ??
+          "La combinacion de rol y sucursal no es valida"
         setError(message)
         toast.error(message)
-        return null
+        return false
       }
 
       try {
@@ -327,11 +330,17 @@ export function useUsuarios() {
         idSucursal: usuarioRolRequiresSucursal(payload.rol) ? payload.idSucursal : null,
       }
 
-      if (
-        usuarioRolRequiresSucursal(normalizedPayload.rol) &&
-        !hasValidSucursalId(normalizedPayload.idSucursal)
-      ) {
-        const message = "Debe seleccionar una sucursal para el rol seleccionado"
+      const validation = validateUsuarioRoleAssignment(
+        normalizedPayload.rol,
+        normalizedPayload.idSucursal,
+        null
+      )
+
+      if (!validation.isValid) {
+        const message =
+          validation.rolError ??
+          validation.sucursalError ??
+          "La combinacion de rol y sucursal no es valida"
         setError(message)
         toast.error(message)
         return false

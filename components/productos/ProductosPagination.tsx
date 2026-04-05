@@ -1,5 +1,6 @@
-import { memo, useMemo, type Dispatch, type SetStateAction } from "react"
-import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline"
+import { type Dispatch, type SetStateAction } from "react"
+
+import { PaginationResponsive } from "@/components/ui/pagination-responsive"
 
 interface ProductosPaginationProps {
   totalElements: number
@@ -7,68 +8,8 @@ interface ProductosPaginationProps {
   page: number
   onPageChange: Dispatch<SetStateAction<number>>
   itemLabel?: string
-  activePageClassName?: string
-  inactivePageClassName?: string
 }
 
-function ProductosPaginationComponent({
-  totalElements,
-  totalPages,
-  page,
-  onPageChange,
-  itemLabel = "productos",
-  activePageClassName = "bg-blue-600 text-white",
-  inactivePageClassName = "text-muted-foreground hover:bg-muted",
-}: ProductosPaginationProps) {
-  const pageNumbers = useMemo(
-    () => Array.from({ length: totalPages }, (_, index) => index),
-    [totalPages]
-  )
-
-  return (
-    <div className="mt-4 flex items-center justify-between">
-      <p className="text-xs text-muted-foreground">
-        {totalElements} {itemLabel}
-        {totalPages > 1 && ` - Pagina ${page + 1} de ${totalPages}`}
-      </p>
-
-      {totalPages > 1 && (
-        <div className="flex items-center gap-1">
-          <button
-            onClick={() => onPageChange((previous) => Math.max(0, previous - 1))}
-            disabled={page === 0}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <ChevronLeftIcon className="h-4 w-4" />
-          </button>
-
-          {pageNumbers.map((pageNumber) => (
-            <button
-              key={pageNumber}
-              onClick={() => onPageChange(pageNumber)}
-              className={`inline-flex h-8 w-8 items-center justify-center rounded-lg text-xs font-medium transition-colors ${
-                pageNumber === page
-                  ? activePageClassName
-                  : inactivePageClassName
-              }`}
-            >
-              {pageNumber + 1}
-            </button>
-          ))}
-
-          <button
-            onClick={() =>
-              onPageChange((previous) => Math.min(totalPages - 1, previous + 1))
-            }
-            disabled={page >= totalPages - 1}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <ChevronRightIcon className="h-4 w-4" />
-          </button>
-        </div>
-      )}
-    </div>
-  )
+export function ProductosPagination({ itemLabel = "productos", ...props }: ProductosPaginationProps) {
+  return <PaginationResponsive {...props} itemLabel={itemLabel} />
 }
-
-export const ProductosPagination = memo(ProductosPaginationComponent)

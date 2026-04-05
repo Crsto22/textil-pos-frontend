@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 
 import {
   Dialog,
@@ -10,13 +10,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { useAuth } from "@/lib/auth/auth-context"
-import { useSucursalOptions } from "@/lib/hooks/useSucursalOptions"
-import { useSucursalGlobal } from "@/lib/sucursal-global-context"
 import type { CategoriaCreateRequest } from "@/lib/types/categoria"
 
 interface CategoriaCreateDialogProps {
@@ -25,12 +21,6 @@ interface CategoriaCreateDialogProps {
   onCreate: (payload: CategoriaCreateRequest) => Promise<boolean>
   initialNombreCategoria?: string
   initialDescripcion?: string
-  initialIdSucursal?: number | null
-  lockSucursalSelection?: boolean
-}
-
-function hasValidSucursalId(idSucursal?: number | null): idSucursal is number {
-  return typeof idSucursal === "number" && idSucursal > 0
 }
 
 export function CategoriaCreateDialog({
@@ -39,101 +29,40 @@ export function CategoriaCreateDialog({
   onCreate,
   initialNombreCategoria = "",
   initialDescripcion = "",
-  initialIdSucursal = null,
-  lockSucursalSelection = false,
 }: CategoriaCreateDialogProps) {
-  const { user } = useAuth()
-  const isAdmin = user?.rol === "ADMINISTRADOR"
-  const userHasSucursal = hasValidSucursalId(user?.idSucursal)
-
-  const { sucursalGlobal } = useSucursalGlobal()
-  const sucursalGlobalRef = useRef(sucursalGlobal)
-  useLayoutEffect(() => {
-    sucursalGlobalRef.current = sucursalGlobal
-  })
-
   const buildInitialForm = useCallback(
     (): CategoriaCreateRequest => ({
       nombreCategoria: initialNombreCategoria,
       descripcion: initialDescripcion,
-      idSucursal: isAdmin
-        ? (hasValidSucursalId(initialIdSucursal)
-            ? initialIdSucursal
-            : (sucursalGlobalRef.current?.idSucursal ?? null))
-        : user?.idSucursal ?? null,
     }),
-    [initialDescripcion, initialIdSucursal, initialNombreCategoria, isAdmin, user?.idSucursal]
+    [initialDescripcion, initialNombreCategoria]
   )
 
   const [form, setForm] = useState<CategoriaCreateRequest>(buildInitialForm)
   const [isSaving, setIsSaving] = useState(false)
 
-  const {
-    sucursalOptions,
-    loadingSucursales,
-    errorSucursales,
-    searchSucursal,
-    setSearchSucursal,
-  } = useSucursalOptions(open && isAdmin)
-
-  const hasValidSucursal = hasValidSucursalId(form.idSucursal)
-
-  const comboboxOptions = useMemo<ComboboxOption[]>(
-    () =>
-      hasValidSucursal &&
-      !sucursalOptions.some((option) => option.value === String(form.idSucursal))
-        ? [
-            {
-              value: String(form.idSucursal),
-              label: `Sucursal #${form.idSucursal}`,
-            },
-            ...sucursalOptions,
-          ]
-        : sucursalOptions,
-    [form.idSucursal, hasValidSucursal, sucursalOptions]
-  )
-
-  const isCreateValid =
-    form.nombreCategoria.trim() !== "" && (!isAdmin || hasValidSucursal)
+  const isCreateValid = form.nombreCategoria.trim() !== ""
 
   useEffect(() => {
     if (!open) return
-
     setForm(buildInitialForm())
-    setSearchSucursal("")
-  }, [
-    buildInitialForm,
-    initialDescripcion,
-    initialIdSucursal,
-    initialNombreCategoria,
-    isAdmin,
-    open,
-    setSearchSucursal,
-    user?.idSucursal,
-  ])
+  }, [buildInitialForm, initialDescripcion, initialNombreCategoria, open])
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (isSaving) return
     onOpenChange(nextOpen)
     if (!nextOpen) {
       setForm(buildInitialForm())
-      setSearchSucursal("")
     }
   }
 
   const handleCreate = async () => {
     if (!isCreateValid) return
 
-    const payload: CategoriaCreateRequest = isAdmin
-      ? {
-          nombreCategoria: form.nombreCategoria.trim(),
-          descripcion: form.descripcion.trim(),
-          idSucursal: hasValidSucursal ? form.idSucursal : null,
-        }
-      : {
-          nombreCategoria: form.nombreCategoria.trim(),
-          descripcion: form.descripcion.trim(),
-        }
+    const payload: CategoriaCreateRequest = {
+      nombreCategoria: form.nombreCategoria.trim(),
+      descripcion: form.descripcion.trim(),
+    }
 
     setIsSaving(true)
     try {
@@ -187,43 +116,6 @@ export function CategoriaCreateDialog({
               }
               className="resize-none"
             />
-          </div>
-
-          <div className="grid gap-2">
-            <Label htmlFor="categoria-create-sucursal">Sucursal</Label>
-            {isAdmin ? (
-              <>
-                <Combobox
-                  id="categoria-create-sucursal"
-                  value={hasValidSucursal ? String(form.idSucursal) : ""}
-                  options={comboboxOptions}
-                  searchValue={searchSucursal}
-                  onSearchValueChange={setSearchSucursal}
-                  onValueChange={(value) =>
-                    setForm((previous) => ({
-                      ...previous,
-                      idSucursal: Number(value),
-                    }))
-                  }
-                  placeholder="Selecciona sucursal"
-                  searchPlaceholder="Buscar sucursal..."
-                  emptyMessage="No se encontraron sucursales"
-                  loading={loadingSucursales}
-                  disabled={lockSucursalSelection}
-                />
-                {errorSucursales && (
-                  <p className="text-xs text-red-500">{errorSucursales}</p>
-                )}
-              </>
-            ) : (
-              <div className="flex h-9 items-center rounded-md border bg-muted/50 px-3">
-                <span className="truncate text-sm font-medium">
-                  {userHasSucursal
-                    ? user?.nombreSucursal || `Sucursal #${user?.idSucursal}`
-                    : "Sin sucursal asignada"}
-                </span>
-              </div>
-            )}
           </div>
         </div>
 

@@ -27,10 +27,16 @@ export function useGlobalBarcodeScanner({ onScan }: UseGlobalBarcodeScannerOptio
 
     function handleKeyDown(event: KeyboardEvent) {
       const target = event.target as HTMLElement | null
-      const isTextarea = target?.tagName === "TEXTAREA"
-      const isContentEditable = target?.isContentEditable === true
 
-      if (isTextarea || isContentEditable) return
+      // Si el foco está en cualquier campo interactivo, no interceptar —
+      // el usuario está escribiendo manualmente y el escáner no debe interferir.
+      const isInteractiveInput =
+        target?.tagName === "INPUT" ||
+        target?.tagName === "TEXTAREA" ||
+        target?.tagName === "SELECT" ||
+        target?.isContentEditable === true
+
+      if (isInteractiveInput) return
 
       const now = Date.now()
       const elapsed = now - lastKeyTimeRef.current
@@ -54,11 +60,7 @@ export function useGlobalBarcodeScanner({ onScan }: UseGlobalBarcodeScannerOptio
 
         bufferRef.current += event.key
         lastKeyTimeRef.current = now
-
-        const isInput = target?.tagName === "INPUT"
-        if (isInput) {
-          event.preventDefault()
-        }
+        event.preventDefault()
       }
     }
 

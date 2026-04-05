@@ -4,6 +4,7 @@ import type {
   ProductoDetalleResponse,
   ProductoDetalleVariante,
 } from "@/lib/types/producto"
+import { parseProductoVarianteStocksSucursales } from "@/lib/stock-sucursal"
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : null
@@ -100,8 +101,8 @@ function parseProducto(value: unknown): Producto | null {
       pickNullableNumber(payload, ["idSucursal"]) ??
       pickNullableNumber(sucursal, ["idSucursal"]),
     nombreSucursal:
-      pickString(payload, ["nombreSucursal"]) ||
-      pickString(sucursal, ["nombre"], "Sin sucursal"),
+      pickNullableString(payload, ["nombreSucursal"]) ??
+      pickNullableString(sucursal, ["nombreSucursal", "nombre"]),
   }
 }
 
@@ -127,6 +128,7 @@ export function parseProductoDetalleVariante(value: unknown): ProductoDetalleVar
   return {
     idProductoVariante,
     sku: pickString(payload, ["sku"]),
+    codigoBarras: pickNullableString(payload, ["codigoBarras"]),
     colorId,
     colorNombre:
       pickString(payload, ["colorNombre", "nombreColor"]) ||
@@ -146,6 +148,9 @@ export function parseProductoDetalleVariante(value: unknown): ProductoDetalleVar
     ofertaInicio: pickNullableString(payload, ["ofertaInicio"]),
     ofertaFin: pickNullableString(payload, ["ofertaFin"]),
     stock: pickNumber(payload, ["stock"]),
+    stocksSucursales: parseProductoVarianteStocksSucursales(
+      payload.stocksSucursales
+    ),
     estado: pickString(payload, ["estado"], "ACTIVO"),
   }
 }

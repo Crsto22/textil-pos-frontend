@@ -1,3 +1,5 @@
+import type { UsuarioSesionResponse } from "@/lib/types/usuario"
+
 // Tipos compartidos para autenticacion
 
 export interface LoginRequest {
@@ -11,19 +13,7 @@ export interface ChangePasswordRequest {
   confirmarPassword: string
 }
 
-export interface AuthUser {
-  idUsuario: number
-  nombre: string
-  apellido: string
-  correo: string
-  dni: string
-  telefono: string
-  fotoPerfilUrl: string | null
-  rol: string
-  fechaCreacion: string
-  idSucursal: number | null
-  nombreSucursal: string | null
-}
+export type AuthUser = Omit<UsuarioSesionResponse, "access_token">
 
 /** Respuesta que el BFF devuelve al cliente (login y refresh) */
 export interface AuthResponse {
@@ -32,20 +22,7 @@ export interface AuthResponse {
 }
 
 /** Respuesta JSON del backend en POST /api/auth/autenticarse (200) */
-export interface BackendLoginResponse {
-  access_token: string
-  idUsuario: number
-  nombre: string
-  apellido: string
-  correo: string
-  dni: string
-  telefono: string
-  fotoPerfilUrl: string | null
-  rol: string
-  fechaCreacion: string
-  idSucursal: number | null
-  nombreSucursal: string | null
-}
+export type BackendLoginResponse = UsuarioSesionResponse
 
 export interface AuthError {
   message: string

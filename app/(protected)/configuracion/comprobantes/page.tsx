@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, startTransition, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 
 import { ComprobantesFilters } from "@/components/comprobantes/ComprobantesFilters"
 import { ComprobantesHeader } from "@/components/comprobantes/ComprobantesHeader"
@@ -12,7 +12,6 @@ import { ComprobanteEditDialog } from "@/components/comprobantes/modals/Comproba
 import { useAuth } from "@/lib/auth/auth-context"
 import { useComprobantes } from "@/lib/hooks/useComprobantes"
 import { useSucursalOptions } from "@/lib/hooks/useSucursalOptions"
-import { useSucursalGlobal } from "@/lib/sucursal-global-context"
 import type { ComprobanteConfig } from "@/lib/types/comprobante"
 
 function hasValidSucursalId(idSucursal?: number | null): idSucursal is number {
@@ -52,12 +51,6 @@ export default function ComprobantesPage() {
     searchSucursal,
     setSearchSucursal,
   } = useSucursalOptions(isAdmin)
-
-  const { sucursalGlobal } = useSucursalGlobal()
-  useEffect(() => {
-    if (!isAdmin || sucursalGlobal === null) return
-    startTransition(() => setIdSucursalFilter(sucursalGlobal.idSucursal))
-  }, [sucursalGlobal, isAdmin, setIdSucursalFilter])
 
   const userSucursalLabel = useMemo(() => {
     if (hasValidSucursalId(user?.idSucursal)) {

@@ -46,21 +46,8 @@ function isAbortError(error: unknown) {
   return error instanceof DOMException && error.name === "AbortError"
 }
 
-function hasValidSucursalId(idSucursal?: number | null): idSucursal is number {
-  return typeof idSucursal === "number" && idSucursal > 0
-}
-
-function appendOptionalPositiveInt(
-  params: URLSearchParams,
-  key: string,
-  value?: number | null
-) {
-  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return
-  params.set(key, String(Math.trunc(value)))
-}
-
-export function useCategorias(idSucursal?: number | null) {
-  const { isLoading: isAuthLoading, user } = useAuth()
+export function useCategorias() {
+  const { isLoading: isAuthLoading } = useAuth()
 
   const [categorias, setCategorias] = useState<Categoria[]>([])
   const [page, setPage] = useState(0)
@@ -89,7 +76,6 @@ export function useCategorias(idSucursal?: number | null) {
   const listAbortRef = useRef<AbortController | null>(null)
   const searchAbortRef = useRef<AbortController | null>(null)
 
-  const isAdmin = user?.rol === "ADMINISTRADOR"
   const isSearchMode = debouncedSearch.trim().length > 0
 
   const fetchCategorias = useCallback(async (pageNumber: number) => {
@@ -102,7 +88,6 @@ export function useCategorias(idSucursal?: number | null) {
 
     try {
       const params = new URLSearchParams({ page: String(pageNumber) })
-      appendOptionalPositiveInt(params, "idSucursal", idSucursal)
       const response = await authFetch(`/api/categoria/listar?${params.toString()}`, {
         signal: controller.signal,
       })
@@ -143,7 +128,7 @@ export function useCategorias(idSucursal?: number | null) {
         setLoading(false)
       }
     }
-  }, [idSucursal])
+  }, [])
 
   const fetchBuscar = useCallback(async (query: string, pageNumber: number) => {
     searchAbortRef.current?.abort()
@@ -158,7 +143,6 @@ export function useCategorias(idSucursal?: number | null) {
         q: query.trim(),
         page: String(pageNumber),
       })
-      appendOptionalPositiveInt(params, "idSucursal", idSucursal)
 
       const response = await authFetch(
         `/api/categoria/buscar?${params.toString()}`,
@@ -203,20 +187,15 @@ export function useCategorias(idSucursal?: number | null) {
         setSearching(false)
       }
     }
-  }, [idSucursal])
+  }, [])
 
   useEffect(() => {
-    setPage(0)
-    setSearchPage(0)
-  }, [idSucursal])
-
-  useEffect(() => {
-    if (isAuthLoading || isSearchMode || !hasValidSucursalId(idSucursal)) return
+    if (isAuthLoading || isSearchMode) return
     fetchCategorias(page)
-  }, [fetchCategorias, idSucursal, isAuthLoading, isSearchMode, page])
+  }, [fetchCategorias, isAuthLoading, isSearchMode, page])
 
   useEffect(() => {
-    if (isAuthLoading || !hasValidSucursalId(idSucursal)) return
+    if (isAuthLoading) return
 
     if (!isSearchMode) {
       setSearchResults([])
@@ -226,7 +205,7 @@ export function useCategorias(idSucursal?: number | null) {
     }
 
     fetchBuscar(debouncedSearch, searchPage)
-  }, [debouncedSearch, fetchBuscar, idSucursal, isAuthLoading, isSearchMode, searchPage])
+  }, [debouncedSearch, fetchBuscar, isAuthLoading, isSearchMode, searchPage])
 
   useEffect(() => {
     return () => {
@@ -246,28 +225,11 @@ export function useCategorias(idSucursal?: number | null) {
 
   const createCategoria = useCallback(
     async (payload: CategoriaCreateRequest) => {
-      const normalizedPayload: CategoriaCreateRequest = isAdmin
-        ? {
-            ...payload,
-            idSucursal: payload.idSucursal,
-          }
-        : {
-            nombreCategoria: payload.nombreCategoria,
-            descripcion: payload.descripcion,
-          }
-
-      if (isAdmin && !hasValidSucursalId(normalizedPayload.idSucursal)) {
-        const message = "Debe seleccionar una sucursal"
-        setError(message)
-        toast.error(message)
-        return false
-      }
-
       try {
         const response = await authFetch("/api/categoria/insertar", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(normalizedPayload),
+          body: JSON.stringify(payload),
         })
 
         const data = await parseJsonSafe(response)
@@ -290,28 +252,16 @@ export function useCategorias(idSucursal?: number | null) {
         return false
       }
     },
-    [isAdmin, refreshCurrentView]
+    [refreshCurrentView]
   )
 
   const updateCategoria = useCallback(
     async (id: number, payload: CategoriaUpdateRequest) => {
-      const normalizedPayload: CategoriaUpdateRequest = isAdmin
-        ? {
-            ...payload,
-            ...(hasValidSucursalId(payload.idSucursal)
-              ? { idSucursal: payload.idSucursal }
-              : {}),
-          }
-        : {
-            nombreCategoria: payload.nombreCategoria,
-            descripcion: payload.descripcion,
-          }
-
       try {
         const response = await authFetch(`/api/categoria/actualizar/${id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(normalizedPayload),
+          body: JSON.stringify(payload),
         })
 
         const data = await parseJsonSafe(response)
@@ -334,7 +284,7 @@ export function useCategorias(idSucursal?: number | null) {
         return false
       }
     },
-    [isAdmin, refreshCurrentView]
+    [refreshCurrentView]
   )
 
   const deleteCategoria = useCallback(
@@ -410,7 +360,6 @@ export function useCategorias(idSucursal?: number | null) {
     totalElements,
     loading,
     error,
-    isAdmin,
     search,
     debouncedSearch,
     isSearchMode,

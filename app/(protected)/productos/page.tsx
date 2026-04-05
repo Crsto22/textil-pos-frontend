@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, startTransition, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { BuildingStorefrontIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline"
 import { toast } from "sonner"
@@ -13,6 +13,7 @@ import {
 import { ProductosPagination } from "@/components/productos/ProductosPagination"
 import { ProductosTable } from "@/components/productos/ProductosTable"
 import { ProductosVariantesCards } from "@/components/productos/ProductosVariantesCards"
+import { ProductosVariantesTable } from "@/components/productos/ProductosVariantesTable"
 import { BarcodeListDialog } from "@/components/productos/modals/BarcodeListDialog"
 import { ProductoDeleteDialog } from "@/components/productos/modals/ProductoDeleteDialog"
 import { ProductoVarianteDeleteDialog } from "@/components/productos/modals/ProductoVarianteDeleteDialog"
@@ -23,15 +24,16 @@ import CategoryFilter from "@/components/ventas/CategoryFilter"
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
 import type { CatalogVariantItem } from "@/lib/catalog-view"
 import { useAuth } from "@/lib/auth/auth-context"
+import { roleCanManageStock } from "@/lib/auth/roles"
+import { AgregarStockModal } from "@/components/stock/AgregarStockModal"
 import { authFetch } from "@/lib/auth/auth-fetch"
 import { useCatalogoVariantes } from "@/lib/hooks/useCatalogoVariantes"
 import { useCatalogViewMode } from "@/lib/hooks/useCatalogViewMode"
 import { useProductos } from "@/lib/hooks/useProductos"
 import { useSucursalOptions } from "@/lib/hooks/useSucursalOptions"
-import { useSucursalGlobal } from "@/lib/sucursal-global-context"
 import { generateBarcode } from "@/lib/barcode-generator"
 import { useVarianteReporteExcel } from "@/lib/hooks/useVarianteReporteExcel"
-import { getSucursalAvatarColor, getSucursalInitials } from "@/lib/sucursal"
+import { buildSucursalComboboxOption } from "@/lib/sucursal"
 import type { Categoria, PageResponse as CategoriaPageResponse } from "@/lib/types/categoria"
 import type { Color, PageResponse as ColorPageResponse } from "@/lib/types/color"
 import type { ProductoResumen } from "@/lib/types/producto"
@@ -101,51 +103,48 @@ export default function ProductosPage() {
   const router = useRouter()
   const { user } = useAuth()
   const isAdmin = user?.rol === "ADMINISTRADOR"
+  const canManageStock = roleCanManageStock(user?.rol)
   const userHasSucursal = hasValidSucursalId(user?.idSucursal)
-
   const [selectedSucursalId, setSelectedSucursalId] = useState<number | null>(null)
-  const defaultAdminSucursalId =
-    isAdmin && hasValidSucursalId(user?.idSucursal) ? user.idSucursal : null
-  const effectiveSelectedSucursalId = hasValidSucursalId(selectedSucursalId)
-    ? selectedSucursalId
-    : defaultAdminSucursalId
-  const hasSelectedSucursal = hasValidSucursalId(effectiveSelectedSucursalId)
+  const [stockModalOpen, setStockModalOpen] = useState(false)
+  const [stockModalSession, setStockModalSession] = useState(0)
+  const [stockModalDefaults, setStockModalDefaults] = useState<{
+    idSucursal?: number | null
+    codigoBarras?: string | null
+    query?: string | null
+  }>({})
   const resolvedSucursalId = isAdmin
-    ? hasSelectedSucursal
-      ? effectiveSelectedSucursalId
+    ? hasValidSucursalId(selectedSucursalId)
+      ? selectedSucursalId
       : null
     : userHasSucursal
       ? user?.idSucursal ?? null
       : null
+  const isSucursalResolved = isAdmin || userHasSucursal
 
   const {
-    sucursalOptions,
+    sucursales,
     loadingSucursales,
     searchSucursal,
     setSearchSucursal,
   } = useSucursalOptions(isAdmin)
 
-  const { sucursalGlobal } = useSucursalGlobal()
-  useEffect(() => {
-    if (!isAdmin || sucursalGlobal === null) return
-    startTransition(() => setSelectedSucursalId(sucursalGlobal.idSucursal))
-  }, [sucursalGlobal, isAdmin])
+  const TODAS_SUCURSALES_OPTION: ComboboxOption = useMemo(
+    () => ({ value: "todas", label: "Todas las sucursales" }),
+    []
+  )
+
+  const sucursalFilterOptions = useMemo<ComboboxOption[]>(
+    () =>
+      sucursales
+        .filter((sucursal) => sucursal.tipo === "VENTA" || sucursal.tipo === "ALMACEN")
+        .map((sucursal) => buildSucursalComboboxOption(sucursal)),
+    [sucursales]
+  )
 
   const sucursalComboboxOptions = useMemo<ComboboxOption[]>(
-    () =>
-      hasSelectedSucursal &&
-      !sucursalOptions.some((o) => o.value === String(effectiveSelectedSucursalId))
-        ? [
-            {
-              value: String(effectiveSelectedSucursalId),
-              label: `Sucursal #${effectiveSelectedSucursalId}`,
-              avatarText: getSucursalInitials("Sucursal"),
-              avatarClassName: getSucursalAvatarColor(effectiveSelectedSucursalId),
-            },
-            ...sucursalOptions,
-          ]
-        : sucursalOptions,
-    [effectiveSelectedSucursalId, hasSelectedSucursal, sucursalOptions]
+    () => [TODAS_SUCURSALES_OPTION, ...sucursalFilterOptions],
+    [TODAS_SUCURSALES_OPTION, sucursalFilterOptions]
   )
 
   const { isExporting, exportReporteExcel } = useVarianteReporteExcel()
@@ -180,7 +179,8 @@ export default function ProductosPage() {
     displayedPage: displayedPageProductos,
     setDisplayedPage: setDisplayedPageProductos,
     deleteProducto,
-  } = useProductos(!isVariantView && resolvedSucursalId !== null, resolvedSucursalId)
+    refreshCurrentView: refreshProductosView,
+  } = useProductos(!isVariantView && isSucursalResolved, resolvedSucursalId)
   const {
     search: searchVariantes,
     setSearch: setSearchVariantes,
@@ -196,10 +196,12 @@ export default function ProductosPage() {
     setDisplayedPage: setDisplayedPageVariantes,
     updateVariante,
     deleteVariante,
-  } = useCatalogoVariantes(isVariantView && resolvedSucursalId !== null, resolvedSucursalId)
+    refreshCurrentView: refreshVariantesView,
+  } = useCatalogoVariantes(isVariantView && isSucursalResolved, resolvedSucursalId)
+
   useEffect(() => {
     const fetchCategorias = async () => {
-      if (resolvedSucursalId === null) {
+      if (!isSucursalResolved) {
         setCategoriasDisponibles([])
         setCategoryTotalPages(1)
         return
@@ -207,7 +209,7 @@ export default function ProductosPage() {
 
       try {
         const params = new URLSearchParams({ page: String(categoryPage) })
-        if (resolvedSucursalId) params.set("idSucursal", String(resolvedSucursalId))
+        if (resolvedSucursalId !== null) params.set("idSucursal", String(resolvedSucursalId))
         const response = await authFetch(`/api/categoria/listar?${params.toString()}`)
         const data = await parseJsonSafe(response)
 
@@ -237,11 +239,11 @@ export default function ProductosPage() {
     }
 
     void fetchCategorias()
-  }, [categoryPage, resolvedSucursalId])
+  }, [categoryPage, isSucursalResolved, resolvedSucursalId])
 
   useEffect(() => {
     const fetchColores = async () => {
-      if (resolvedSucursalId === null) {
+      if (!isSucursalResolved) {
         setColoresDisponibles([])
         setColorTotalPages(1)
         return
@@ -277,7 +279,7 @@ export default function ProductosPage() {
     }
 
     void fetchColores()
-  }, [colorPage, resolvedSucursalId])
+  }, [colorPage, isSucursalResolved, resolvedSucursalId])
 
   const safeCategoryPage = Math.max(
     0,
@@ -377,7 +379,7 @@ export default function ProductosPage() {
     ? idCategoriaFilterVariantes
     : idCategoriaFilterProductos
   const idColorFilter = isVariantView ? idColorFilterVariantes : idColorFilterProductos
-  const shouldShowCatalogFilters = resolvedSucursalId !== null
+  const shouldShowCatalogFilters = isSucursalResolved
   const displayedLoading = isVariantView ? displayedLoadingVariantes : displayedLoadingProductos
   const displayedTotalElements = isVariantView
     ? displayedTotalElementsVariantes
@@ -438,34 +440,6 @@ export default function ProductosPage() {
   return (
     <div className="space-y-5">
       <div className="flex flex-col gap-3">
-        {isAdmin && (
-          <div className="flex items-center gap-3">
-            <div className="w-72">
-              <Combobox
-                value={String(effectiveSelectedSucursalId ?? "")}
-                options={sucursalComboboxOptions}
-                onValueChange={(value) => {
-                  const parsed = parseInt(value, 10)
-                  setSelectedSucursalId(Number.isFinite(parsed) && parsed > 0 ? parsed : null)
-                  setCategoryPage(0)
-                  setColorPage(0)
-                  setIdCategoriaFilterProductos(null)
-                  setIdColorFilterProductos(null)
-                  setIdCategoriaFilterVariantes(null)
-                  setIdColorFilterVariantes(null)
-                }}
-                placeholder="Selecciona una sucursal..."
-                searchPlaceholder="Buscar sucursal..."
-                emptyMessage="Sin resultados"
-                loading={loadingSucursales}
-                loadingMessage="Cargando sucursales..."
-                searchValue={searchSucursal}
-                onSearchValueChange={setSearchSucursal}
-              />
-            </div>
-          </div>
-        )}
-
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <div className="relative flex-1">
             <MagnifyingGlassIcon className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -474,13 +448,47 @@ export default function ProductosPage() {
               placeholder="Buscar por nombre, SKU o categoria..."
               value={search}
               onChange={(event) => handleSearchChange(event.target.value)}
-              disabled={resolvedSucursalId === null}
+              disabled={!isSucursalResolved}
               className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-sm shadow-sm transition-all placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800"
             />
           </div>
 
+          {isAdmin && (
+            <div className="w-72 shrink-0">
+              <Combobox
+                value={selectedSucursalId !== null ? String(selectedSucursalId) : "todas"}
+                options={sucursalComboboxOptions}
+                onValueChange={(value) => {
+                  const parsed = parseInt(value, 10)
+                  setSelectedSucursalId(
+                    value !== "todas" && Number.isFinite(parsed) && parsed > 0
+                      ? parsed
+                      : null
+                  )
+                  setCategoryPage(0)
+                  setColorPage(0)
+                  setIdCategoriaFilterProductos(null)
+                  setIdColorFilterProductos(null)
+                  setIdCategoriaFilterVariantes(null)
+                  setIdColorFilterVariantes(null)
+                }}
+                placeholder="Todas las sucursales"
+                searchPlaceholder="Buscar sucursal..."
+                emptyMessage="Sin resultados"
+                loading={loadingSucursales}
+                loadingMessage="Cargando sucursales..."
+                searchValue={searchSucursal}
+                onSearchValueChange={setSearchSucursal}
+              />
+            </div>
+          )}
+
           <div className="flex items-center justify-end">
-            <CatalogViewToggle value={catalogViewMode} onChange={setCatalogViewMode} />
+            <CatalogViewToggle
+              value={catalogViewMode}
+              onChange={setCatalogViewMode}
+              iconSet="productos"
+            />
           </div>
         </div>
 
@@ -517,13 +525,13 @@ export default function ProductosPage() {
           <ProductosHeader
             viewMode={viewMode}
             onViewModeChange={setViewMode}
-            showViewModeToggle={!isVariantView}
+            showViewModeToggle
             reportLoading={isExporting}
             onDownloadExcel={() => {
               void exportReporteExcel()
             }}
             onOpenBarcodeList={
-              resolvedSucursalId !== null
+              isSucursalResolved
                 ? () => setShowBarcodeList(true)
                 : undefined
             }
@@ -532,7 +540,7 @@ export default function ProductosPage() {
       </div>
 
       <section className="space-y-4">
-        {resolvedSucursalId === null ? (
+        {!isSucursalResolved ? (
           <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white py-20 text-center dark:border-slate-700 dark:bg-slate-800/40">
             <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700">
               <BuildingStorefrontIcon className="h-7 w-7 text-slate-400 dark:text-slate-500" />
@@ -545,17 +553,37 @@ export default function ProductosPage() {
             </p>
           </div>
         ) : isVariantView ? (
-          <ProductosVariantesCards
-            variants={displayedCatalogVariants}
-            loading={displayedLoading}
-            onEditVariante={handleEditVariante}
-            onDeleteVariante={handleDeleteVariante}
-            onShowBarcode={handleShowBarcode}
-          />
+          viewMode === "cards" ? (
+            <ProductosVariantesCards
+              variants={displayedCatalogVariants}
+              loading={displayedLoading}
+              onEditVariante={handleEditVariante}
+              onDeleteVariante={handleDeleteVariante}
+              onShowBarcode={handleShowBarcode}
+              onAddStock={canManageStock ? (variant) => {
+                setStockModalDefaults({
+                  idSucursal: resolvedSucursalId,
+                  codigoBarras: variant.codigoBarras ?? null,
+                  query: !variant.codigoBarras ? `${variant.productName} ${variant.tallaName}` : null,
+                })
+                setStockModalSession((prev) => prev + 1)
+                setStockModalOpen(true)
+              } : undefined}
+            />
+          ) : (
+            <ProductosVariantesTable
+              variants={displayedCatalogVariants}
+              loading={displayedLoading}
+              onEditVariante={handleEditVariante}
+              onDeleteVariante={handleDeleteVariante}
+              onShowBarcode={handleShowBarcode}
+            />
+          )
         ) : viewMode === "cards" ? (
           <ProductosCards
             productos={displayedProductos}
             loading={displayedLoading}
+            activeColorId={idColorFilter}
             onEditProducto={handleEditProducto}
             onDeleteProducto={handleDeleteProducto}
           />
@@ -563,12 +591,13 @@ export default function ProductosPage() {
           <ProductosTable
             productos={displayedProductos}
             loading={displayedLoading}
+            activeColorId={idColorFilter}
             onEditProducto={handleEditProducto}
             onDeleteProducto={handleDeleteProducto}
           />
         )}
 
-        {resolvedSucursalId !== null && (
+        {isSucursalResolved && (
           <ProductosPagination
             totalElements={displayedTotalElements}
             totalPages={displayedTotalPages}
@@ -620,6 +649,22 @@ export default function ProductosPage() {
         open={showBarcodeList}
         onOpenChange={setShowBarcodeList}
         idSucursal={resolvedSucursalId}
+      />
+
+      <AgregarStockModal
+        key={`stock-modal-${stockModalSession}`}
+        open={stockModalOpen}
+        onOpenChange={setStockModalOpen}
+        defaultIdSucursal={stockModalDefaults.idSucursal}
+        defaultCodigoBarras={stockModalDefaults.codigoBarras}
+        defaultQuery={stockModalDefaults.query}
+        onSuccess={() => {
+          if (isVariantView) {
+            refreshVariantesView()
+          } else {
+            refreshProductosView()
+          }
+        }}
       />
     </div>
   )

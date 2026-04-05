@@ -37,9 +37,6 @@ function CategoriasTableComponent({
               <th className="hidden px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground lg:table-cell">
                 Descripcion
               </th>
-              <th className="hidden px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground xl:table-cell">
-                Sucursal
-              </th>
               <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">
                 Estado
               </th>
@@ -53,7 +50,7 @@ function CategoriasTableComponent({
               <CategoriasTableSkeleton />
             ) : categorias.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-12 text-center text-muted-foreground">
+                <td colSpan={5} className="px-4 py-12 text-center text-muted-foreground">
                   No se encontraron categorias
                 </td>
               </tr>
@@ -78,9 +75,6 @@ function CategoriasTableComponent({
                         <p className="truncate text-xs text-muted-foreground lg:hidden">
                           {categoria.descripcion || "Sin descripcion"}
                         </p>
-                        <p className="truncate text-xs text-muted-foreground xl:hidden">
-                          {categoria.nombreSucursal || "Sin sucursal"}
-                        </p>
                         <p className="text-xs text-muted-foreground">
                           {formatFechaRegistro(categoria.fechaRegistro)}
                         </p>
@@ -89,9 +83,6 @@ function CategoriasTableComponent({
                   </td>
                   <td className="hidden px-4 py-3 text-muted-foreground lg:table-cell">
                     {categoria.descripcion || "Sin descripcion"}
-                  </td>
-                  <td className="hidden px-4 py-3 text-muted-foreground xl:table-cell">
-                    {categoria.nombreSucursal || "Sin sucursal"}
                   </td>
                   <td className="px-4 py-3">
                     <span

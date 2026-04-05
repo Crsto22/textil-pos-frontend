@@ -32,8 +32,11 @@ export interface VentaCreatePagoRequest {
 
 export interface VentaCreateRequest {
   idSucursal: number
+  idCanalVenta?: number | null
   idCliente: number | null
   tipoComprobante: TipoComprobante
+  serie?: string | null
+  correlativo?: number | null
   moneda?: MonedaCodigo | null
   formaPago?: FormaPagoVenta | null
   igvPorcentaje?: number | null
@@ -79,6 +82,9 @@ export interface VentaHistorial {
   nombreUsuario: string
   idSucursal: number | null
   nombreSucursal: string
+  idCanalVenta: number | null
+  nombreCanalVenta: string | null
+  plataformaCanalVenta: string | null
   items: number
   pagos: number
 }
@@ -146,6 +152,10 @@ export interface VentaDetalleResponse {
   nombreUsuario: string
   idSucursal: number | null
   nombreSucursal: string
+  idCanalVenta: number | null
+  nombreCanalVenta: string | null
+  plataformaCanalVenta: string | null
+  formaPago: FormaPagoVenta | null
   detalles: VentaDetalleItem[]
   pagos: VentaDetallePago[]
 }
@@ -180,6 +190,7 @@ export interface VentaAnularResponse {
   sunatEstadoNotaCredito: SunatEstado | null
   sunatCodigoNotaCredito: string | null
   sunatMensajeNotaCredito: string | null
+  message: string | null
 }
 
 export interface VentaAnularResult {
@@ -217,6 +228,7 @@ export interface VentaHistorialFilters {
   comprobante: "TODOS" | TipoComprobante
   idUsuario: number | null
   idSucursal: number | null
+  idCanalVenta: number | null
   idCliente: number | null
   periodo: VentaListadoPeriodoBase
   usarRangoFechas: boolean

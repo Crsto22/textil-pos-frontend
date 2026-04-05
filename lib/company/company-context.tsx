@@ -12,14 +12,16 @@ import {
 } from "react"
 
 import { normalizeEmpresaPublica } from "@/lib/empresa"
-import type { Empresa } from "@/lib/types/empresa"
+import type { Empresa, EmpresaPublica } from "@/lib/types/empresa"
+
+type CompanyRecord = Empresa | EmpresaPublica
 
 interface CompanyContextType {
-  company: Empresa | null
+  company: CompanyRecord | null
   isLoadingCompany: boolean
   companyError: string | null
   refreshCompany: () => Promise<void>
-  setCompany: (company: Empresa | null) => void
+  setCompany: (company: CompanyRecord | null) => void
 }
 
 const CompanyContext = createContext<CompanyContextType | null>(null)
@@ -33,7 +35,7 @@ async function parseJsonSafe(response: Response) {
 }
 
 export function CompanyProvider({ children }: { children: ReactNode }) {
-  const [company, setCompany] = useState<Empresa | null>(null)
+  const [company, setCompany] = useState<CompanyRecord | null>(null)
   const [isLoadingCompany, setIsLoadingCompany] = useState(false)
   const [companyError, setCompanyError] = useState<string | null>(null)
 

@@ -1,7 +1,8 @@
 "use client"
 
+import { useRef, useState } from "react"
 import Image from "next/image"
-import { CubeIcon, MinusIcon, PencilSquareIcon, PlusIcon, TrashIcon } from "@heroicons/react/24/outline"
+import { CheckIcon, CubeIcon, MinusIcon, PlusIcon, TrashIcon, XMarkIcon } from "@heroicons/react/24/outline"
 
 import { formatMonedaPen } from "@/components/productos/productos.utils"
 import { PriceSelectorDropdown } from "@/components/ventas/PriceSelectorDropdown"
@@ -32,6 +33,13 @@ function getPriceTypeMeta(priceType: VentaLineaPrecioTipo | null) {
         }
     }
 
+    if (priceType === "editado") {
+        return {
+            label: "Precio editado",
+            className: "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400",
+        }
+    }
+
     return null
 }
 
@@ -55,7 +63,7 @@ interface CartItemProps {
     onDecrease: (id: number) => void
     onRemove: (id: number) => void
     onSelectPrice?: (item: CartItemData, priceType: VentaLineaPrecioTipo) => void
-    onEdit?: (item: CartItemData) => void
+    onEditPrice?: (item: CartItemData, newPrice: number) => void
     showPriceTypeBadge?: boolean
 }
 
@@ -65,11 +73,11 @@ export default function CartItem({
     onDecrease,
     onRemove,
     onSelectPrice,
-    onEdit,
+    onEditPrice,
     showPriceTypeBadge = false,
 }: CartItemProps) {
     const priceOptions = item.preciosDisponibles ?? []
-    const canSelectPrice = Boolean(onSelectPrice) && priceOptions.length > 1
+    const canSelectPrice = Boolean(onSelectPrice) || Boolean(onEditPrice)
     const stockLimit =
         typeof item.stockDisponible === "number" && Number.isFinite(item.stockDisponible)
             ? Math.max(0, Math.trunc(item.stockDisponible))
@@ -78,6 +86,37 @@ export default function CartItem({
     const priceTypeMeta = getPriceTypeMeta(
         item.precioSeleccionado ?? priceOptions[0]?.type ?? null
     )
+
+    const [isEditingPrice, setIsEditingPrice] = useState(false)
+    const [priceInput, setPriceInput] = useState("")
+    const inputRef = useRef<HTMLInputElement>(null)
+
+    const startEditingPrice = () => {
+        setPriceInput(item.precio.toFixed(2))
+        setIsEditingPrice(true)
+        setTimeout(() => inputRef.current?.select(), 0)
+    }
+
+    const cancelEditingPrice = () => {
+        setIsEditingPrice(false)
+        setPriceInput("")
+    }
+
+    const confirmEditingPrice = () => {
+        const parsed = parseFloat(priceInput.replace(",", "."))
+        if (!Number.isFinite(parsed) || parsed < 0) {
+            cancelEditingPrice()
+            return
+        }
+        onEditPrice?.(item, Math.round(parsed * 100) / 100)
+        setIsEditingPrice(false)
+        setPriceInput("")
+    }
+
+    const handlePriceKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === "Enter") confirmEditingPrice()
+        if (e.key === "Escape") cancelEditingPrice()
+    }
 
     return (
         <div className="flex items-start gap-3 py-3.5 border-b border-slate-100 dark:border-slate-700/50 last:border-0">
@@ -113,33 +152,56 @@ export default function CartItem({
                     <span className="text-[10px] font-bold bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded-md">
                         {item.color}
                     </span>
-                    {/* Edit variant button */}
-                    {onEdit && (
-                        <button
-                            onClick={() => onEdit(item)}
-                            title="Editar variante"
-                            className="flex items-center gap-0.5 ml-0.5 text-[10px] font-semibold text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
-                        >
-                            <PencilSquareIcon className="h-3 w-3" />
-                            Editar
-                        </button>
-                    )}
                 </div>
+
+                {/* Precio */}
                 <div className="pt-0.5">
-                    <div className="flex items-center gap-2">
-                        <p className="text-sm font-bold text-slate-700 dark:text-slate-200 tabular-nums">
-                            {formatMonedaPen(item.precio)}
-                        </p>
-                        {canSelectPrice ? (
-                            <PriceSelectorDropdown
-                                options={priceOptions}
-                                selectedType={item.precioSeleccionado}
-                                onSelect={(priceType) => onSelectPrice?.(item, priceType)}
-                                triggerLabel={`Cambiar precio para ${item.nombre}`}
+                    {isEditingPrice ? (
+                        <div className="flex items-center gap-1">
+                            <span className="text-xs text-slate-400">S/</span>
+                            <input
+                                ref={inputRef}
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={priceInput}
+                                onChange={(e) => setPriceInput(e.target.value)}
+                                onKeyDown={handlePriceKeyDown}
+                                onBlur={confirmEditingPrice}
+                                className="w-20 rounded-md border border-blue-400 bg-white px-1.5 py-0.5 text-sm font-bold tabular-nums text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-blue-500 dark:bg-slate-800 dark:text-slate-100"
                             />
-                        ) : null}
-                    </div>
-                    {showPriceTypeBadge && priceTypeMeta ? (
+                            <button
+                                type="button"
+                                onMouseDown={(e) => { e.preventDefault(); confirmEditingPrice() }}
+                                className="flex items-center justify-center rounded-md p-0.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30"
+                            >
+                                <CheckIcon className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                                type="button"
+                                onMouseDown={(e) => { e.preventDefault(); cancelEditingPrice() }}
+                                className="flex items-center justify-center rounded-md p-0.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"
+                            >
+                                <XMarkIcon className="h-3.5 w-3.5" />
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-2">
+                            <p className="text-sm font-bold text-slate-700 dark:text-slate-200 tabular-nums">
+                                {formatMonedaPen(item.precio)}
+                            </p>
+                            {canSelectPrice ? (
+                                <PriceSelectorDropdown
+                                    options={priceOptions}
+                                    selectedType={item.precioSeleccionado}
+                                    onSelect={(priceType) => onSelectPrice?.(item, priceType)}
+                                    onEditPrice={onEditPrice ? startEditingPrice : undefined}
+                                    triggerLabel={`Cambiar precio para ${item.nombre}`}
+                                />
+                            ) : null}
+                        </div>
+                    )}
+                    {showPriceTypeBadge && priceTypeMeta && !isEditingPrice ? (
                         <span
                             className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${priceTypeMeta.className}`}
                         >

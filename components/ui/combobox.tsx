@@ -1,18 +1,28 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { CheckIcon, ChevronUpDownIcon, PlusIcon } from "@heroicons/react/24/outline"
+import {
+  ArchiveBoxIcon,
+  BuildingStorefrontIcon,
+  CheckIcon,
+  ChevronUpDownIcon,
+  PlusIcon,
+} from "@heroicons/react/24/outline"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
 
+export type ComboboxOptionAvatarIcon = "storefront" | "warehouse"
+
 export interface ComboboxOption {
   value: string
   label: string
   description?: string
+  triggerDescription?: string
   avatarText?: string
+  avatarIcon?: ComboboxOptionAvatarIcon
   avatarClassName?: string
 }
 
@@ -32,6 +42,52 @@ interface ComboboxProps {
   onCreateAction?: (query: string) => void
   createActionLabel?: string
   createActionDisabled?: boolean
+}
+
+interface ComboboxOptionAvatarProps {
+  option: Pick<ComboboxOption, "avatarText" | "avatarIcon" | "avatarClassName">
+  size?: "sm" | "md"
+  className?: string
+}
+
+function getAvatarIcon(icon: ComboboxOptionAvatarIcon) {
+  return icon === "warehouse" ? ArchiveBoxIcon : BuildingStorefrontIcon
+}
+
+export function ComboboxOptionAvatar({
+  option,
+  size = "md",
+  className,
+}: ComboboxOptionAvatarProps) {
+  if (!option.avatarIcon && !option.avatarText) return null
+
+  const sizeClasses =
+    size === "sm"
+      ? "h-7 w-7 text-[10px]"
+      : "h-8 w-8 text-[10px]"
+
+  const iconSizeClasses = size === "sm" ? "h-4 w-4" : "h-[18px] w-[18px]"
+
+  return (
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-center justify-center rounded-full font-bold uppercase",
+        sizeClasses,
+        option.avatarClassName ??
+          "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
+        className
+      )}
+    >
+      {option.avatarIcon ? (
+        (() => {
+          const Icon = getAvatarIcon(option.avatarIcon)
+          return <Icon className={iconSizeClasses} />
+        })()
+      ) : (
+        option.avatarText
+      )}
+    </span>
+  )
 }
 
 export function Combobox({
@@ -57,6 +113,7 @@ export function Combobox({
     () => options.find((option) => option.value === value),
     [options, value]
   )
+  const selectedTriggerDescription = selectedOption?.triggerDescription
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -67,27 +124,39 @@ export function Combobox({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className="w-full justify-between font-normal"
+          className={cn(
+            "w-full justify-between font-normal",
+            selectedTriggerDescription && "h-auto min-h-9 whitespace-normal py-2"
+          )}
           disabled={disabled}
         >
-          <span className="flex min-w-0 items-center gap-2">
-            {selectedOption?.avatarText ? (
+          <span
+            className={cn(
+              "flex min-w-0 items-center gap-2",
+              selectedTriggerDescription && "items-start"
+            )}
+          >
+            {selectedOption?.avatarIcon || selectedOption?.avatarText ? (
+              <ComboboxOptionAvatar
+                option={selectedOption}
+                size="sm"
+                className={cn(selectedTriggerDescription && "mt-0.5")}
+              />
+            ) : null}
+            <span className="min-w-0 text-left">
               <span
                 className={cn(
-                  "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold uppercase",
-                  selectedOption.avatarClassName ?? "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                  "block truncate",
+                  !selectedOption && "text-muted-foreground"
                 )}
               >
-                {selectedOption.avatarText}
+                {selectedOption?.label ?? placeholder}
               </span>
-            ) : null}
-            <span
-              className={cn(
-                "truncate text-left",
-                !selectedOption && "text-muted-foreground"
-              )}
-            >
-              {selectedOption?.label ?? placeholder}
+              {selectedTriggerDescription ? (
+                <span className="block truncate text-xs text-muted-foreground">
+                  {selectedTriggerDescription}
+                </span>
+              ) : null}
             </span>
           </span>
           <ChevronUpDownIcon className="h-4 w-4 shrink-0 opacity-50" />
@@ -168,15 +237,8 @@ export function Combobox({
                       isSelected ? "opacity-100" : "opacity-0"
                     )}
                   />
-                  {option.avatarText ? (
-                    <span
-                      className={cn(
-                        "mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[10px] font-bold uppercase",
-                        option.avatarClassName ?? "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
-                      )}
-                    >
-                      {option.avatarText}
-                    </span>
+                  {option.avatarIcon || option.avatarText ? (
+                    <ComboboxOptionAvatar option={option} className="mt-0.5" />
                   ) : null}
                   <span className="min-w-0">
                     <span className="block truncate">{option.label}</span>

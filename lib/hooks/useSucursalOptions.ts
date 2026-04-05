@@ -2,11 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
+import type { ComboboxOption } from "@/components/ui/combobox"
 import { authFetch } from "@/lib/auth/auth-fetch"
 import {
-  getSucursalAvatarColor,
-  getSucursalInitials,
-  getSucursalLocationLabel,
+  buildSucursalComboboxOption,
   normalizeSucursalPageResponse,
 } from "@/lib/sucursal"
 import {
@@ -31,6 +30,14 @@ export function useSucursalOptions(enabled: boolean) {
   const debouncedSearch = useDebouncedValue(searchSucursal, SEARCH_DEBOUNCE_MS)
 
   const abortRef = useRef<AbortController | null>(null)
+  const knownSucursalesRef = useRef<Map<number, Sucursal>>(new Map())
+
+  const cacheSucursales = useCallback((items: Sucursal[]) => {
+    const nextCache = knownSucursalesRef.current
+    items.forEach((item) => {
+      nextCache.set(item.idSucursal, item)
+    })
+  }, [])
 
   const fetchListarSucursales = useCallback(async () => {
     abortRef.current?.abort()
@@ -53,7 +60,9 @@ export function useSucursalOptions(enabled: boolean) {
         return
       }
 
-      setSucursales(normalizeSucursalPageResponse(data).content)
+      const normalizedSucursales = normalizeSucursalPageResponse(data).content
+      cacheSucursales(normalizedSucursales)
+      setSucursales(normalizedSucursales)
     } catch (requestError) {
       if (isAbortError(requestError)) return
       const message =
@@ -65,7 +74,7 @@ export function useSucursalOptions(enabled: boolean) {
         setLoadingSucursales(false)
       }
     }
-  }, [])
+  }, [cacheSucursales])
 
   const fetchBuscarSucursales = useCallback(async (query: string) => {
     abortRef.current?.abort()
@@ -91,7 +100,9 @@ export function useSucursalOptions(enabled: boolean) {
         return
       }
 
-      setSucursales(normalizeSucursalPageResponse(data).content)
+      const normalizedSucursales = normalizeSucursalPageResponse(data).content
+      cacheSucursales(normalizedSucursales)
+      setSucursales(normalizedSucursales)
     } catch (requestError) {
       if (isAbortError(requestError)) return
       const message =
@@ -103,7 +114,7 @@ export function useSucursalOptions(enabled: boolean) {
         setLoadingSucursales(false)
       }
     }
-  }, [])
+  }, [cacheSucursales])
 
   useEffect(() => {
     if (!enabled) return
@@ -139,22 +150,39 @@ export function useSucursalOptions(enabled: boolean) {
     }
   }, [])
 
-  const sucursalOptions = useMemo(
+  const getSucursalOptionById = useCallback(
+    (idSucursal: number, fallbackName?: string | null): ComboboxOption => {
+      const cachedSucursal = knownSucursalesRef.current.get(idSucursal)
+
+      if (cachedSucursal) {
+        return buildSucursalComboboxOption(cachedSucursal)
+      }
+
+      return buildSucursalComboboxOption({
+        idSucursal,
+        nombre: fallbackName ?? `Sucursal #${idSucursal}`,
+      })
+    },
+    []
+  )
+
+  const getSucursalById = useCallback((idSucursal: number) => {
+    return knownSucursalesRef.current.get(idSucursal) ?? null
+  }, [])
+
+  const sucursalOptions = useMemo<ComboboxOption[]>(
     () =>
-      (Array.isArray(sucursales) ? sucursales : []).map((sucursal) => ({
-        value: String(sucursal.idSucursal),
-        label: sucursal.nombre,
-        description:
-          getSucursalLocationLabel(sucursal) || sucursal.nombreEmpresa,
-        avatarText: getSucursalInitials(sucursal.nombre),
-        avatarClassName: getSucursalAvatarColor(sucursal.idSucursal),
-      })),
+      (Array.isArray(sucursales) ? sucursales : []).map((sucursal) =>
+        buildSucursalComboboxOption(sucursal)
+      ),
     [sucursales]
   )
 
   return {
     sucursales,
     sucursalOptions,
+    getSucursalById,
+    getSucursalOptionById,
     loadingSucursales,
     errorSucursales,
     searchSucursal,

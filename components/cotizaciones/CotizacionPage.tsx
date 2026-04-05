@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, startTransition, useState, type ChangeEvent, type ReactNode } from "react"
+import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type ReactNode } from "react"
 import { useRouter } from "next/navigation"
 import {
   ArrowPathIcon,
@@ -26,9 +26,19 @@ import CartItem, { type CartItemData } from "@/components/ventas/CartItem"
 import ClientSelect, { type ClientSelection } from "@/components/ventas/ClientSelect"
 import ProductCard from "@/components/ventas/ProductCard"
 import ProductModal, { type SelectedVariant } from "@/components/ventas/ProductModal"
+import { Button } from "@/components/ui/button"
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { useAuth } from "@/lib/auth/auth-context"
+import { roleCanManageStock } from "@/lib/auth/roles"
 import { authFetch } from "@/lib/auth/auth-fetch"
 import {
   getCotizacionErrorMessage,
@@ -46,10 +56,10 @@ import { useCatalogViewMode } from "@/lib/hooks/useCatalogViewMode"
 import { useClienteCreate } from "@/lib/hooks/useClienteCreate"
 import { useProductos } from "@/lib/hooks/useProductos"
 import { useSucursalOptions } from "@/lib/hooks/useSucursalOptions"
-import { useBarcodeScan } from "@/lib/hooks/useBarcodeScan"
+import { useBarcodeScan, type BarcodeScanErrorContext } from "@/lib/hooks/useBarcodeScan"
 import { useGlobalBarcodeScanner } from "@/lib/hooks/useGlobalBarcodeScanner"
-import { useSucursalGlobal } from "@/lib/sucursal-global-context"
-import { getSucursalAvatarColor, getSucursalInitials } from "@/lib/sucursal"
+import { AgregarStockModal } from "@/components/stock/AgregarStockModal"
+import { buildSucursalComboboxOption } from "@/lib/sucursal"
 import type {
   CotizacionCreateRequest,
   CotizacionWriteResponse,
@@ -249,17 +259,57 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
   const router = useRouter()
   const { user } = useAuth()
   const isAdmin = user?.rol === "ADMINISTRADOR"
+  const canManageStock = roleCanManageStock(user?.rol)
   const userHasSucursal = hasValidSucursalId(user?.idSucursal)
   const isEditing = typeof cotizacionId === "number" && cotizacionId > 0
   const [catalogViewMode, setCatalogViewMode] = useCatalogViewMode()
   const isVariantView = catalogViewMode === "variantes"
 
   const [selectedSucursalId, setSelectedSucursalId] = useState<number | null>(null)
-  const defaultAdminSucursalId =
-    isAdmin && hasValidSucursalId(user?.idSucursal) ? user.idSucursal : null
-  const effectiveSelectedSucursalId = hasValidSucursalId(selectedSucursalId)
-    ? selectedSucursalId
-    : defaultAdminSucursalId
+  const [pendingSucursalChange, setPendingSucursalChange] = useState<string | null>(null)
+  const [stockModalOpen, setStockModalOpen] = useState(false)
+  const [stockModalSession, setStockModalSession] = useState(0)
+  const [stockModalDefaults, setStockModalDefaults] = useState<{
+    idSucursal?: number | null
+    codigoBarras?: string | null
+    query?: string | null
+  }>({})
+
+  const {
+    sucursales,
+    getSucursalById,
+    getSucursalOptionById,
+    loadingSucursales,
+    errorSucursales,
+    searchSucursal,
+    setSearchSucursal,
+  } = useSucursalOptions(isAdmin)
+
+  const sucursalesVenta = useMemo(
+    () => sucursales.filter((sucursal) => sucursal.tipo === "VENTA"),
+    [sucursales]
+  )
+
+  const sucursalesVentaIds = useMemo(
+    () => new Set(sucursalesVenta.map((sucursal) => sucursal.idSucursal)),
+    [sucursalesVenta]
+  )
+
+  const defaultAdminSucursalId = useMemo(
+    () =>
+      isAdmin &&
+      hasValidSucursalId(user?.idSucursal) &&
+      sucursalesVentaIds.has(user.idSucursal)
+        ? user.idSucursal
+        : null,
+    [isAdmin, sucursalesVentaIds, user]
+  )
+
+  const effectiveSelectedSucursalId =
+    hasValidSucursalId(selectedSucursalId) && sucursalesVentaIds.has(selectedSucursalId)
+      ? selectedSucursalId
+      : defaultAdminSucursalId
+
   const hasSelectedSucursal = hasValidSucursalId(effectiveSelectedSucursalId)
   const resolvedSucursalId = isAdmin
     ? hasSelectedSucursal
@@ -275,9 +325,11 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
     idCategoriaFilter: idCategoriaFilterProductos,
     idColorFilter: idColorFilterProductos,
     conOfertaFilter: conOfertaFilterProductos,
+    soloDisponiblesFilter: soloDisponiblesFilterProductos,
     setIdCategoriaFilter: setIdCategoriaFilterProductos,
     setIdColorFilter: setIdColorFilterProductos,
     setConOfertaFilter: setConOfertaFilterProductos,
+    setSoloDisponiblesFilter: setSoloDisponiblesFilterProductos,
     displayedProductos,
     displayedTotalElements: displayedTotalElementsProductos,
     displayedTotalPages: displayedTotalPagesProductos,
@@ -293,9 +345,11 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
     idCategoriaFilter: idCategoriaFilterVariantes,
     idColorFilter: idColorFilterVariantes,
     conOfertaFilter: conOfertaFilterVariantes,
+    soloDisponiblesFilter: soloDisponiblesFilterVariantes,
     setIdCategoriaFilter: setIdCategoriaFilterVariantes,
     setIdColorFilter: setIdColorFilterVariantes,
     setConOfertaFilter: setConOfertaFilterVariantes,
+    setSoloDisponiblesFilter: setSoloDisponiblesFilterVariantes,
     displayedCatalogVariants,
     displayedTotalElements: displayedTotalElementsVariantes,
     displayedTotalPages: displayedTotalPagesVariantes,
@@ -394,11 +448,35 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
     []
   )
 
+  const openStockModal = useCallback((defaults: {
+    idSucursal?: number | null
+    codigoBarras?: string | null
+    query?: string | null
+  }) => {
+    setStockModalDefaults(defaults)
+    setStockModalSession((prev) => prev + 1)
+    setStockModalOpen(true)
+  }, [])
+
   const handleBarcodeScanError = useCallback(
-    (message: string) => {
-      setCotizacionError(message)
+    (message: string, context?: BarcodeScanErrorContext) => {
+      const isStockError = /no tiene stock disponible/i.test(message)
+      if (isStockError && context && canManageStock) {
+        toast.error(message, {
+          description: "Puedes registrar una entrada de stock.",
+          action: {
+            label: "Agregar stock",
+            onClick: () => openStockModal({
+              idSucursal: context.idSucursal,
+              codigoBarras: context.codigoBarras,
+            }),
+          },
+        })
+      } else {
+        toast.error(message)
+      }
     },
-    []
+    [canManageStock, openStockModal]
   )
 
   const { scan: scanBarcode, scanning: scanningBarcode } = useBarcodeScan({
@@ -411,36 +489,38 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
     onScan: scanBarcode,
   })
 
-  const {
-    sucursalOptions,
-    loadingSucursales,
-    errorSucursales,
-    searchSucursal,
-    setSearchSucursal,
-  } = useSucursalOptions(isAdmin)
-
-  const { sucursalGlobal } = useSucursalGlobal()
-  useEffect(() => {
-    if (!isAdmin || sucursalGlobal === null) return
-    startTransition(() => setSelectedSucursalId(sucursalGlobal.idSucursal))
-  }, [sucursalGlobal, isAdmin])
-
   const { createCliente } = useClienteCreate({
     successMessage: "Cliente creado y seleccionado",
   })
 
+  const sucursalVentaOptions = useMemo<ComboboxOption[]>(
+    () => sucursalesVenta.map((sucursal) => buildSucursalComboboxOption(sucursal)),
+    [sucursalesVenta]
+  )
+
   const sucursalComboboxOptions = useMemo<ComboboxOption[]>(
-    () =>
-      hasSelectedSucursal &&
-      !sucursalOptions.some((option) => option.value === String(effectiveSelectedSucursalId))
-        ? [{
-            value: String(effectiveSelectedSucursalId),
-            label: `Sucursal #${effectiveSelectedSucursalId}`,
-            avatarText: getSucursalInitials("Sucursal"),
-            avatarClassName: getSucursalAvatarColor(effectiveSelectedSucursalId),
-          }, ...sucursalOptions]
-        : sucursalOptions,
-    [effectiveSelectedSucursalId, hasSelectedSucursal, sucursalOptions]
+    () => {
+      if (!hasSelectedSucursal) return sucursalVentaOptions
+
+      const selectedSucursal = getSucursalById(effectiveSelectedSucursalId)
+      const selectedOption =
+        selectedSucursal?.tipo === "VENTA"
+          ? buildSucursalComboboxOption(selectedSucursal)
+          : getSucursalOptionById(effectiveSelectedSucursalId)
+
+      return !sucursalVentaOptions.some(
+        (option) => option.value === String(effectiveSelectedSucursalId)
+      )
+        ? [selectedOption, ...sucursalVentaOptions]
+        : sucursalVentaOptions
+    },
+    [
+      effectiveSelectedSucursalId,
+      getSucursalById,
+      getSucursalOptionById,
+      hasSelectedSucursal,
+      sucursalVentaOptions,
+    ]
   )
 
   useEffect(() => {
@@ -603,6 +683,7 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
   const idCategoriaFilter = isVariantView ? idCategoriaFilterVariantes : idCategoriaFilterProductos
   const idColorFilter = isVariantView ? idColorFilterVariantes : idColorFilterProductos
   const conOfertaFilter = isVariantView ? conOfertaFilterVariantes : conOfertaFilterProductos
+  const soloDisponiblesFilter = isVariantView ? soloDisponiblesFilterVariantes : soloDisponiblesFilterProductos
   const shouldShowCatalogFilters = resolvedSucursalId !== null
   const displayedTotalElements = isVariantView
     ? displayedTotalElementsVariantes
@@ -705,6 +786,18 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
     [isVariantView, setConOfertaFilterProductos, setConOfertaFilterVariantes]
   )
 
+  const handleSoloDisponiblesFilterChange = useCallback(
+    (value: boolean) => {
+      if (isVariantView) {
+        setSoloDisponiblesFilterVariantes(value)
+        return
+      }
+
+      setSoloDisponiblesFilterProductos(value)
+    },
+    [isVariantView, setSoloDisponiblesFilterProductos, setSoloDisponiblesFilterVariantes]
+  )
+
   const handleDisplayedPageChange = useCallback(
     (value: number | ((previous: number) => number)) => {
       if (isVariantView) {
@@ -754,7 +847,7 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
     clearCotizacionError()
   }, [clearCotizacionError])
 
-  const handleSucursalChange = useCallback((value: string) => {
+  const applySucursalChange = useCallback((value: string) => {
     const parsedValue = Number(value)
     setSelectedSucursalId(Number.isFinite(parsedValue) && parsedValue > 0 ? parsedValue : null)
     setCategoryPage(0)
@@ -763,6 +856,7 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
     setIdColorFilterProductos(null)
     setIdCategoriaFilterVariantes(null)
     setIdColorFilterVariantes(null)
+    setCart([])
     clearCotizacionError()
   }, [
     clearCotizacionError,
@@ -771,6 +865,25 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
     setIdCategoriaFilterVariantes,
     setIdColorFilterVariantes,
   ])
+
+  const handleSucursalChange = useCallback((value: string) => {
+    if (cart.length > 0) {
+      setPendingSucursalChange(value)
+      return
+    }
+    applySucursalChange(value)
+  }, [cart.length, applySucursalChange])
+
+  const handleConfirmSucursalChange = useCallback(() => {
+    if (pendingSucursalChange !== null) {
+      applySucursalChange(pendingSucursalChange)
+      setPendingSucursalChange(null)
+    }
+  }, [pendingSucursalChange, applySucursalChange])
+
+  const handleCancelSucursalChange = useCallback(() => {
+    setPendingSucursalChange(null)
+  }, [])
 
   const handleOpenDiscountEditor = useCallback(() => {
     setDiscountDraft(
@@ -828,45 +941,26 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
     setModalVariantSelection(null)
   }, [])
 
-  const openProductModal = useCallback((producto: ProductoResumen) => {
-    setModalVariantSelection(null)
+  const openProductModal = useCallback((producto: ProductoResumen, colorId: number | null = null) => {
+    setModalVariantSelection(colorId !== null ? { colorId, tallaId: 0 } : null)
     setModalProduct(producto)
     clearCotizacionError()
   }, [clearCotizacionError])
 
-  const handleEditItem = useCallback((item: CartItemData) => {
-    const matchedVariant =
-      displayedCatalogVariants.find((variant) => matchesCatalogVariantItem(item, variant)) ??
-      productViewVariantItems.find((variant) => matchesCatalogVariantItem(item, variant)) ??
-      null
-    const producto =
-      displayedProductos.find((candidate) => candidate.idProducto === item.id) ??
-      matchedVariant?.product ??
-      null
-
-    if (!producto) {
-      setCotizacionError("No se encontro el producto para editar la variante.")
-      return
-    }
-
+  const handleEditCartItemPrice = useCallback((item: CartItemData, newPrice: number) => {
     setCart((previous) =>
-      previous.filter((current) => {
+      previous.map((current) => {
         if (item.varianteId && current.varianteId) {
-          return current.varianteId !== item.varianteId
+          return current.varianteId === item.varianteId
+            ? { ...current, precio: newPrice, precioSeleccionado: "editado" }
+            : current
         }
-
-        return !(
-          current.id === item.id &&
-          current.talla === item.talla &&
-          current.color === item.color
-        )
+        return current.id === item.id && current.talla === item.talla && current.color === item.color
+          ? { ...current, precio: newPrice, precioSeleccionado: "editado" }
+          : current
       })
     )
-
-    setModalVariantSelection(matchedVariant?.selection ?? null)
-    setModalProduct(producto)
-    clearCotizacionError()
-  }, [clearCotizacionError, displayedCatalogVariants, displayedProductos, productViewVariantItems])
+  }, [])
 
   const addVariantToCart = useCallback((variant: SelectedVariant) => {
     setCart((previous) => {
@@ -1127,6 +1221,7 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
       <ProductModal
         product={modalProduct}
         initialSelection={modalVariantSelection}
+        idSucursal={resolvedSucursalId}
         onClose={closeModal}
         onConfirm={addVariantToCart}
       />
@@ -1137,6 +1232,32 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
         prefill={clientCreatePrefill}
         onCreated={handleClientCreated}
       />
+
+      <Dialog
+        open={pendingSucursalChange !== null}
+        onOpenChange={(open) => { if (!open) handleCancelSucursalChange() }}
+      >
+        <DialogContent showCloseButton={false} className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>¿Cambiar sucursal?</DialogTitle>
+            <DialogDescription>
+              Tienes{" "}
+              <span className="font-semibold text-slate-700 dark:text-slate-200">
+                {cart.length} {cart.length === 1 ? "producto" : "productos"}
+              </span>{" "}
+              en la cotizacion actual. Al cambiar de sucursal se eliminará la cotizacion completa porque el stock es diferente por sucursal.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCancelSucursalChange}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={handleConfirmSucursalChange}>
+              Cambiar sucursal
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <div className="flex h-[calc(100vh-7rem)] min-h-0 gap-5">
         <div className="flex min-h-0 min-w-0 flex-[7] flex-col gap-3">
@@ -1174,6 +1295,20 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
                 </button>
                 <button
                   type="button"
+                  onClick={() => handleSoloDisponiblesFilterChange(!soloDisponiblesFilter)}
+                  className={`inline-flex h-11 items-center gap-2 rounded-xl border px-3 text-xs font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/20 ${
+                    soloDisponiblesFilter
+                      ? "border-emerald-500 bg-emerald-50 text-emerald-700 dark:border-emerald-500/70 dark:bg-emerald-500/10 dark:text-emerald-200"
+                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700/70"
+                  }`}
+                  title="Mostrar solo productos con stock disponible"
+                  aria-pressed={soloDisponiblesFilter}
+                >
+                  <CheckCircleIcon className="h-4 w-4" />
+                  {soloDisponiblesFilter ? "Disponibles" : "Disponible"}
+                </button>
+                <button
+                  type="button"
                   onClick={toggleScanner}
                   className={`inline-flex h-11 items-center gap-2 rounded-xl border px-3 text-xs font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/20 ${
                     scannerActive
@@ -1189,7 +1324,11 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
                     <ArrowPathIcon className="h-3.5 w-3.5 animate-spin" />
                   )}
                 </button>
-                <CatalogViewToggle value={catalogViewMode} onChange={setCatalogViewMode} />
+                <CatalogViewToggle
+                  value={catalogViewMode}
+                  onChange={setCatalogViewMode}
+                  iconSet="ventas"
+                />
               </div>
             </div>
 
@@ -1262,6 +1401,13 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
                       product={variant.product}
                       variantItem={variant}
                       onAdd={() => handleSelectCatalogVariant(variant)}
+                      onAddStock={canManageStock && variant.stock !== null && variant.stock <= 0 ? () => {
+                        openStockModal({
+                          idSucursal: resolvedSucursalId,
+                          codigoBarras: variant.codigoBarras ?? null,
+                          query: !variant.codigoBarras ? `${variant.productName} ${variant.tallaName}` : null,
+                        })
+                      } : undefined}
                     />
                   ))}
                 </div>
@@ -1371,7 +1517,7 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
                     onDecrease={(id) => updateQty(id, item.talla, item.color, -1, item.varianteId)}
                     onRemove={(id) => removeFromCart(id, item.talla, item.color, item.varianteId)}
                     onSelectPrice={handleSelectCartItemPrice}
-                    onEdit={handleEditItem}
+                    onEditPrice={handleEditCartItemPrice}
                     showPriceTypeBadge
                   />
                 ))
@@ -1512,6 +1658,22 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
           </div>
         </div>
       </div>
+
+      <AgregarStockModal
+        key={`stock-modal-${stockModalSession}`}
+        open={stockModalOpen}
+        onOpenChange={setStockModalOpen}
+        defaultIdSucursal={stockModalDefaults.idSucursal}
+        defaultCodigoBarras={stockModalDefaults.codigoBarras}
+        defaultQuery={stockModalDefaults.query}
+        onSuccess={() => {
+          if (isVariantView) {
+            refreshVariantesView()
+          } else {
+            refreshProductosView()
+          }
+        }}
+      />
     </>
   )
 }

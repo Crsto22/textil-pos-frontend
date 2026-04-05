@@ -9,26 +9,21 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
+import { RoleMasterDetail } from "@/components/usuarios/RoleMasterDetail"
 import { useSucursalOptions } from "@/lib/hooks/useSucursalOptions"
 import {
-  emptyUpdate,
+  emptyUpdateForm,
+  getUsuarioRoleOptionsBySucursalType,
   isUsuarioRol,
   normalizeUsuarioRol,
-  usuarioRolRequiresSucursal,
-  USUARIO_ROLE_OPTIONS,
+  validateUsuarioRoleAssignment,
   type Usuario,
+  type UsuarioUpdateFormState,
   type UsuarioUpdateRequest,
 } from "@/lib/types/usuario"
 
@@ -39,43 +34,86 @@ interface UsuarioEditDialogProps {
   onUpdate: (id: number, payload: UsuarioUpdateRequest) => Promise<boolean>
 }
 
+function hasValidSucursalId(idSucursal?: number | null): idSucursal is number {
+  return typeof idSucursal === "number" && idSucursal > 0
+}
+
 export function UsuarioEditDialog({
   open,
   user,
   onOpenChange,
   onUpdate,
 }: UsuarioEditDialogProps) {
-  const [form, setForm] = useState<UsuarioUpdateRequest>(emptyUpdate)
+  const [form, setForm] = useState<UsuarioUpdateFormState>(emptyUpdateForm)
   const [isUpdating, setIsUpdating] = useState(false)
+
   const {
     sucursalOptions,
+    getSucursalById,
+    getSucursalOptionById,
     loadingSucursales,
     errorSucursales,
     searchSucursal,
     setSearchSucursal,
   } = useSucursalOptions(open)
 
-  const requiresSucursal = usuarioRolRequiresSucursal(form.rol)
-  const hasValidSucursal =
-    typeof form.idSucursal === "number" && form.idSucursal > 0
+  const hasValidSucursal = hasValidSucursalId(form.idSucursal)
+
+  const selectedSucursalType = useMemo(() => {
+    if (!hasValidSucursal) return null
+
+    const selectedSucursal = getSucursalById(Number(form.idSucursal))
+    if (selectedSucursal) return selectedSucursal.tipo
+
+    if (user?.idSucursal === Number(form.idSucursal)) {
+      return user.tipoSucursal
+    }
+
+    return null
+  }, [form.idSucursal, getSucursalById, hasValidSucursal, user])
+
+  const availableRoleOptions = useMemo(
+    () => getUsuarioRoleOptionsBySucursalType(selectedSucursalType),
+    [selectedSucursalType]
+  )
+
+  const validation = useMemo(
+    () =>
+      validateUsuarioRoleAssignment(
+        form.rol,
+        form.idSucursal,
+        selectedSucursalType
+      ),
+    [form.idSucursal, form.rol, selectedSucursalType]
+  )
 
   const comboboxOptions = useMemo<ComboboxOption[]>(
     () =>
-      hasValidSucursal &&
-      !sucursalOptions.some((option) => option.value === String(form.idSucursal))
-        ? [
-            {
-              value: String(form.idSucursal),
-              label: user?.nombreSucursal || `Sucursal #${form.idSucursal}`,
-            },
-            ...sucursalOptions,
-          ]
-        : sucursalOptions,
-    [form.idSucursal, hasValidSucursal, sucursalOptions, user?.nombreSucursal]
+      [
+        { value: "", label: "Sin sucursal" },
+        ...(
+          hasValidSucursal &&
+          !sucursalOptions.some((option) => option.value === String(form.idSucursal))
+            ? [getSucursalOptionById(Number(form.idSucursal), user?.nombreSucursal)]
+            : []
+        ),
+        ...sucursalOptions,
+      ],
+    [
+      form.idSucursal,
+      getSucursalOptionById,
+      hasValidSucursal,
+      sucursalOptions,
+      user?.nombreSucursal,
+    ]
   )
 
   useEffect(() => {
     if (!open || !user) return
+
+    const initialRole = normalizeUsuarioRol(user.rol)
+    const initialBranchId =
+      initialRole === "ADMINISTRADOR" ? null : user.idSucursal
 
     setForm({
       nombre: user.nombre,
@@ -83,12 +121,14 @@ export function UsuarioEditDialog({
       dni: user.dni,
       telefono: user.telefono,
       correo: user.correo,
-      rol: normalizeUsuarioRol(user.rol),
+      rol: initialRole,
       estado: user.estado,
-      idSucursal: user.idSucursal,
+      idSucursal: initialBranchId,
     })
     setSearchSucursal("")
   }, [open, setSearchSucursal, user])
+
+  const showSucursalField = form.rol !== "" && form.rol !== "ADMINISTRADOR"
 
   const isEditValid = useMemo(
     () =>
@@ -97,33 +137,31 @@ export function UsuarioEditDialog({
       form.dni.length === 8 &&
       form.telefono.length === 9 &&
       form.correo.trim() !== "" &&
-      isUsuarioRol(form.rol) &&
-      (!requiresSucursal || hasValidSucursal),
-    [form, hasValidSucursal, requiresSucursal]
+      validation.isValid,
+    [form, validation.isValid]
   )
 
   const handleOpenChange = (nextOpen: boolean) => {
     onOpenChange(nextOpen)
     if (!nextOpen) {
-      setForm(emptyUpdate)
+      setForm(emptyUpdateForm)
       setSearchSucursal("")
     }
   }
 
   const handleUpdate = async () => {
-    if (!user || !isEditValid) return
+    if (!user || !isEditValid || !isUsuarioRol(form.rol)) return
 
     const payload: UsuarioUpdateRequest = {
       ...form,
-      idSucursal: requiresSucursal ? form.idSucursal : null,
+      rol: form.rol,
+      idSucursal: form.rol === "ADMINISTRADOR" ? null : form.idSucursal,
     }
 
     setIsUpdating(true)
     try {
       const success = await onUpdate(user.idUsuario, payload)
-      if (success) {
-        handleOpenChange(false)
-      }
+      if (success) handleOpenChange(false)
     } finally {
       setIsUpdating(false)
     }
@@ -131,7 +169,7 @@ export function UsuarioEditDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-120">
+      <DialogContent className="sm:max-w-[740px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Editar Usuario</DialogTitle>
           <DialogDescription>
@@ -146,11 +184,8 @@ export function UsuarioEditDialog({
               <Input
                 id="e-nombre"
                 value={form.nombre}
-                onChange={(event) =>
-                  setForm((previous) => ({
-                    ...previous,
-                    nombre: event.target.value,
-                  }))
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, nombre: e.target.value }))
                 }
               />
             </div>
@@ -159,11 +194,8 @@ export function UsuarioEditDialog({
               <Input
                 id="e-apellido"
                 value={form.apellido}
-                onChange={(event) =>
-                  setForm((previous) => ({
-                    ...previous,
-                    apellido: event.target.value,
-                  }))
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, apellido: e.target.value }))
                 }
               />
             </div>
@@ -176,37 +208,37 @@ export function UsuarioEditDialog({
                 id="e-dni"
                 maxLength={8}
                 value={form.dni}
-                onChange={(event) =>
-                  setForm((previous) => ({
-                    ...previous,
-                    dni: event.target.value.replace(/\D/g, "").slice(0, 8),
+                onChange={(e) =>
+                  setForm((p) => ({
+                    ...p,
+                    dni: e.target.value.replace(/\D/g, "").slice(0, 8),
                   }))
                 }
               />
-              {form.dni.length > 0 && form.dni.length < 8 && (
+              {form.dni.length > 0 && form.dni.length < 8 ? (
                 <p className="text-xs text-red-500">
-                  Debe tener 8 dígitos ({form.dni.length}/8)
+                  Debe tener 8 digitos ({form.dni.length}/8)
                 </p>
-              )}
+              ) : null}
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="e-telefono">Teléfono</Label>
+              <Label htmlFor="e-telefono">Telefono</Label>
               <Input
                 id="e-telefono"
                 maxLength={9}
                 value={form.telefono}
-                onChange={(event) =>
-                  setForm((previous) => ({
-                    ...previous,
-                    telefono: event.target.value.replace(/\D/g, "").slice(0, 9),
+                onChange={(e) =>
+                  setForm((p) => ({
+                    ...p,
+                    telefono: e.target.value.replace(/\D/g, "").slice(0, 9),
                   }))
                 }
               />
-              {form.telefono.length > 0 && form.telefono.length < 9 && (
+              {form.telefono.length > 0 && form.telefono.length < 9 ? (
                 <p className="text-xs text-red-500">
-                  Debe tener 9 dígitos ({form.telefono.length}/9)
+                  Debe tener 9 digitos ({form.telefono.length}/9)
                 </p>
-              )}
+              ) : null}
             </div>
           </div>
 
@@ -216,48 +248,18 @@ export function UsuarioEditDialog({
               id="e-correo"
               type="email"
               value={form.correo}
-              onChange={(event) =>
-                setForm((previous) => ({ ...previous, correo: event.target.value }))
+              onChange={(e) =>
+                setForm((p) => ({ ...p, correo: e.target.value }))
               }
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="e-rol">Rol</Label>
-              <Select
-                value={form.rol}
-                onValueChange={(value) =>
-                  setForm((previous) => {
-                    if (!isUsuarioRol(value)) return previous
-                    return {
-                      ...previous,
-                      rol: value,
-                      idSucursal: usuarioRolRequiresSucursal(value)
-                        ? previous.idSucursal
-                        : null,
-                    }
-                  })
-                }
-              >
-                <SelectTrigger className="w-full" id="e-rol">
-                  <SelectValue placeholder="Selecciona rol" />
-                </SelectTrigger>
-                <SelectContent>
-                  {USUARIO_ROLE_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="e-estado">Estado</Label>
-              <div className="flex h-9 items-center justify-between rounded-md border px-3">
+          <div className="grid gap-2">
+            <div className="flex items-center justify-between">
+              <Label>Rol y permisos</Label>
+              <div className="flex items-center gap-2">
                 <span
-                  className={`text-sm font-medium ${
+                  className={`text-xs font-medium ${
                     form.estado === "ACTIVO" ? "text-emerald-600" : "text-slate-500"
                   }`}
                 >
@@ -267,8 +269,8 @@ export function UsuarioEditDialog({
                   id="e-estado"
                   checked={form.estado === "ACTIVO"}
                   onCheckedChange={(checked) =>
-                    setForm((previous) => ({
-                      ...previous,
+                    setForm((p) => ({
+                      ...p,
                       estado: checked ? "ACTIVO" : "INACTIVO",
                     }))
                   }
@@ -276,9 +278,26 @@ export function UsuarioEditDialog({
                 />
               </div>
             </div>
+
+            <RoleMasterDetail
+              availableRoles={availableRoleOptions}
+              selectedRol={form.rol}
+              onSelect={(value) => {
+                if (!isUsuarioRol(value)) return
+                setForm((p) => ({
+                  ...p,
+                  rol: value,
+                  idSucursal: value === "ADMINISTRADOR" ? null : p.idSucursal,
+                }))
+              }}
+            />
+
+            {validation.rolError && form.rol !== "" ? (
+              <p className="text-xs text-red-500">{validation.rolError}</p>
+            ) : null}
           </div>
 
-          {requiresSucursal ? (
+          {showSucursalField ? (
             <div className="grid gap-2">
               <Label htmlFor="e-sucursal">Sucursal</Label>
               <Combobox
@@ -287,26 +306,32 @@ export function UsuarioEditDialog({
                 options={comboboxOptions}
                 searchValue={searchSucursal}
                 onSearchValueChange={setSearchSucursal}
-                onValueChange={(value) =>
-                  setForm((previous) => ({
-                    ...previous,
-                    idSucursal: Number(value),
-                  }))
-                }
+                onValueChange={(value) => {
+                  const parsed = Number(value)
+                  const resolvedId =
+                    Number.isInteger(parsed) && parsed > 0 ? parsed : null
+
+                  setForm((p) => ({ ...p, idSucursal: resolvedId }))
+                }}
                 placeholder="Selecciona una sucursal"
                 searchPlaceholder="Buscar sucursal..."
                 emptyMessage="No se encontraron sucursales"
                 loading={loadingSucursales}
               />
-              {errorSucursales && (
+
+              {validation.sucursalError ? (
+                <p className="text-xs text-red-500">{validation.sucursalError}</p>
+              ) : null}
+              {errorSucursales ? (
                 <p className="text-xs text-red-500">{errorSucursales}</p>
-              )}
+              ) : null}
             </div>
-          ) : (
+          ) : form.rol === "ADMINISTRADOR" ? (
             <p className="text-xs text-muted-foreground">
-              El rol Administrador no requiere sucursal.
+              El rol Administrador no requiere sucursal y se guardara sin
+              sucursal asignada.
             </p>
-          )}
+          ) : null}
         </div>
 
         <DialogFooter>
@@ -315,7 +340,11 @@ export function UsuarioEditDialog({
               Cancelar
             </Button>
           </DialogClose>
-          <Button type="button" onClick={handleUpdate} disabled={!isEditValid || isUpdating}>
+          <Button
+            type="button"
+            onClick={handleUpdate}
+            disabled={!isEditValid || isUpdating}
+          >
             {isUpdating ? "Guardando..." : "Guardar cambios"}
           </Button>
         </DialogFooter>

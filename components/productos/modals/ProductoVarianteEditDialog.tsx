@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 
-import { AlertTriangle, Barcode, Loader2, Sparkles } from "lucide-react"
+import { AlertTriangle, Barcode, Loader2, MapPin, Sparkles } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -32,7 +32,6 @@ interface VarianteEditFormState {
   codigoBarras: string
   precio: string
   precioMayor: string
-  stock: string
 }
 
 function createEmptyForm(): VarianteEditFormState {
@@ -41,7 +40,6 @@ function createEmptyForm(): VarianteEditFormState {
     codigoBarras: "",
     precio: "",
     precioMayor: "",
-    stock: "",
   }
 }
 
@@ -70,13 +68,6 @@ function parseOptionalPositivePrice(value: string) {
   return { value: parsed, invalid: false }
 }
 
-function parseRequiredStock(value: string): number | null {
-  if (value.trim() === "") return null
-  const parsed = Number(value)
-  if (!Number.isInteger(parsed) || parsed < 0) return null
-  return parsed
-}
-
 function hasValidOffer(target: CatalogVariantItem | null): boolean {
   return typeof target?.offerPrice === "number" && target.offerPrice > 0
 }
@@ -101,12 +92,10 @@ export function ProductoVarianteEditDialog({
       codigoBarras: target.codigoBarras ?? "",
       precio: toInputValue(target.regularPrice),
       precioMayor: toOptionalPositiveInputValue(target.wholesalePrice),
-      stock: toInputValue(target.stock),
     })
   }, [open, target])
 
   const parsedPrecio = parseRequiredPrice(form.precio)
-  const parsedStock = parseRequiredStock(form.stock)
   const parsedPrecioMayor = parseOptionalPositivePrice(form.precioMayor)
   const hasSku = form.sku.trim() !== ""
   const hasOffer = hasValidOffer(target)
@@ -114,7 +103,6 @@ export function ProductoVarianteEditDialog({
   const isEditValid =
     hasSku &&
     parsedPrecio !== null &&
-    parsedStock !== null &&
     !parsedPrecioMayor.invalid
 
   const originalBarcode = target?.codigoBarras ?? ""
@@ -151,7 +139,7 @@ export function ProductoVarianteEditDialog({
       codigoBarras,
       precio: parsedPrecio ?? 0,
       precioMayor: parsedPrecioMayor.value,
-      stock: parsedStock ?? 0,
+      stock: target.stock ?? 0,
     }
 
     setIsUpdating(true)
@@ -253,7 +241,7 @@ export function ProductoVarianteEditDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="grid gap-2">
               <Label htmlFor="producto-variante-precio">Precio</Label>
               <Input
@@ -281,20 +269,42 @@ export function ProductoVarianteEditDialog({
                 }}
               />
             </div>
+          </div>
 
-            <div className="grid gap-2">
-              <Label htmlFor="producto-variante-stock">Stock</Label>
-              <Input
-                id="producto-variante-stock"
-                type="number"
-                min="0"
-                step="1"
-                value={form.stock}
-                onChange={(event) => {
-                  setForm((previous) => ({ ...previous, stock: event.target.value }))
-                }}
-              />
-            </div>
+          <div className="grid gap-2">
+            <Label className="flex items-center gap-1.5">
+              <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+              Stock por sucursal
+            </Label>
+            {target && target.stocksSucursalesVenta.length > 0 ? (
+              <div className="grid gap-2">
+                {target.stocksSucursalesVenta.map((stockItem) => (
+                  <div
+                    key={stockItem.idSucursal}
+                    className="grid gap-1"
+                  >
+                    <Label className="text-xs text-muted-foreground">
+                      Stock en {stockItem.nombreSucursal}
+                    </Label>
+                    <div className="rounded-md border bg-muted/30 px-3 py-2 text-sm font-semibold tabular-nums">
+                      {stockItem.stock}
+                    </div>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm dark:border-blue-900/40 dark:bg-blue-900/10">
+                  <span className="font-medium text-blue-700 dark:text-blue-300">
+                    Stock total
+                  </span>
+                  <span className="font-bold tabular-nums text-blue-700 dark:text-blue-300">
+                    {target.stock ?? 0}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-lg border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+                Stock total: {target?.stock ?? 0}
+              </div>
+            )}
           </div>
 
           {hasOffer && (

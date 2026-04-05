@@ -1,4 +1,8 @@
 import type {
+  ComboboxOption,
+  ComboboxOptionAvatarIcon,
+} from "@/components/ui/combobox"
+import type {
   PageResponse,
   Sucursal,
   SucursalCreateRequest,
@@ -13,6 +17,15 @@ function toTrimmedString(value: unknown): string {
 function toNumber(value: unknown, fallback = 0): number {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : fallback
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+function toOptionalTrimmedString(value: unknown): string | undefined {
+  const trimmed = toTrimmedString(value)
+  return trimmed.length > 0 ? trimmed : undefined
 }
 
 function normalizeUsuarios(value: unknown): string[] {
@@ -40,6 +53,7 @@ function normalizeUsuariosDetalle(value: unknown): SucursalUsuarioDetalle[] {
       return {
         idUsuario,
         nombreCompleto,
+        rol: toTrimmedString(data.rol),
         fotoPerfilUrl: fotoPerfilUrl.length > 0 ? fotoPerfilUrl : null,
       }
     })
@@ -57,6 +71,44 @@ const sucursalAvatarColors = [
   "bg-orange-500 text-white",
 ]
 
+export function getSucursalTypeLabel(tipo: string | null | undefined): string {
+  const normalizedTipo = toTrimmedString(tipo).toUpperCase()
+
+  if (normalizedTipo === "VENTA") return "Venta"
+  if (normalizedTipo === "ALMACEN") return "Almacen"
+  if (!normalizedTipo) return ""
+
+  return normalizedTipo.charAt(0) + normalizedTipo.slice(1).toLowerCase()
+}
+
+export function getSucursalAvatarIcon(
+  tipo: string | null | undefined
+): ComboboxOptionAvatarIcon {
+  return toTrimmedString(tipo).toUpperCase() === "ALMACEN"
+    ? "warehouse"
+    : "storefront"
+}
+
+export function buildSucursalComboboxOption(input: {
+  idSucursal: number
+  nombre: string
+  tipo?: string | null
+}): ComboboxOption {
+  const label = toTrimmedString(input.nombre) || `Sucursal #${input.idSucursal}`
+  const typeLabel = getSucursalTypeLabel(input.tipo)
+  const description = typeLabel ? `Tipo: ${typeLabel}` : undefined
+
+  return {
+    value: String(input.idSucursal),
+    label,
+    description,
+    triggerDescription: description,
+    avatarIcon: getSucursalAvatarIcon(input.tipo),
+    avatarClassName:
+      "bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-300",
+  }
+}
+
 export function normalizeSucursal(value: unknown): Sucursal | null {
   if (!value || typeof value !== "object") return null
 
@@ -70,15 +122,11 @@ export function normalizeSucursal(value: unknown): Sucursal | null {
   return {
     idSucursal,
     nombre: toTrimmedString(data.nombre),
-    descripcion: toTrimmedString(data.descripcion),
+    ciudad: toTrimmedString(data.ciudad),
     direccion: toTrimmedString(data.direccion),
     telefono: toTrimmedString(data.telefono),
     correo: toTrimmedString(data.correo),
-    ubigeo: toTrimmedString(data.ubigeo),
-    departamento: toTrimmedString(data.departamento),
-    provincia: toTrimmedString(data.provincia),
-    distrito: toTrimmedString(data.distrito),
-    codigoEstablecimientoSunat: toTrimmedString(data.codigoEstablecimientoSunat),
+    tipo: (toTrimmedString(data.tipo) || "VENTA") as "VENTA" | "ALMACEN",
     estado: toTrimmedString(data.estado) || "ACTIVO",
     fechaCreacion: toTrimmedString(data.fechaCreacion),
     idEmpresa: toNumber(data.idEmpresa),
@@ -130,31 +178,37 @@ export function normalizeSucursalPageResponse(
   }
 }
 
-export function sanitizeSucursalPayload<T extends SucursalCreateRequest | SucursalUpdateRequest>(
-  payload: T
-): T {
-  return {
-    ...payload,
-    nombre: payload.nombre.trim(),
-    descripcion: payload.descripcion.trim(),
-    direccion: payload.direccion.trim(),
-    telefono: payload.telefono.trim(),
-    correo: payload.correo.trim(),
-    ubigeo: payload.ubigeo.trim(),
-    departamento: payload.departamento.trim(),
-    provincia: payload.provincia.trim(),
-    distrito: payload.distrito.trim(),
-    codigoEstablecimientoSunat: payload.codigoEstablecimientoSunat.trim(),
+export function sanitizeSucursalRequestBody(value: unknown): Record<string, unknown> {
+  if (!isRecord(value)) return {}
+
+  const { telefono, correo, ...rest } = value
+  const sanitizedPayload: Record<string, unknown> = {
+    ...rest,
+    nombre: toTrimmedString(value.nombre),
+    ciudad: toTrimmedString(value.ciudad),
+    direccion: toTrimmedString(value.direccion),
   }
+
+  const sanitizedTelefono = toOptionalTrimmedString(telefono)
+  const sanitizedCorreo = toOptionalTrimmedString(correo)
+
+  if (sanitizedTelefono) {
+    sanitizedPayload.telefono = sanitizedTelefono
+  }
+
+  if (sanitizedCorreo) {
+    sanitizedPayload.correo = sanitizedCorreo
+  }
+
+  return sanitizedPayload
 }
 
-export function getSucursalLocationLabel(
-  sucursal: Pick<Sucursal, "distrito" | "provincia" | "departamento">
-): string {
-  return [sucursal.distrito, sucursal.provincia, sucursal.departamento]
-    .map((item) => item.trim())
-    .filter((item) => item.length > 0)
-    .join(", ")
+export function sanitizeSucursalPayload(
+  payload: SucursalCreateRequest | SucursalUpdateRequest
+): SucursalCreateRequest | SucursalUpdateRequest {
+  return sanitizeSucursalRequestBody(payload) as unknown as
+    | SucursalCreateRequest
+    | SucursalUpdateRequest
 }
 
 export function getSucursalAvatarColor(idSucursal: number): string {

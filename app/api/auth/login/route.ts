@@ -60,6 +60,7 @@ export async function POST(request: NextRequest) {
       fechaCreacion: data.fechaCreacion,
       idSucursal: data.idSucursal,
       nombreSucursal: data.nombreSucursal,
+      tipoSucursal: data.tipoSucursal,
     }
 
     const response = NextResponse.json(

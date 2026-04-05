@@ -1,4 +1,4 @@
-import type { SucursalBase } from "@/lib/types/sucursal"
+import type { EmpresaLocationFields } from "@/lib/types/empresa"
 
 export interface PeruUbigeoDistrict {
   code: string
@@ -23,10 +23,15 @@ export interface PeruUbigeoSelection {
   districtCode: string
 }
 
-export type SucursalLocationFields = Pick<
-  SucursalBase,
-  "ubigeo" | "departamento" | "provincia" | "distrito"
->
+export interface PeruUbigeoLocationFields {
+  ubigeo: string
+  departamento: string
+  provincia: string
+  distrito: string
+}
+
+export type SucursalLocationFields = PeruUbigeoLocationFields
+export type EmpresaUbigeoLocationFields = EmpresaLocationFields
 
 const EMPTY_SELECTION: PeruUbigeoSelection = {
   departmentCode: "",
@@ -83,7 +88,7 @@ export function arePeruUbigeoSelectionsEqual(
 
 export function findPeruUbigeoSelection(
   catalog: PeruUbigeoDepartment[],
-  fields: SucursalLocationFields
+  fields: PeruUbigeoLocationFields | EmpresaUbigeoLocationFields
 ): PeruUbigeoSelection {
   const ubigeo = fields.ubigeo.trim()
   if (ubigeo.length === 6) {

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef } from "react"
+import { useEffect, useMemo } from "react"
 import { MagnifyingGlassIcon } from "@heroicons/react/24/outline"
 
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
@@ -6,7 +6,6 @@ import { Input } from "@/components/ui/input"
 import { useCanFilterBySucursal, useCanFilterByUsuario } from "@/lib/hooks/useCanFilterByUsuario"
 import { useSucursalOptions } from "@/lib/hooks/useSucursalOptions"
 import { useUsuarioOptions } from "@/lib/hooks/useUsuarioOptions"
-import { useSucursalGlobal } from "@/lib/sucursal-global-context"
 import type { CotizacionHistorialFilters } from "@/lib/types/cotizacion"
 
 interface CotizacionesHistorialFiltersProps {
@@ -38,19 +37,6 @@ export function CotizacionesHistorialFilters({
 }: CotizacionesHistorialFiltersProps) {
   const canFilterByUsuario = useCanFilterByUsuario()
   const canFilterBySucursal = useCanFilterBySucursal()
-  const { sucursalGlobal } = useSucursalGlobal()
-  const filtersRef = useRef(filters)
-  const onChangeRef = useRef(onChange)
-  useLayoutEffect(() => {
-    filtersRef.current = filters
-    onChangeRef.current = onChange
-  })
-
-  // Sincronizar con sucursal global cuando cambia
-  useEffect(() => {
-    if (!canFilterBySucursal || sucursalGlobal === null) return
-    onChangeRef.current({ ...filtersRef.current, idSucursal: sucursalGlobal.idSucursal })
-  }, [sucursalGlobal, canFilterBySucursal])
 
   const {
     usuarioOptions,
@@ -61,6 +47,7 @@ export function CotizacionesHistorialFilters({
   } = useUsuarioOptions(canFilterByUsuario)
   const {
     sucursalOptions,
+    getSucursalOptionById,
     loadingSucursales,
     errorSucursales,
     searchSucursal,
@@ -100,12 +87,12 @@ export function CotizacionesHistorialFilters({
       ...(
         selectedSucursalValue &&
         !sucursalOptions.some((option) => option.value === selectedSucursalValue)
-          ? [{ value: selectedSucursalValue, label: `Sucursal #${selectedSucursalValue}` }]
+          ? [getSucursalOptionById(Number(selectedSucursalValue))]
           : []
       ),
       ...sucursalOptions,
     ],
-    [selectedSucursalValue, sucursalOptions]
+    [getSucursalOptionById, selectedSucursalValue, sucursalOptions]
   )
 
   return (

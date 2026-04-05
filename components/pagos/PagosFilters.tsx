@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef } from "react"
+import { useEffect, useMemo } from "react"
 import { MagnifyingGlassIcon } from "@heroicons/react/24/outline"
 
 import { ALL_PAGO_METHOD_FILTER } from "@/components/pagos/pagos.utils"
@@ -9,7 +9,6 @@ import { useCanFilterBySucursal, useCanFilterByUsuario } from "@/lib/hooks/useCa
 import { useMetodoPagoOptions } from "@/lib/hooks/useMetodoPagoOptions"
 import { useSucursalOptions } from "@/lib/hooks/useSucursalOptions"
 import { useUsuarioOptions } from "@/lib/hooks/useUsuarioOptions"
-import { useSucursalGlobal } from "@/lib/sucursal-global-context"
 import type { PagoFilters } from "@/lib/types/pago"
 
 const ESTADO_VENTA_OPTIONS = [
@@ -40,19 +39,6 @@ export function PagosFilters({
 }: PagosFiltersProps) {
   const canFilterByUsuario = useCanFilterByUsuario()
   const canFilterBySucursal = useCanFilterBySucursal()
-  const { sucursalGlobal } = useSucursalGlobal()
-  const filtersRef = useRef(filters)
-  const onChangeRef = useRef(onChange)
-  useLayoutEffect(() => {
-    filtersRef.current = filters
-    onChangeRef.current = onChange
-  })
-
-  // Sincronizar con sucursal global cuando cambia
-  useEffect(() => {
-    if (!canFilterBySucursal || sucursalGlobal === null) return
-    onChangeRef.current({ ...filtersRef.current, idSucursal: sucursalGlobal.idSucursal })
-  }, [sucursalGlobal, canFilterBySucursal])
 
   const { methodOptions, loadingMethods, errorMethods } = useMetodoPagoOptions(true)
   const {
@@ -64,6 +50,7 @@ export function PagosFilters({
   } = useUsuarioOptions(canFilterByUsuario)
   const {
     sucursalOptions,
+    getSucursalOptionById,
     loadingSucursales,
     errorSucursales,
     searchSucursal,
@@ -121,12 +108,12 @@ export function PagosFilters({
       ...(
         selectedSucursalValue &&
         !sucursalOptions.some((option) => option.value === selectedSucursalValue)
-          ? [{ value: selectedSucursalValue, label: `Sucursal #${selectedSucursalValue}` }]
+          ? [getSucursalOptionById(Number(selectedSucursalValue))]
           : []
       ),
       ...sucursalOptions,
     ],
-    [selectedSucursalValue, sucursalOptions]
+    [getSucursalOptionById, selectedSucursalValue, sucursalOptions]
   )
 
   return (

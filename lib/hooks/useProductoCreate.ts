@@ -25,6 +25,7 @@ import {
   type VariantEditableField,
   type VariantReadonlyOfferInfo,
   type VariantRow,
+  type VariantSucursalStockInput,
   type VariantStatus,
   type VariantValues,
 } from "@/lib/types/producto-create"
@@ -36,6 +37,7 @@ import type {
   ProductoImagenesUploadResponse,
   ProductoInsertarCompletoRequest,
   ProductoInsertarCompletoResponse,
+  ProductoVarianteStockSucursalRequest,
   ProductoVarianteCreateRequest,
 } from "@/lib/types/producto"
 import type { Talla } from "@/lib/types/talla"
@@ -321,8 +323,45 @@ function createEmptyVariantValues(): VariantValues {
     codigoBarras: "",
     precio: "",
     precioMayor: "",
+    stocksSucursales: {},
     stock: "",
   }
+}
+
+function normalizeVariantStocksSucursales(
+  value: VariantValues["stocksSucursales"] | undefined
+): VariantValues["stocksSucursales"] {
+  if (!value || typeof value !== "object") return {}
+
+  const normalized: VariantValues["stocksSucursales"] = {}
+
+  Object.entries(value).forEach(([key, rawValue]) => {
+    const idSucursal = Number(key)
+    if (!hasValidId(idSucursal)) return
+    if (typeof rawValue !== "string") return
+    normalized[idSucursal] = rawValue
+  })
+
+  return normalized
+}
+
+function buildVariantStockTotal(
+  stocksSucursales: VariantValues["stocksSucursales"]
+): string {
+  const normalizedStocks = normalizeVariantStocksSucursales(stocksSucursales)
+  const rawValues = Object.values(normalizedStocks).map((value) => value.trim())
+  const nonEmptyValues = rawValues.filter((value) => value !== "")
+
+  if (nonEmptyValues.length === 0) return ""
+
+  let total = 0
+  for (const rawValue of nonEmptyValues) {
+    const parsed = parseStock(rawValue)
+    if (parsed === null) return ""
+    total += parsed
+  }
+
+  return String(total)
 }
 
 function normalizeVariantStatus(value: string | null | undefined): VariantStatus {
@@ -336,6 +375,12 @@ function normalizeVariantValues(
   const base = createEmptyVariantValues()
   if (!values) return base
 
+  const stocksSucursales = normalizeVariantStocksSucursales(values.stocksSucursales)
+  const stock =
+    typeof values.stock === "string" && values.stock !== ""
+      ? values.stock
+      : buildVariantStockTotal(stocksSucursales)
+
   return {
     ...base,
     ...values,
@@ -346,7 +391,8 @@ function normalizeVariantValues(
     codigoBarras: typeof values.codigoBarras === "string" ? values.codigoBarras : "",
     precio: typeof values.precio === "string" ? values.precio : "",
     precioMayor: typeof values.precioMayor === "string" ? values.precioMayor : "",
-    stock: typeof values.stock === "string" ? values.stock : "",
+    stocksSucursales,
+    stock,
   }
 }
 
@@ -452,7 +498,6 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
   const isEditing = hasValidId(productoId)
 
   const [form, setForm] = useState<ProductoCreateFormState>({
-    idSucursal: isAdmin ? null : user?.idSucursal ?? null,
     idCategoria: null,
     nombre: "",
     descripcion: "",
@@ -460,24 +505,11 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
   const [loadingDetalle, setLoadingDetalle] = useState(isEditing)
   const [errorDetalle, setErrorDetalle] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (!isAdmin) {
-      setForm((previous) => ({
-        ...previous,
-        idSucursal: user?.idSucursal ?? null,
-      }))
-    }
-  }, [isAdmin, user?.idSucursal])
-
   const {
-    sucursalOptions,
+    sucursales,
     loadingSucursales,
     errorSucursales,
-    searchSucursal,
-    setSearchSucursal,
-  } = useSucursalOptions(isAdmin)
-
-  const selectedSucursalId = isAdmin ? form.idSucursal : user?.idSucursal ?? null
+  } = useSucursalOptions(true)
 
   const {
     categorias,
@@ -486,7 +518,7 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
     searchCategoria,
     setSearchCategoria,
     createCategoriaAndReturn,
-  } = useCategoriaOptions(hasValidId(selectedSucursalId), selectedSucursalId)
+  } = useCategoriaOptions(true)
 
   const {
     displayedColores,
@@ -527,8 +559,29 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
   const loadingAtributos = loadingColores || loadingTallas
   const errorAtributos = errorColores ?? errorTallas
 
-  const hasValidSucursal = hasValidId(form.idSucursal)
   const hasValidCategoria = hasValidId(form.idCategoria)
+
+  const activeStockSucursales = useMemo<VariantSucursalStockInput[]>(
+    () =>
+      sucursales
+        .filter(
+          (sucursal) =>
+            isActiveEntity(sucursal.estado) &&
+            (sucursal.tipo === "VENTA" || sucursal.tipo === "ALMACEN")
+        )
+        .sort((a, b) => {
+          if (a.tipo !== b.tipo) {
+            return a.tipo === "ALMACEN" ? -1 : 1
+          }
+          return a.nombre.localeCompare(b.nombre)
+        })
+        .map((sucursal) => ({
+          idSucursal: sucursal.idSucursal,
+          nombreSucursal: sucursal.nombre,
+          tipoSucursal: sucursal.tipo,
+        })),
+    [sucursales]
+  )
 
   const categoriaMap = useMemo(
     () => new Map(categorias.map((categoria) => [categoria.idCategoria, categoria])),
@@ -811,6 +864,12 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
               typeof variant.precioMayor === "number" && variant.precioMayor > 0
                 ? String(variant.precioMayor)
                 : "",
+            stocksSucursales: Object.fromEntries(
+              (variant.stocksSucursales ?? []).map((stockSucursal) => [
+                stockSucursal.idSucursal,
+                String(stockSucursal.cantidad),
+              ])
+            ),
             stock: String(variant.stock),
           }
 
@@ -868,9 +927,6 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
 
         setForm((previous) => ({
           ...previous,
-          idSucursal: isAdmin
-            ? payload.producto.idSucursal ?? null
-            : user?.idSucursal ?? payload.producto.idSucursal ?? null,
           idCategoria: payload.producto.idCategoria ?? null,
           nombre: payload.producto.nombre ?? "",
           descripcion: payload.producto.descripcion ?? "",
@@ -909,7 +965,7 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
     return () => {
       controller.abort()
     }
-  }, [isAdmin, isEditing, productoId, user?.idSucursal])
+  }, [isEditing, productoId])
 
   useEffect(() => {
     const allowedKeys = new Set<string>()
@@ -1045,6 +1101,7 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
           codigoBarras: values.codigoBarras,
           precio: values.precio,
           precioMayor: values.precioMayor,
+          stocksSucursales: values.stocksSucursales,
           stock: values.stock,
           readonlyOffer: variantReadonlyOffers[key] ?? null,
         })
@@ -1078,9 +1135,29 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
     [isAutoSkuEnabled, isAutoBarcodeEnabled]
   )
 
-  const [generatingBarcodeKeys, setGeneratingBarcodeKeys] = useState<Set<string>>(
-    () => new Set()
+  const handleVariantSucursalStockChange = useCallback(
+    (key: string, idSucursal: number, value: string) => {
+      setVariantValues((previous) => {
+        const current = normalizeVariantValues(previous[key])
+        const nextStocksSucursales = {
+          ...current.stocksSucursales,
+          [idSucursal]: value,
+        }
+
+        return {
+          ...previous,
+          [key]: {
+            ...current,
+            stocksSucursales: nextStocksSucursales,
+            stock: buildVariantStockTotal(nextStocksSucursales),
+          },
+        }
+      })
+    },
+    []
   )
+
+  const generatingBarcodeKeys = useMemo<Set<string>>(() => new Set(), [])
 
   const handleGenerateBarcode = useCallback(
     (variantKey: string) => {
@@ -1111,7 +1188,7 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
 
   const handleApplyVariantFieldToAll = useCallback(
     (
-      field: Extract<VariantEditableField, "precio" | "precioMayor" | "stock">,
+      field: Extract<VariantEditableField, "precio" | "precioMayor">,
       value: string,
       variantKeys?: string[]
     ) => {
@@ -1131,6 +1208,40 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
           next[variant.key] = {
             ...current,
             [field]: value,
+          }
+          changed = true
+        })
+
+        return changed ? next : previous
+      })
+    },
+    [variantRows]
+  )
+
+  const handleApplyVariantSucursalStockToAll = useCallback(
+    (idSucursal: number, value: string, variantKeys?: string[]) => {
+      if (variantRows.length === 0) return
+      const targetVariantKeys = new Set(variantKeys ?? variantRows.map((variant) => variant.key))
+      if (targetVariantKeys.size === 0) return
+
+      setVariantValues((previous) => {
+        const next = { ...previous }
+        let changed = false
+
+        variantRows.forEach((variant) => {
+          if (!targetVariantKeys.has(variant.key)) return
+          if (variant.estado === "INACTIVO") return
+
+          const current = normalizeVariantValues(next[variant.key])
+          const nextStocksSucursales = {
+            ...current.stocksSucursales,
+            [idSucursal]: value,
+          }
+
+          next[variant.key] = {
+            ...current,
+            stocksSucursales: nextStocksSucursales,
+            stock: buildVariantStockTotal(nextStocksSucursales),
           }
           changed = true
         })
@@ -1344,19 +1455,6 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
     [mediaByColor, selectedColorIds]
   )
 
-  const handleSucursalChange = useCallback(
-    (value: string) => {
-      const idSucursal = Number(value)
-      setForm((previous) => ({
-        ...previous,
-        idSucursal: Number.isFinite(idSucursal) ? idSucursal : null,
-        idCategoria: null,
-      }))
-      setSearchCategoria("")
-    },
-    [setSearchCategoria]
-  )
-
   const handleCategoriaChange = useCallback((value: string) => {
     const idCategoria = Number(value)
     setForm((previous) => ({
@@ -1393,14 +1491,56 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
     [createCategoriaAndReturn, setSearchCategoria]
   )
 
+  const buildVariantStocksSucursalesRequest = useCallback(
+    (
+      variant: VariantRow
+    ): {
+      ok: boolean
+      stocksSucursales: ProductoVarianteStockSucursalRequest[]
+    } => {
+      const stocksSucursales: ProductoVarianteStockSucursalRequest[] = []
+
+      for (const sucursal of activeStockSucursales) {
+        const rawValue = variant.stocksSucursales[sucursal.idSucursal] ?? ""
+        const trimmedValue = rawValue.trim()
+
+        if (trimmedValue === "") {
+          stocksSucursales.push({
+            idSucursal: sucursal.idSucursal,
+            cantidad: 0,
+          })
+          continue
+        }
+
+        const cantidad = parseStock(trimmedValue)
+        if (cantidad === null) {
+          toast.error(
+            `Stock invalido para ${variant.color.nombre}/${variant.talla.nombre} en ${sucursal.nombreSucursal}`
+          )
+          return { ok: false, stocksSucursales: [] }
+        }
+
+        stocksSucursales.push({
+          idSucursal: sucursal.idSucursal,
+          cantidad,
+        })
+      }
+
+      return {
+        ok: true,
+        stocksSucursales,
+      }
+    },
+    [activeStockSucursales]
+  )
+
   const [isSaving, setIsSaving] = useState(false)
 
   const saveProducto = useCallback(async () => {
     if (isSaving) return false
 
-    const idSucursal = selectedSucursalId
-    if (!hasValidId(idSucursal)) {
-      toast.error("Debe seleccionar una sucursal")
+    if (activeStockSucursales.length === 0) {
+      toast.error("No se pudieron cargar las sucursales activas para registrar stock")
       return false
     }
 
@@ -1535,13 +1675,8 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
         return false
       }
 
-      const stock = parseStock(draftState.stock)
-      if (stock === null) {
-        toast.error(
-          `Stock invalido para la variante ${variant.color.nombre}/${variant.talla.nombre}`
-        )
-        return false
-      }
+      const variantStocksRequest = buildVariantStocksSucursalesRequest(variant)
+      if (!variantStocksRequest.ok) return false
 
       const codigoBarras = variant.codigoBarras?.trim() || null
 
@@ -1558,7 +1693,7 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
         ...(precioMayorResult.value !== null
           ? { precioMayor: precioMayorResult.value }
           : {}),
-        stock,
+        stocksSucursales: variantStocksRequest.stocksSucursales,
         ...(variant.readonlyOffer
           ? {
               precioOferta: variant.readonlyOffer.precioOferta,
@@ -1570,7 +1705,7 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
     }
 
     if (variantes.length === 0) {
-      toast.error("Debe registrar al menos una variante con SKU, precio y stock")
+      toast.error("Debe registrar al menos una variante con SKU, precio y stock por sucursal")
       return false
     }
 
@@ -1670,7 +1805,6 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
       const imagenes = imagenesByColor.flat()
 
       const payload: ProductoInsertarCompletoRequest = {
-        idSucursal,
         idCategoria,
         nombre,
         variantes,
@@ -1728,8 +1862,9 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
     mediaByColor,
     productoId,
     selectedColors,
-    selectedSucursalId,
     selectedTallas,
+    activeStockSucursales,
+    buildVariantStocksSucursalesRequest,
     variantValues,
     variantRows,
   ])
@@ -1739,22 +1874,7 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
     isSaving ||
     loadingAtributos ||
     loadingCategorias ||
-    (isAdmin && loadingSucursales)
-
-  const sucursalComboboxOptions = useMemo<ComboboxOption[]>(
-    () =>
-      hasValidSucursal &&
-      !sucursalOptions.some((option) => option.value === String(form.idSucursal))
-        ? [
-            {
-              value: String(form.idSucursal),
-              label: `Sucursal #${form.idSucursal}`,
-            },
-            ...sucursalOptions,
-          ]
-        : sucursalOptions,
-    [form.idSucursal, hasValidSucursal, sucursalOptions]
-  )
+    loadingSucursales
 
   const categoriaComboboxOptions = useMemo<ComboboxOption[]>(
     () =>
@@ -1770,13 +1890,11 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
             ...categorias.map((categoria) => ({
               value: String(categoria.idCategoria),
               label: categoria.nombreCategoria,
-              description: categoria.nombreSucursal,
             })),
           ]
         : categorias.map((categoria) => ({
             value: String(categoria.idCategoria),
             label: categoria.nombreCategoria,
-            description: categoria.nombreSucursal,
           })),
     [categorias, form.idCategoria, hasValidCategoria]
   )
@@ -1790,9 +1908,7 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
     form,
     isSaving,
     isBusy,
-    sucursalComboboxOptions,
-    searchSucursal,
-    setSearchSucursal,
+    activeStockSucursales,
     loadingSucursales,
     errorSucursales,
     categoriaComboboxOptions,
@@ -1834,7 +1950,6 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
     isAutoBarcodeEnabled,
     totalSelectedMedia,
     setFocusedColorId,
-    handleSucursalChange,
     handleCategoriaChange,
     handleNombreChange,
     handleDescripcionChange,
@@ -1849,6 +1964,8 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
     handleGenerateBarcode,
     generatingBarcodeKeys,
     handleApplyVariantFieldToAll,
+    handleVariantSucursalStockChange,
+    handleApplyVariantSucursalStockToAll,
     handleRemoveVariant,
     handleSetVariantStatus,
     saveProducto,

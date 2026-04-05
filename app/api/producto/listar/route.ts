@@ -1,6 +1,26 @@
 import { NextRequest, NextResponse } from "next/server"
 
 const BACKEND_URL = process.env.BACKEND_URL
+const ALLOWED_QUERY_KEYS = ["page", "idCategoria", "idColor", "conOferta", "idSucursal"] as const
+
+function buildForwardQuery(request: NextRequest): string {
+  const incomingSearchParams = new URL(request.url).searchParams
+  const outgoingSearchParams = new URLSearchParams()
+
+  ALLOWED_QUERY_KEYS.forEach((key) => {
+    const value = incomingSearchParams.get(key)?.trim()
+    if (value) {
+      outgoingSearchParams.set(key, value)
+    }
+  })
+
+  if (!outgoingSearchParams.has("page")) {
+    outgoingSearchParams.set("page", "0")
+  }
+
+  const queryString = outgoingSearchParams.toString()
+  return queryString ? `?${queryString}` : ""
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,11 +32,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const { searchParams } = new URL(request.url)
-    const page = searchParams.get("page") ?? "0"
-    const idCategoria = searchParams.get("idCategoria")
-    const idColor = searchParams.get("idColor")
-
+    const queryString = buildForwardQuery(request)
     const authHeader = request.headers.get("authorization")
     const headers: HeadersInit = {}
     if (authHeader) {
@@ -25,22 +41,10 @@ export async function GET(request: NextRequest) {
 
     let backendRes: Response
     try {
-      const backendParams = new URLSearchParams({
-        page,
+      backendRes = await fetch(`${BACKEND_URL}/api/producto/listar${queryString}`, {
+        headers,
+        cache: "no-store",
       })
-
-      if (idCategoria?.trim()) {
-        backendParams.set("idCategoria", idCategoria)
-      }
-
-      if (idColor?.trim()) {
-        backendParams.set("idColor", idColor)
-      }
-
-      backendRes = await fetch(
-        `${BACKEND_URL}/api/producto/listar?${backendParams.toString()}`,
-        { headers }
-      )
     } catch {
       return NextResponse.json(
         { message: "No se pudo conectar al servidor. Verifique que el backend este activo." },

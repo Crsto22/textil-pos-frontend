@@ -9,7 +9,6 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 
 import { ThemeToggle } from "@/components/theme-toggle"
-import { SucursalGlobalSelector } from "@/components/SucursalGlobalSelector"
 import { UserAvatar } from "@/components/ui/user-avatar"
 import {
   DropdownMenu,
@@ -20,6 +19,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useAuth } from "@/lib/auth/auth-context"
+import { getRoleLabel } from "@/lib/auth/roles"
 
 interface HeaderProps {
   onMenuToggle: () => void
@@ -68,11 +68,6 @@ const getSectionLabel = (pathname: string) => {
   if (pathname.startsWith("/usuarios")) return "Usuarios"
   if (pathname.startsWith("/sucursales")) return "Administracion"
   return "Principal"
-}
-
-function formatRol(rol: string) {
-  if (!rol) return ""
-  return rol.charAt(0).toUpperCase() + rol.slice(1).toLowerCase()
 }
 
 export function Header({ onMenuToggle }: HeaderProps) {
@@ -124,8 +119,6 @@ export function Header({ onMenuToggle }: HeaderProps) {
 
         {/* Derecha: acciones */}
         <div className="flex items-center gap-1.5">
-          <SucursalGlobalSelector />
-
           <ThemeToggle
             variant="ghost"
             size="icon-sm"
@@ -159,7 +152,7 @@ export function Header({ onMenuToggle }: HeaderProps) {
                         {user.nombre} {user.apellido}
                       </p>
                       <p className="mt-0.5 truncate text-[11px] text-blue-600 dark:text-blue-400">
-                        {formatRol(user.rol)}
+                        {getRoleLabel(user.rol)}
                       </p>
                     </div>
                   </button>
@@ -192,7 +185,7 @@ export function Header({ onMenuToggle }: HeaderProps) {
                           {user.correo}
                         </p>
                         <span className="mt-1.5 inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold leading-none text-blue-700 dark:bg-blue-500/15 dark:text-blue-300">
-                          {formatRol(user.rol)}
+                          {getRoleLabel(user.rol)}
                         </span>
                       </div>
                     </div>

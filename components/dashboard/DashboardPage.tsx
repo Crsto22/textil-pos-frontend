@@ -1,6 +1,6 @@
 "use client"
 
-import { startTransition, useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import {
   ArchiveBoxArrowDownIcon,
   ArrowTrendingUpIcon,
@@ -24,7 +24,6 @@ import { VentaTendenciaChart } from "@/components/reportes/ventas/VentaResumenCh
 import { useAuth } from "@/lib/auth/auth-context"
 import { useDashboard } from "@/lib/hooks/useDashboard"
 import { useSucursalOptions } from "@/lib/hooks/useSucursalOptions"
-import { useSucursalGlobal } from "@/lib/sucursal-global-context"
 import type {
   DashboardAlmacenData,
   DashboardFiltro,
@@ -222,13 +221,14 @@ export function DashboardPage() {
   const userHasSucursal = hasValidSucursalId(user?.idSucursal)
   const [activeFilter, setActiveFilter] = useState<DashboardFiltro>("HOY")
   const [selectedSucursalId, setSelectedSucursalId] = useState<number | null>(null)
-  const { sucursalOptions, loadingSucursales, errorSucursales } = useSucursalOptions(isAdmin)
-  const { sucursalGlobal } = useSucursalGlobal()
-
-  useEffect(() => {
-    if (!isAdmin || sucursalGlobal === null) return
-    startTransition(() => setSelectedSucursalId(sucursalGlobal.idSucursal))
-  }, [sucursalGlobal, isAdmin])
+  const {
+    sucursalOptions,
+    getSucursalOptionById,
+    loadingSucursales,
+    errorSucursales,
+    searchSucursal,
+    setSearchSucursal,
+  } = useSucursalOptions(isAdmin)
 
   const resolvedSucursalId = isAdmin
     ? selectedSucursalId
@@ -248,6 +248,17 @@ export function DashboardPage() {
   const currentSucursalLabel = userHasSucursal
     ? user?.nombreSucursal || `Sucursal #${user?.idSucursal}`
     : null
+  const dashboardSucursalOptions = useMemo(
+    () =>
+      hasValidSucursalId(selectedSucursalId) &&
+      !sucursalOptions.some((option) => option.value === String(selectedSucursalId))
+        ? [
+            getSucursalOptionById(selectedSucursalId),
+            ...sucursalOptions,
+          ]
+        : sucursalOptions,
+    [getSucursalOptionById, selectedSucursalId, sucursalOptions]
+  )
 
   if (!user) return null
 
@@ -265,12 +276,11 @@ export function DashboardPage() {
           isAdmin={isAdmin}
           selectedSucursalId={selectedSucursalId}
           onSucursalChange={setSelectedSucursalId}
-          sucursalOptions={sucursalOptions.map((option) => ({
-            value: option.value,
-            label: option.label,
-          }))}
+          sucursalOptions={dashboardSucursalOptions}
           loadingSucursales={loadingSucursales}
           errorSucursales={errorSucursales}
+          searchSucursal={searchSucursal}
+          onSearchSucursalChange={setSearchSucursal}
           currentSucursalLabel={currentSucursalLabel}
           loading={loading}
           onRefresh={() => {

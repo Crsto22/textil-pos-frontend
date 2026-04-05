@@ -11,16 +11,9 @@ import type { Talla } from "@/lib/types/talla"
 import type { ProductoCreateFormState } from "@/lib/types/producto-create"
 
 interface ProductoGeneralInfoCardProps {
-  isAdmin: boolean
-  hasSucursal: boolean
-  nombreSucursal?: string
   form: ProductoCreateFormState
-  sucursalOptions: ComboboxOption[]
   categoriaOptions: ComboboxOption[]
-  searchSucursal: string
   searchCategoria: string
-  loadingSucursales: boolean
-  errorSucursales: string | null
   loadingCategorias: boolean
   errorCategorias: string | null
   selectedCategoriaName?: string
@@ -36,10 +29,8 @@ interface ProductoGeneralInfoCardProps {
   onOpenColors: () => void
   onOpenTallas: () => void
   onPreviewColorChange: (idColor: number) => void
-  onSucursalChange: (value: string) => void
   onCategoriaChange: (value: string) => void
   onOpenCategoriaCreate: () => void
-  onSearchSucursalChange: (value: string) => void
   onSearchCategoriaChange: (value: string) => void
   onNombreChange: (value: string) => void
   onDescripcionChange: (value: string) => void
@@ -52,16 +43,9 @@ function hasValidId(value: number | null | undefined): value is number {
 }
 
 export function ProductoGeneralInfoCard({
-  isAdmin,
-  hasSucursal,
-  nombreSucursal,
   form,
-  sucursalOptions,
   categoriaOptions,
-  searchSucursal,
   searchCategoria,
-  loadingSucursales,
-  errorSucursales,
   loadingCategorias,
   errorCategorias,
   selectedCategoriaName,
@@ -77,10 +61,8 @@ export function ProductoGeneralInfoCard({
   onOpenColors,
   onOpenTallas,
   onPreviewColorChange,
-  onSucursalChange,
   onCategoriaChange,
   onOpenCategoriaCreate,
-  onSearchSucursalChange,
   onSearchCategoriaChange,
   onNombreChange,
   onDescripcionChange,
@@ -89,7 +71,7 @@ export function ProductoGeneralInfoCard({
 }: ProductoGeneralInfoCardProps) {
   const trimmedSearchCategoria = searchCategoria.trim()
   const categoriaCreateActionLabel = !canCreateCategoria
-    ? (categoriaCreateDisabledReason ?? "Selecciona una sucursal primero")
+    ? (categoriaCreateDisabledReason ?? "No se puede crear la categoria")
     : trimmedSearchCategoria
       ? `Crear categoria "${trimmedSearchCategoria}"`
       : "Nueva categoria"
@@ -103,71 +85,37 @@ export function ProductoGeneralInfoCard({
           selectedTallas={selectedTallas}
           activeColorId={activePreviewColorId}
           previewImageUrl={activePreviewImageUrl}
-          hasSucursal={hasSucursal}
+          hasSucursal
           onOpenImages={onOpenImages}
           onOpenColors={onOpenColors}
           onOpenTallas={onOpenTallas}
           onActiveColorChange={onPreviewColorChange}
         />
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-2">
-            <Label
-              htmlFor="producto-create-page-sucursal"
-              className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground"
-            >
-              Sucursal *
-            </Label>
-            {isAdmin ? (
-              <Combobox
-                id="producto-create-page-sucursal"
-                value={hasValidId(form.idSucursal) ? String(form.idSucursal) : ""}
-                options={sucursalOptions}
-                searchValue={searchSucursal}
-                onSearchValueChange={onSearchSucursalChange}
-                onValueChange={onSucursalChange}
-                placeholder="Selecciona sucursal"
-                searchPlaceholder="Buscar sucursal..."
-                emptyMessage="No se encontraron sucursales"
-                loading={loadingSucursales}
-                loadingMessage="Buscando sucursales..."
-              />
-            ) : (
-              <div className="flex h-9 items-center rounded-md border bg-muted/40 px-3 text-sm font-medium">
-                {nombreSucursal || "Sin sucursal asignada"}
-              </div>
-            )}
-            {errorSucursales && isAdmin && (
-              <p className="text-xs text-red-500">{errorSucursales}</p>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <Label
-              htmlFor="producto-create-page-categoria"
-              className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground"
-            >
-              Categoria *
-            </Label>
-            <Combobox
-              id="producto-create-page-categoria"
-              value={hasValidId(form.idCategoria) ? String(form.idCategoria) : ""}
-              options={categoriaOptions}
-              searchValue={searchCategoria}
-              onSearchValueChange={onSearchCategoriaChange}
-              onValueChange={onCategoriaChange}
-              placeholder={isAdmin && !hasSucursal ? "Selecciona una sucursal primero" : "Selecciona categoria"}
-              searchPlaceholder="Buscar categoria..."
-              emptyMessage="No se encontraron categorias"
-              loading={loadingCategorias}
-              loadingMessage="Buscando categorias..."
-              disabled={isAdmin && !hasSucursal}
-              onCreateAction={() => onOpenCategoriaCreate()}
-              createActionLabel={categoriaCreateActionLabel}
-              createActionDisabled={!canCreateCategoria}
-            />
-            {errorCategorias && <p className="text-xs text-red-500">{errorCategorias}</p>}
-          </div>
+        <div className="space-y-2">
+          <Label
+            htmlFor="producto-create-page-categoria"
+            className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground"
+          >
+            Categoria *
+          </Label>
+          <Combobox
+            id="producto-create-page-categoria"
+            value={hasValidId(form.idCategoria) ? String(form.idCategoria) : ""}
+            options={categoriaOptions}
+            searchValue={searchCategoria}
+            onSearchValueChange={onSearchCategoriaChange}
+            onValueChange={onCategoriaChange}
+            placeholder="Selecciona categoria"
+            searchPlaceholder="Buscar categoria..."
+            emptyMessage="No se encontraron categorias"
+            loading={loadingCategorias}
+            loadingMessage="Buscando categorias..."
+            onCreateAction={() => onOpenCategoriaCreate()}
+            createActionLabel={categoriaCreateActionLabel}
+            createActionDisabled={!canCreateCategoria}
+          />
+          {errorCategorias && <p className="text-xs text-red-500">{errorCategorias}</p>}
         </div>
 
         <div className="space-y-2">
@@ -205,7 +153,7 @@ export function ProductoGeneralInfoCard({
 
         <div className="rounded-2xl bg-background/80 p-4">
           <p className="text-[11px] italic leading-5 text-muted-foreground">
-            El SKU y precios se gestionan por variante en la matriz central.
+            El SKU, precios y stock por sucursal se gestionan por variante en la matriz central.
           </p>
           <p className="mt-2 text-[11px] text-muted-foreground">
             {selectedCategoriaName || "Sin categoria"} | {selectedColorsCount} colores |{" "}

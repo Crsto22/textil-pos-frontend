@@ -19,10 +19,6 @@ interface ProductoCreatePageProps {
   productoId?: number | null
 }
 
-function hasValidId(value: number | null | undefined): value is number {
-  return typeof value === "number" && value > 0
-}
-
 export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProps) {
   const router = useRouter()
   const [isMediaSidebarOpen, setIsMediaSidebarOpen] = useState(false)
@@ -33,17 +29,12 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
     useState<ProductoAttributeSidebarSection>("colors")
 
   const {
-    user,
-    isAdmin,
     isEditing,
     loadingDetalle,
     errorDetalle,
     form,
     isSaving,
-    sucursalComboboxOptions,
-    searchSucursal,
-    loadingSucursales,
-    errorSucursales,
+    activeStockSucursales,
     categoriaComboboxOptions,
     searchCategoria,
     loadingCategorias,
@@ -80,9 +71,7 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
     isAutoBarcodeEnabled,
     totalSelectedMedia,
     setFocusedColorId,
-    handleSucursalChange,
     handleCategoriaChange,
-    setSearchSucursal,
     setSearchCategoria,
     handleNombreChange,
     handleDescripcionChange,
@@ -94,9 +83,9 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
     handleAutoSkuToggle,
     handleAutoBarcodeToggle,
     handleVariantFieldChange,
-    handleGenerateBarcode,
-    generatingBarcodeKeys,
     handleApplyVariantFieldToAll,
+    handleVariantSucursalStockChange,
+    handleApplyVariantSucursalStockToAll,
     handleRemoveVariant,
     handleSetVariantStatus,
     saveProducto,
@@ -111,20 +100,14 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
     ? (mediaByColor[activePreviewColorId]?.at(-1)?.previewUrl ?? null)
     : null
 
-  const hasSucursal = !isAdmin || hasValidId(form.idSucursal)
-  const canCreateCategoria = hasSucursal
-  const categoriaCreateDisabledReason =
-    isAdmin && !hasValidId(form.idSucursal)
-      ? "Selecciona una sucursal antes de crear una categoria."
-      : null
+  const canCreateCategoria = true
 
   const hasUnsavedChanges = useMemo(() => {
     const hasTextInput =
       form.nombre.trim() !== "" ||
       form.descripcion.trim() !== ""
 
-    const hasSelectInput =
-      form.idCategoria !== null || (isAdmin && form.idSucursal !== null)
+    const hasSelectInput = form.idCategoria !== null
 
     const hasAttributesSelected =
       selectedColorIds.length > 0 || selectedTallaIds.length > 0
@@ -138,7 +121,7 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
         variant.sku.trim() !== "" ||
         variant.precio.trim() !== "" ||
         variant.precioMayor.trim() !== "" ||
-        variant.stock.trim() !== ""
+        Object.values(variant.stocksSucursales).some((value) => value.trim() !== "")
     )
 
     return (
@@ -151,9 +134,7 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
   }, [
     form.descripcion,
     form.idCategoria,
-    form.idSucursal,
     form.nombre,
-    isAdmin,
     mediaByColor,
     selectedColorIds.length,
     selectedTallaIds.length,
@@ -173,12 +154,11 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
 
   const handleOpenAttributesSidebar = useCallback(
     (section: ProductoAttributeSidebarSection) => {
-      if (!hasSucursal) return
       setIsMediaSidebarOpen(false)
       setAttributeSidebarSection(section)
       setIsAttributesSidebarOpen(true)
     },
-    [hasSucursal]
+    []
   )
 
   const handleSaveProducto = useCallback(async () => {
@@ -223,16 +203,9 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
       <div className="grid items-start gap-6 xl:grid-cols-[520px_minmax(0,1fr)]">
         <div className="min-w-0 xl:sticky xl:top-6 xl:self-start">
           <ProductoGeneralInfoCard
-            isAdmin={isAdmin}
-            hasSucursal={hasSucursal}
-            nombreSucursal={user?.nombreSucursal ?? undefined}
             form={form}
-            sucursalOptions={sucursalComboboxOptions}
             categoriaOptions={categoriaComboboxOptions}
-            searchSucursal={searchSucursal}
             searchCategoria={searchCategoria}
-            loadingSucursales={loadingSucursales}
-            errorSucursales={errorSucursales}
             loadingCategorias={loadingCategorias}
             errorCategorias={errorCategorias}
             selectedCategoriaName={selectedCategoriaName}
@@ -252,15 +225,12 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
               handleOpenAttributesSidebar("tallas")
             }}
             onPreviewColorChange={setFocusedColorId}
-            onSucursalChange={handleSucursalChange}
             onCategoriaChange={handleCategoriaChange}
             onOpenCategoriaCreate={() => setIsCategoriaCreateDialogOpen(true)}
-            onSearchSucursalChange={setSearchSucursal}
             onSearchCategoriaChange={setSearchCategoria}
             onNombreChange={handleNombreChange}
             onDescripcionChange={handleDescripcionChange}
             canCreateCategoria={canCreateCategoria}
-            categoriaCreateDisabledReason={categoriaCreateDisabledReason}
           />
         </div>
 
@@ -268,16 +238,17 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
           <ProductoVariantMatrixCard
             hasSelectedColors={selectedColors.length > 0}
             hasSelectedTallas={selectedTallas.length > 0}
-            mediaByColor={mediaByColor}
+            stockSucursales={activeStockSucursales}
             variantRows={variantRows}
+            mediaByColor={mediaByColor}
             isAutoSkuEnabled={isAutoSkuEnabled}
             isAutoBarcodeEnabled={isAutoBarcodeEnabled}
             onAutoSkuToggle={handleAutoSkuToggle}
             onAutoBarcodeToggle={handleAutoBarcodeToggle}
             onVariantFieldChange={handleVariantFieldChange}
-            onGenerateBarcode={handleGenerateBarcode}
-            generatingBarcodeKeys={generatingBarcodeKeys}
             onApplyVariantFieldToAll={handleApplyVariantFieldToAll}
+            onVariantSucursalStockChange={handleVariantSucursalStockChange}
+            onApplyVariantSucursalStockToAll={handleApplyVariantSucursalStockToAll}
             deletingVariantKeys={deletingVariantKeys}
             onRemoveVariant={handleRemoveVariant}
             onSetVariantStatus={handleSetVariantStatus}
@@ -340,8 +311,6 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
         onOpenChange={setIsCategoriaCreateDialogOpen}
         onCreate={handleCreateCategoria}
         initialNombreCategoria={searchCategoria.trim()}
-        initialIdSucursal={isAdmin ? form.idSucursal : user?.idSucursal ?? null}
-        lockSucursalSelection={canCreateCategoria}
       />
 
       <ProductoUnsavedChangesToast

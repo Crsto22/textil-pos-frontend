@@ -8,6 +8,7 @@ const ALLOWED_QUERY_KEYS = [
   "idUsuario",
   "idSucursal",
   "idCliente",
+  "idCanalVenta",
   "tipoComprobante",
   "fecha",
   "desde",

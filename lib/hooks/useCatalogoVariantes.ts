@@ -76,6 +76,7 @@ export function useCatalogoVariantes(enabled = true, idSucursal?: number | null)
   const [idCategoriaFilter, setIdCategoriaFilter] = useState<number | null>(null)
   const [idColorFilter, setIdColorFilter] = useState<number | null>(null)
   const [conOfertaFilter, setConOfertaFilter] = useState(false)
+  const [soloDisponiblesFilter, setSoloDisponiblesFilter] = useState(false)
 
   const debouncedSearch = useDebouncedValue(search, SEARCH_DEBOUNCE_MS)
   const abortRef = useRef<AbortController | null>(null)
@@ -100,6 +101,9 @@ export function useCatalogoVariantes(enabled = true, idSucursal?: number | null)
       }
       if (conOfertaFilter) {
         params.set("conOferta", "true")
+      }
+      if (soloDisponiblesFilter) {
+        params.set("soloDisponibles", "true")
       }
 
       const response = await authFetch(`/api/variante/listar-resumen?${params.toString()}`, {
@@ -137,11 +141,11 @@ export function useCatalogoVariantes(enabled = true, idSucursal?: number | null)
         setLoading(false)
       }
     }
-  }, [conOfertaFilter, idCategoriaFilter, idColorFilter, idSucursal, debouncedSearch])
+  }, [conOfertaFilter, idCategoriaFilter, idColorFilter, idSucursal, debouncedSearch, soloDisponiblesFilter])
 
   useEffect(() => {
     setPage(0)
-  }, [conOfertaFilter, idCategoriaFilter, idColorFilter, idSucursal, debouncedSearch])
+  }, [conOfertaFilter, idCategoriaFilter, idColorFilter, idSucursal, debouncedSearch, soloDisponiblesFilter])
 
   useEffect(() => {
     if (!enabled || isAuthLoading) return
@@ -244,9 +248,11 @@ export function useCatalogoVariantes(enabled = true, idSucursal?: number | null)
     idCategoriaFilter,
     idColorFilter,
     conOfertaFilter,
+    soloDisponiblesFilter,
     setIdCategoriaFilter,
     setIdColorFilter,
     setConOfertaFilter,
+    setSoloDisponiblesFilter,
     displayedCatalogVariants,
     displayedTotalElements,
     displayedTotalPages: totalPages,

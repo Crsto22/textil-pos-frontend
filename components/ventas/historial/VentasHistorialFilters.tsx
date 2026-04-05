@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef } from "react"
+import { useEffect, useMemo } from "react"
 import { MagnifyingGlassIcon } from "@heroicons/react/24/outline"
 
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -9,7 +9,6 @@ import { useCanFilterBySucursal, useCanFilterByUsuario } from "@/lib/hooks/useCa
 import { useClienteOptions } from "@/lib/hooks/useClienteOptions"
 import { useSucursalOptions } from "@/lib/hooks/useSucursalOptions"
 import { useUsuarioOptions } from "@/lib/hooks/useUsuarioOptions"
-import { useSucursalGlobal } from "@/lib/sucursal-global-context"
 import type { VentaHistorialFilters } from "@/lib/types/venta"
 
 interface VentasHistorialFiltersProps {
@@ -49,19 +48,6 @@ export function VentasHistorialFilters({
 }: VentasHistorialFiltersProps) {
   const canFilterByUsuario = useCanFilterByUsuario()
   const canFilterBySucursal = useCanFilterBySucursal()
-  const { sucursalGlobal } = useSucursalGlobal()
-  const filtersRef = useRef(filters)
-  const onChangeRef = useRef(onChange)
-  useLayoutEffect(() => {
-    filtersRef.current = filters
-    onChangeRef.current = onChange
-  })
-
-  // Sincronizar con sucursal global cuando cambia
-  useEffect(() => {
-    if (!canFilterBySucursal || sucursalGlobal === null) return
-    onChangeRef.current({ ...filtersRef.current, idSucursal: sucursalGlobal.idSucursal })
-  }, [sucursalGlobal, canFilterBySucursal])
 
   const {
     clienteOptions,
@@ -79,6 +65,7 @@ export function VentasHistorialFilters({
   } = useUsuarioOptions(canFilterByUsuario)
   const {
     sucursalOptions,
+    getSucursalOptionById,
     loadingSucursales,
     errorSucursales,
     searchSucursal,
@@ -126,12 +113,12 @@ export function VentasHistorialFilters({
       ...(
         selectedSucursalValue &&
         !sucursalOptions.some((option) => option.value === selectedSucursalValue)
-          ? [{ value: selectedSucursalValue, label: `Sucursal #${selectedSucursalValue}` }]
+          ? [getSucursalOptionById(Number(selectedSucursalValue))]
           : []
       ),
       ...sucursalOptions,
     ],
-    [selectedSucursalValue, sucursalOptions]
+    [getSucursalOptionById, selectedSucursalValue, sucursalOptions]
   )
   const clienteComboboxOptions = useMemo<ComboboxOption[]>(
     () => [

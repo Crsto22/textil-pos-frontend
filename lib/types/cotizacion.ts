@@ -100,6 +100,7 @@ export interface CotizacionConvertirPagoRequest {
 
 export interface CotizacionConvertirVentaRequest {
   tipoComprobante?: TipoComprobante | null
+  idCanalVenta?: number | null
   pagos: CotizacionConvertirPagoRequest[]
 }
 
@@ -119,6 +120,10 @@ export interface CotizacionConvertirVentaPago {
 
 export interface CotizacionConvertirVentaResumen {
   idVenta: number
+  idSucursal: number | null
+  idCanalVenta: number | null
+  nombreCanalVenta: string | null
+  plataformaCanalVenta: string | null
   tipoComprobante: TipoComprobante
   serie: string
   correlativo: number

@@ -1,4 +1,4 @@
-export type VentaLineaPrecioTipo = "normal" | "oferta" | "mayor"
+export type VentaLineaPrecioTipo = "normal" | "oferta" | "mayor" | "editado"
 
 export interface VentaLineaPrecioOption {
   type: VentaLineaPrecioTipo

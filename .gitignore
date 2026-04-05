@@ -29,12 +29,22 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+*.err
+*.out
 
 # env files (can opt-in for committing if needed)
 .env*
 
 # vercel
 .vercel
+
+# local workspace artifacts
+/.claude/
+/.vscode/
+/docs/
+/*.md
+/captura.png
+/Sin título.png
 
 # typescript
 *.tsbuildinfo

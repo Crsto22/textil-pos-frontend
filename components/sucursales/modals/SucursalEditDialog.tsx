@@ -20,12 +20,12 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import { SucursalUbigeoFields } from "@/components/sucursales/modals/SucursalUbigeoFields"
 import { useEmpresaOptions } from "@/lib/hooks/useEmpresaOptions"
 import {
   emptyUpdate,
   type Sucursal,
   type SucursalUpdateRequest,
+  type TipoSucursal,
 } from "@/lib/types/sucursal"
 
 interface SucursalEditDialogProps {
@@ -37,8 +37,6 @@ interface SucursalEditDialogProps {
 
 const phoneRegex = /^\d{7,15}$/
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-const ubigeoRegex = /^\d{6}$/
-const sunatCodeRegex = /^\d{4}$/
 
 export function SucursalEditDialog({
   open,
@@ -56,15 +54,11 @@ export function SucursalEditDialog({
 
     setForm({
       nombre: sucursal.nombre,
-      descripcion: sucursal.descripcion,
+      ciudad: sucursal.ciudad,
       direccion: sucursal.direccion,
       telefono: sucursal.telefono,
       correo: sucursal.correo,
-      ubigeo: sucursal.ubigeo,
-      departamento: sucursal.departamento,
-      provincia: sucursal.provincia,
-      distrito: sucursal.distrito,
-      codigoEstablecimientoSunat: sucursal.codigoEstablecimientoSunat,
+      tipo: sucursal.tipo,
       estado: sucursal.estado,
       idEmpresa: sucursal.idEmpresa,
     })
@@ -86,22 +80,20 @@ export function SucursalEditDialog({
     () => empresas.some((empresa) => empresa.idEmpresa === form.idEmpresa),
     [empresas, form.idEmpresa]
   )
+  const telefono = form.telefono ?? ""
+  const correo = form.correo ?? ""
 
   const isEditValid = useMemo(
     () =>
       form.nombre.trim() !== "" &&
+      form.ciudad.trim() !== "" &&
       form.direccion.trim() !== "" &&
-      form.departamento.trim() !== "" &&
-      form.provincia.trim() !== "" &&
-      form.distrito.trim() !== "" &&
-      phoneRegex.test(form.telefono) &&
-      emailRegex.test(form.correo) &&
-      ubigeoRegex.test(form.ubigeo) &&
-      sunatCodeRegex.test(form.codigoEstablecimientoSunat) &&
+      (telefono === "" || phoneRegex.test(telefono)) &&
+      (correo === "" || emailRegex.test(correo)) &&
       Number.isInteger(form.idEmpresa) &&
       form.idEmpresa > 0 &&
       hasEmpresaSeleccionada,
-    [form, hasEmpresaSeleccionada]
+    [correo, form, hasEmpresaSeleccionada, telefono]
   )
 
   const handleOpenChange = (nextOpen: boolean) => {
@@ -150,41 +142,47 @@ export function SucursalEditDialog({
             />
           </div>
 
-          <div className="grid gap-2">
-            <Label htmlFor="e-descripcion-sucursal">Descripcion</Label>
-            <Input
-              id="e-descripcion-sucursal"
-              value={form.descripcion}
-              onChange={(event) =>
-                setForm((previous) => ({
-                  ...previous,
-                  descripcion: event.target.value,
-                }))
-              }
-            />
-          </div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="grid gap-2">
+              <Label htmlFor="e-ciudad-sucursal">Ciudad</Label>
+              <Input
+                id="e-ciudad-sucursal"
+                placeholder="Lima"
+                value={form.ciudad}
+                onChange={(event) =>
+                  setForm((previous) => ({
+                    ...previous,
+                    ciudad: event.target.value,
+                  }))
+                }
+              />
+            </div>
 
-          <div className="grid gap-2">
-            <Label htmlFor="e-direccion-sucursal">Direccion</Label>
-            <Input
-              id="e-direccion-sucursal"
-              value={form.direccion}
-              onChange={(event) =>
-                setForm((previous) => ({
-                  ...previous,
-                  direccion: event.target.value,
-                }))
-              }
-            />
+            <div className="grid gap-2">
+              <Label htmlFor="e-direccion-sucursal">Direccion</Label>
+              <Input
+                id="e-direccion-sucursal"
+                placeholder="Jr. Gamarra 1234, La Victoria"
+                value={form.direccion}
+                onChange={(event) =>
+                  setForm((previous) => ({
+                    ...previous,
+                    direccion: event.target.value,
+                  }))
+                }
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="grid gap-2">
-              <Label htmlFor="e-telefono-sucursal">Telefono</Label>
+              <Label htmlFor="e-telefono-sucursal">
+                Telefono <span className="text-muted-foreground">(opcional)</span>
+              </Label>
               <Input
                 id="e-telefono-sucursal"
                 maxLength={15}
-                value={form.telefono}
+                value={telefono}
                 onChange={(event) =>
                   setForm((previous) => ({
                     ...previous,
@@ -192,17 +190,19 @@ export function SucursalEditDialog({
                   }))
                 }
               />
-              {form.telefono.length > 0 && !phoneRegex.test(form.telefono) && (
+              {telefono.length > 0 && !phoneRegex.test(telefono) && (
                 <p className="text-xs text-red-500">Debe tener entre 7 y 15 digitos</p>
               )}
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="e-correo-sucursal">Correo</Label>
+              <Label htmlFor="e-correo-sucursal">
+                Correo <span className="text-muted-foreground">(opcional)</span>
+              </Label>
               <Input
                 id="e-correo-sucursal"
                 type="email"
-                value={form.correo}
+                value={correo}
                 onChange={(event) =>
                   setForm((previous) => ({
                     ...previous,
@@ -210,13 +210,34 @@ export function SucursalEditDialog({
                   }))
                 }
               />
-              {form.correo.length > 0 && !emailRegex.test(form.correo) && (
+              {correo.length > 0 && !emailRegex.test(correo) && (
                 <p className="text-xs text-red-500">Formato de correo invalido</p>
               )}
             </div>
           </div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="grid gap-2">
+              <Label htmlFor="e-tipo-sucursal">Tipo</Label>
+              <Select
+                value={form.tipo}
+                onValueChange={(value) =>
+                  setForm((previous) => ({
+                    ...previous,
+                    tipo: value as TipoSucursal,
+                  }))
+                }
+              >
+                <SelectTrigger className="w-full" id="e-tipo-sucursal">
+                  <SelectValue placeholder="Selecciona tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="VENTA">Venta</SelectItem>
+                  <SelectItem value="ALMACEN">Almacen</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="grid gap-2">
               <Label htmlFor="e-empresa-sucursal">Empresa</Label>
               {loadingEmpresas ? (
@@ -265,44 +286,7 @@ export function SucursalEditDialog({
                 </Select>
               )}
             </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="e-codigo-sunat-sucursal">Codigo Establecimiento SUNAT</Label>
-              <Input
-                id="e-codigo-sunat-sucursal"
-                maxLength={4}
-                value={form.codigoEstablecimientoSunat}
-                onChange={(event) =>
-                  setForm((previous) => ({
-                    ...previous,
-                    codigoEstablecimientoSunat: event.target.value
-                      .replace(/\D/g, "")
-                      .slice(0, 4),
-                  }))
-                }
-              />
-              {form.codigoEstablecimientoSunat.length > 0 &&
-                !sunatCodeRegex.test(form.codigoEstablecimientoSunat) && (
-                  <p className="text-xs text-red-500">Debe tener exactamente 4 digitos</p>
-                )}
-            </div>
           </div>
-
-          <SucursalUbigeoFields
-            enabled={open}
-            form={form}
-            idPrefix="e"
-            onChange={(location) =>
-              setForm((previous) => ({
-                ...previous,
-                ...location,
-              }))
-            }
-          />
-
-          {form.ubigeo.length > 0 && !ubigeoRegex.test(form.ubigeo) && (
-            <p className="text-xs text-red-500">Debe tener exactamente 6 digitos</p>
-          )}
 
           <div className="grid gap-2">
             <Label htmlFor="e-estado-sucursal">Estado</Label>

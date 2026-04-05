@@ -20,20 +20,11 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { UserAvatar } from "@/components/ui/user-avatar"
 import { useAuth } from "@/lib/auth/auth-context"
+import { getRoleLabel } from "@/lib/auth/roles"
 import { authFetch } from "@/lib/auth/auth-fetch"
 import type { AuthUser, ChangePasswordRequest } from "@/lib/auth/types"
 import { validateProfilePhoto } from "@/lib/profile-photo"
 import { toast } from "sonner"
-
-function getFormattedRole(rol: string) {
-    const map: Record<string, string> = {
-        ADMINISTRADOR: "Administrador",
-        VENTAS: "Ventas",
-        ALMACEN: "Almacen",
-        VENDEDOR: "Vendedor",
-    }
-    return map[rol] ?? rol
-}
 
 function formatMemberSince(value?: string) {
     if (!value) return "No disponible"
@@ -334,7 +325,7 @@ export default function ConfigCuentaPage() {
                                     </h1>
                                     <span className="inline-flex items-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-indigo-700 dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-300">
                                         <ShieldCheckIcon className="h-3.5 w-3.5" />
-                                        {getFormattedRole(user?.rol ?? "")}
+                                        {getRoleLabel(user?.rol ?? "")}
                                     </span>
                                 </div>
 
@@ -426,7 +417,7 @@ export default function ConfigCuentaPage() {
                                     />
                                     <ProfileField
                                         label="Rol"
-                                        value={getFormattedRole(user?.rol ?? "")}
+                                        value={getRoleLabel(user?.rol ?? "")}
                                     />
                                     <ProfileField
                                         label="Fecha de creacion"

@@ -1,4 +1,4 @@
-import type { PageResponse } from "@/lib/types/producto"
+import type { PageResponse, StockSucursalVenta } from "@/lib/types/producto"
 
 export interface VarianteResumenImagen {
   idColorImagen: number | null
@@ -16,7 +16,7 @@ export interface VarianteResumenCategoria {
 
 export interface VarianteResumenSucursal {
   idSucursal: number | null
-  nombreSucursal: string
+  nombreSucursal: string | null
 }
 
 export interface VarianteResumenProducto {
@@ -46,6 +46,7 @@ export interface VarianteResumenItem {
   codigoBarras: string | null
   estado: string
   stock: number | null
+  stocksSucursalesVenta: StockSucursalVenta[]
   precio: number | null
   precioMayor: number | null
   precioOferta: number | null
@@ -67,6 +68,9 @@ export interface VarianteUpdateRequest {
   precio: number
   precioMayor?: number | null
   stock: number
+  precioOferta?: number | null
+  ofertaInicio?: string | null
+  ofertaFin?: string | null
 }
 
 export interface VarianteDeleteResponse {
@@ -74,6 +78,51 @@ export interface VarianteDeleteResponse {
 }
 
 export type VarianteResumenPageResponse = PageResponse<VarianteResumenItem>
+
+export interface VarianteCatalogoProducto {
+  idProducto: number
+  nombre: string
+}
+
+export interface VarianteCatalogoTalla {
+  idTalla: number
+  nombre: string
+}
+
+export interface VarianteCatalogoColor {
+  idColor: number
+  nombre: string
+}
+
+export interface VarianteCatalogoItem {
+  idProductoVariante: number
+  precio: number | null
+  precioMayor: number | null
+  precioOferta: number | null
+  ofertaInicio: string | null
+  ofertaFin: string | null
+  estado: string
+  activo: string | null
+  deletedAt: string | null
+  sku: string | null
+  codigoBarras: string | null
+  stock: number | null
+  stocksSucursalesVenta: StockSucursalVenta[]
+  sucursal: VarianteResumenSucursal | null
+  producto: VarianteCatalogoProducto | null
+  talla: VarianteCatalogoTalla | null
+  color: VarianteCatalogoColor | null
+}
+
+export interface VariantePorProductoItem {
+  idProductoVariante: number
+  sku: string | null
+  codigoBarras: string | null
+  stock: number | null
+  stocksSucursalesVenta: StockSucursalVenta[]
+  sucursal: VarianteResumenSucursal | null
+  producto: VarianteCatalogoProducto | null
+}
 
 export interface VarianteEscanearProducto {
   idProducto: number

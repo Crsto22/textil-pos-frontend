@@ -15,6 +15,7 @@ export async function GET(request: NextRequest) {
     // Leer parámetro de paginación
     const { searchParams } = new URL(request.url)
     const page = searchParams.get("page") ?? "0"
+    const idSucursal = searchParams.get("idSucursal")?.trim() ?? ""
 
     // Reenviar Authorization del cliente al backend
     const authHeader = request.headers.get("authorization")
@@ -26,8 +27,16 @@ export async function GET(request: NextRequest) {
 
     let backendRes: Response
     try {
+      const backendParams = new URLSearchParams({
+        page,
+      })
+
+      if (idSucursal) {
+        backendParams.set("idSucursal", idSucursal)
+      }
+
       backendRes = await fetch(
-        `${BACKEND_URL}/api/usuario/listar?page=${encodeURIComponent(page)}`,
+        `${BACKEND_URL}/api/usuario/listar?${backendParams.toString()}`,
         { headers }
       )
     } catch {

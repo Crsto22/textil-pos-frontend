@@ -1,19 +1,22 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { type ReactNode, useCallback, useMemo, useState, useRef } from "react"
 import Image from "next/image"
 import Link from "next/link"
+import type { MediaItem } from "@/lib/types/producto-create"
 import {
   ArrowPathIcon,
   ArrowTopRightOnSquareIcon,
+  ChevronDownIcon,
   ListBulletIcon,
   Squares2X2Icon,
   TagIcon,
   TrashIcon,
 } from "@heroicons/react/24/outline"
-import { Barcode } from "lucide-react"
+import { Barcode, Store, Warehouse } from "lucide-react"
 
 import { ShirtHangerIcon } from "@/components/icons/ShirtHangerIcon"
+import { ProductoVariantStockEditor } from "@/components/producto-nuevo/ProductoVariantStockEditor"
 import { ProductoVariantDeleteDialog } from "@/components/producto-nuevo/modals/ProductoVariantDeleteDialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -21,9 +24,9 @@ import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type {
-  MediaItem,
   VariantEditableField,
   VariantRow,
+  VariantSucursalStockInput,
   VariantStatus,
 } from "@/lib/types/producto-create"
 import {
@@ -36,8 +39,9 @@ import { cn } from "@/lib/utils"
 interface ProductoVariantMatrixCardProps {
   hasSelectedColors: boolean
   hasSelectedTallas: boolean
-  mediaByColor: Record<number, MediaItem[]>
+  stockSucursales: VariantSucursalStockInput[]
   variantRows: VariantRow[]
+  mediaByColor: Record<number, MediaItem[]>
   isAutoSkuEnabled: boolean
   isAutoBarcodeEnabled: boolean
   onAutoSkuToggle: (enabled: boolean) => void
@@ -47,10 +51,18 @@ interface ProductoVariantMatrixCardProps {
     field: VariantEditableField,
     value: string
   ) => void
-  onGenerateBarcode: (variantKey: string) => void
-  generatingBarcodeKeys: Set<string>
   onApplyVariantFieldToAll: (
-    field: "precio" | "precioMayor" | "stock",
+    field: "precio" | "precioMayor",
+    value: string,
+    variantKeys?: string[]
+  ) => void
+  onVariantSucursalStockChange: (
+    key: string,
+    idSucursal: number,
+    value: string
+  ) => void
+  onApplyVariantSucursalStockToAll: (
+    idSucursal: number,
     value: string,
     variantKeys?: string[]
   ) => void
@@ -64,6 +76,7 @@ interface CurrencyInputProps {
   onChange: (nextValue: string) => void
   className?: string
   disabled?: boolean
+  placeholder?: string
 }
 
 type VariantMatrixViewMode = "cards" | "table"
@@ -99,53 +112,45 @@ function resolveContrastTextColor(hexColor: string): "#111827" | "#ffffff" {
 
 function VariantCombinationPreview({
   variant,
-  imageUrl,
+  colorImageUrl,
 }: {
   variant: VariantRow
-  imageUrl: string | null
+  colorImageUrl: string | null
 }) {
   const colorHex = normalizeHexColor(variant.color.codigo)
-  const tallaColor = resolveContrastTextColor(colorHex)
+  const iconColor = resolveContrastTextColor(colorHex)
 
   return (
-    <div className="flex items-center gap-3">
-      <div className="relative h-16 w-14 shrink-0 overflow-hidden rounded-md border bg-muted/20">
-        {imageUrl ? (
+    <div className="flex items-center gap-4">
+      <div
+        className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl shadow-sm"
+        style={{ backgroundColor: colorHex }}
+      >
+        {colorImageUrl ? (
           <Image
-            src={imageUrl}
-            alt={`Prenda ${variant.color.nombre} talla ${variant.talla.nombre}`}
+            src={colorImageUrl}
+            alt={variant.color.nombre}
             fill
             unoptimized
+            sizes="48px"
             className="object-cover"
           />
         ) : (
-          <>
-            <ShirtHangerIcon
-              className="h-full w-full drop-shadow-sm"
-              style={{ color: colorHex }}
-              title={`Prenda ${variant.color.nombre} talla ${variant.talla.nombre}`}
-            />
-            <span
-              className="pointer-events-none absolute left-1/2 top-[61%] -translate-x-1/2 -translate-y-1/2 text-[13px] font-black leading-none tracking-tight"
-              style={{ color: tallaColor }}
-            >
-              {variant.talla.nombre}
-            </span>
-          </>
+          <ShirtHangerIcon
+            className="h-6 w-6"
+            style={{ color: iconColor }}
+            title={`Prenda ${variant.color.nombre} talla ${variant.talla.nombre}`}
+          />
         )}
-
-        {imageUrl ? (
-          <span className="pointer-events-none absolute bottom-1 left-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
-            {variant.talla.nombre}
-          </span>
-        ) : null}
       </div>
 
       <div className="min-w-0">
-        <p className="truncate font-semibold text-foreground">{variant.color.nombre}</p>
-        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <p className="truncate text-lg font-bold uppercase leading-none text-foreground">
+          {variant.color.nombre}
+        </p>
+        <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
           <span
-            className="inline-block h-2.5 w-2.5 rounded-full border border-black/15"
+            className="inline-block h-2.5 w-2.5 rounded-full"
             style={{ backgroundColor: colorHex }}
           />
           Talla {variant.talla.nombre}
@@ -188,7 +193,13 @@ function VariantInactiveOverlay({
   )
 }
 
-function CurrencyInput({ value, onChange, className, disabled }: CurrencyInputProps) {
+function CurrencyInput({
+  value,
+  onChange,
+  className,
+  disabled,
+  placeholder,
+}: CurrencyInputProps) {
   return (
     <div className={cn("relative", className)}>
       <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground">
@@ -200,10 +211,20 @@ function CurrencyInput({ value, onChange, className, disabled }: CurrencyInputPr
         step="0.01"
         className="pl-10"
         value={value}
+        placeholder={placeholder}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
       />
     </div>
+  )
+}
+
+function FieldLabel({ icon, children }: { icon?: ReactNode; children: ReactNode }) {
+  return (
+    <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+      {icon}
+      <span>{children}</span>
+    </p>
   )
 }
 
@@ -246,19 +267,149 @@ function getReadonlyOfferClass(offerState: EstadoVigenciaOferta): string {
   }
 }
 
+// ─── Accordion: Aplicar Stock por Sucursal ───────────────────────────────────
+
+function StockSucursalAccordion({
+  allSucursales,
+  stockSucursales,
+  selectedSucursalIds,
+  disableBulkOptions,
+  visibleActiveVariantKeys,
+  onToggleSucursal,
+  onSelectAllSucursales,
+  onApplyVariantSucursalStockToAll,
+}: {
+  allSucursales: VariantSucursalStockInput[]
+  stockSucursales: VariantSucursalStockInput[]
+  selectedSucursalIds: number[]
+  disableBulkOptions: boolean
+  visibleActiveVariantKeys: string[]
+  onToggleSucursal: (idSucursal: number) => void
+  onSelectAllSucursales: () => void
+  onApplyVariantSucursalStockToAll: (idSucursal: number, value: string, variantKeys?: string[]) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const contentRef = useRef<HTMLDivElement>(null)
+  const allSelected = selectedSucursalIds.length === allSucursales.length
+
+  return (
+    <div className="mb-4 overflow-hidden rounded-lg border border-dashed bg-muted/20 dark:bg-muted/10">
+      {/* Header con toggle */}
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        className="flex w-full items-center justify-between gap-2 px-3 py-3 text-left transition-colors hover:bg-muted/30 dark:hover:bg-muted/20"
+      >
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Aplicar Stock por Sucursal
+        </p>
+        <ChevronDownIcon
+          className={cn(
+            "h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200",
+            open && "rotate-180"
+          )}
+        />
+      </button>
+
+      {/* Selector de sucursales — siempre visible */}
+      {allSucursales.length > 1 && (
+        <div className="flex flex-wrap items-center gap-1.5 border-t px-3 py-2">
+          {/* Pill "Todas" */}
+          <button
+            type="button"
+            onClick={onSelectAllSucursales}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-all",
+              allSelected
+                ? "border-slate-400 bg-slate-100 text-slate-700 shadow-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200"
+                : "border-dashed border-slate-300 text-muted-foreground hover:border-slate-400 hover:text-foreground"
+            )}
+          >
+            <span className={cn(
+              "h-1.5 w-1.5 rounded-full",
+              allSelected ? "bg-slate-500 dark:bg-slate-300" : "bg-slate-300"
+            )} />
+            Todas
+          </button>
+
+          {/* Pills por sucursal */}
+          {allSucursales.map((sucursal) => {
+            const isSelected = selectedSucursalIds.includes(sucursal.idSucursal)
+            const isAlmacen = sucursal.tipoSucursal === "ALMACEN"
+            const PillIcon = isAlmacen ? Warehouse : Store
+            return (
+              <button
+                key={sucursal.idSucursal}
+                type="button"
+                onClick={() => onToggleSucursal(sucursal.idSucursal)}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-all",
+                  isSelected
+                    ? isAlmacen
+                      ? "border-amber-300 bg-amber-50 text-amber-700 shadow-sm dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-300"
+                      : "border-blue-300 bg-blue-50 text-blue-700 shadow-sm dark:border-blue-700 dark:bg-blue-900/20 dark:text-blue-300"
+                    : "border-dashed border-slate-300 text-muted-foreground hover:border-slate-400 hover:text-foreground"
+                )}
+              >
+                <PillIcon className="h-3 w-3 shrink-0" />
+                {sucursal.nombreSucursal.replace(/^almacen\s+/i, "Alm. ")}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Inputs bulk — colapsables */}
+      <div
+        ref={contentRef}
+        className={cn(
+          "overflow-hidden transition-all duration-200",
+          open ? "opacity-100" : "max-h-0 opacity-0"
+        )}
+        style={open ? { maxHeight: contentRef.current?.scrollHeight ?? 9999 } : { maxHeight: 0 }}
+      >
+        <div className="grid gap-3 px-3 pb-3 pt-2 md:grid-cols-2 xl:grid-cols-3">
+          {stockSucursales.map((sucursal) => (
+            <div key={sucursal.idSucursal} className="space-y-1.5">
+              <p className="text-[11px] font-semibold text-foreground">
+                {sucursal.nombreSucursal}
+              </p>
+              <Input
+                type="number"
+                min="0"
+                step="1"
+                placeholder="0"
+                disabled={disableBulkOptions}
+                onChange={(event) =>
+                  onApplyVariantSucursalStockToAll(
+                    sucursal.idSucursal,
+                    event.target.value,
+                    visibleActiveVariantKeys
+                  )
+                }
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function ProductoVariantMatrixCard({
   hasSelectedColors,
   hasSelectedTallas,
-  mediaByColor,
+  stockSucursales,
   variantRows,
+  mediaByColor,
   isAutoSkuEnabled,
   isAutoBarcodeEnabled,
   onAutoSkuToggle,
   onAutoBarcodeToggle,
   onVariantFieldChange,
-  onGenerateBarcode,
-  generatingBarcodeKeys,
   onApplyVariantFieldToAll,
+  onVariantSucursalStockChange,
+  onApplyVariantSucursalStockToAll,
   deletingVariantKeys,
   onRemoveVariant,
   onSetVariantStatus,
@@ -268,6 +419,29 @@ export function ProductoVariantMatrixCard({
   const [viewMode, setViewMode] = useState<VariantMatrixViewMode>("cards")
   const [filteredTallaIds, setFilteredTallaIds] = useState<number[]>([])
   const [filteredColorIds, setFilteredColorIds] = useState<number[]>([])
+  const [selectedSucursalIds, setSelectedSucursalIds] = useState<number[]>(
+    () => stockSucursales.map((s) => s.idSucursal)
+  )
+
+  const handleToggleSucursal = useCallback((idSucursal: number) => {
+    setSelectedSucursalIds((prev) => {
+      if (prev.includes(idSucursal)) {
+        // No deseleccionar si es la única seleccionada
+        if (prev.length === 1) return prev
+        return prev.filter((id) => id !== idSucursal)
+      }
+      return [...prev, idSucursal]
+    })
+  }, [])
+
+  const handleSelectAllSucursales = useCallback(() => {
+    setSelectedSucursalIds(stockSucursales.map((s) => s.idSucursal))
+  }, [stockSucursales])
+
+  const effectiveStockSucursales = useMemo(
+    () => stockSucursales.filter((s) => selectedSucursalIds.includes(s.idSucursal)),
+    [stockSucursales, selectedSucursalIds]
+  )
 
   const tallaFilterOptions = useMemo(() => {
     const seen = new Set<number>()
@@ -423,7 +597,7 @@ export function ProductoVariantMatrixCard({
 
       <CardContent className="px-0 pt-6">
         <div
-          className="mb-4 grid gap-3 rounded-lg border border-dashed bg-muted/20 p-3 md:grid-cols-3"
+          className="mb-4 grid gap-3 rounded-lg border border-dashed bg-muted/20 p-3 md:grid-cols-2"
         >
           <div className="space-y-1.5">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -461,27 +635,25 @@ export function ProductoVariantMatrixCard({
             />
           </div>
 
-          <div className="space-y-1.5">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Aplicar Stock a Todas
-            </p>
-            <Input
-              type="number"
-              min="0"
-              step="1"
-              placeholder="Ej. 20"
-              disabled={disableBulkOptions}
-              onChange={(event) =>
-                onApplyVariantFieldToAll("stock", event.target.value, visibleActiveVariantKeys)
-              }
-            />
-          </div>
         </div>
 
+        {stockSucursales.length > 0 ? (
+          <StockSucursalAccordion
+            allSucursales={stockSucursales}
+            stockSucursales={effectiveStockSucursales}
+            selectedSucursalIds={selectedSucursalIds}
+            disableBulkOptions={disableBulkOptions}
+            visibleActiveVariantKeys={visibleActiveVariantKeys}
+            onToggleSucursal={handleToggleSucursal}
+            onSelectAllSucursales={handleSelectAllSucursales}
+            onApplyVariantSucursalStockToAll={onApplyVariantSucursalStockToAll}
+          />
+        ) : null}
+
         {variantRows.length > 0 ? (
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-background/70 px-3 py-2">
-            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-4 rounded-[20px] border bg-background px-4 py-3 shadow-sm">
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2.5">
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Tallas
               </span>
               {tallaFilterOptions.map((variant) => {
@@ -496,9 +668,9 @@ export function ProductoVariantMatrixCard({
                       )
                     }
                     className={cn(
-                      "min-w-10 rounded-full border px-3 py-1 text-xs font-semibold transition-colors",
+                      "min-w-10 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors",
                       isActive
-                        ? "border-blue-500 bg-blue-50 text-blue-700 dark:border-blue-400 dark:bg-blue-950/30 dark:text-blue-200"
+                        ? "border-slate-300 bg-slate-100 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                         : hasQuickFiltersActive
                           ? "border-border bg-background text-muted-foreground hover:bg-muted"
                           : "border-border bg-background text-foreground hover:bg-muted"
@@ -512,7 +684,7 @@ export function ProductoVariantMatrixCard({
             </div>
 
             <div className="flex flex-wrap items-center justify-end gap-2">
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Colores
               </span>
               {colorFilterOptions.map((variant) => {
@@ -528,9 +700,9 @@ export function ProductoVariantMatrixCard({
                       )
                     }
                     className={cn(
-                      "flex h-8 w-8 items-center justify-center rounded-full border-2 transition-all",
+                      "flex h-7 w-7 items-center justify-center rounded-full border-2 transition-all",
                       isActive
-                        ? "scale-105 border-blue-500 shadow-sm"
+                        ? "scale-105 border-slate-900 shadow-sm dark:border-slate-100"
                         : hasQuickFiltersActive
                           ? "border-border opacity-55 hover:opacity-100"
                           : "border-border hover:scale-105"
@@ -599,8 +771,6 @@ export function ProductoVariantMatrixCard({
                 {visibleVariantRows.map((variant) => {
                   const isInactiveVariant = variant.estado === "INACTIVO"
                   const isDeletingVariant = deletingVariantKeys.includes(variant.key)
-                  const variantImageUrl =
-                    mediaByColor[variant.color.idColor]?.[0]?.previewUrl ?? null
                   const offerState = variant.readonlyOffer
                     ? getReadonlyOfferState(variant)
                     : null
@@ -625,20 +795,20 @@ export function ProductoVariantMatrixCard({
                     <article
                       key={variant.key}
                       className={cn(
-                        "relative overflow-hidden rounded-xl border bg-background p-4 shadow-sm transition",
+                        "relative overflow-hidden rounded-[24px] border bg-background shadow-sm transition",
                         isInactiveVariant && "border-dashed border-slate-300"
                       )}
                     >
                       <div
                         className={cn(
-                          "space-y-3 transition",
+                          "transition",
                           isInactiveVariant && "pointer-events-none select-none blur-[2px] opacity-35"
                         )}
                       >
-                        <div className="mb-4 flex items-start justify-between gap-2">
+                        <div className="flex items-start justify-between gap-3 border-b px-4 py-4">
                           <VariantCombinationPreview
                             variant={variant}
-                            imageUrl={variantImageUrl}
+                            colorImageUrl={mediaByColor[variant.color.idColor]?.[0]?.previewUrl ?? null}
                           />
                           <Button
                             type="button"
@@ -657,12 +827,12 @@ export function ProductoVariantMatrixCard({
                           </Button>
                         </div>
 
-                        <div className="space-y-3">
-                          <div className="grid gap-3 sm:grid-cols-2">
-                            <div className="space-y-1">
-                              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        <div className="space-y-4 px-4 py-4">
+                          <div className="grid gap-3 md:grid-cols-2">
+                            <div className="space-y-1.5">
+                              <FieldLabel icon={<TagIcon className="h-3.5 w-3.5" />}>
                                 SKU *
-                              </p>
+                              </FieldLabel>
                               <Input
                                 type="text"
                                 value={variant.sku}
@@ -674,61 +844,54 @@ export function ProductoVariantMatrixCard({
                               />
                               {isAutoSkuEnabled ? (
                                 <p className="text-[11px] text-muted-foreground">
-                                  Generado automaticamente
+                                  Generado auto.
                                 </p>
                               ) : null}
                             </div>
 
-                            <div className="space-y-1">
-                              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                Stock
-                              </p>
-                              <Input
-                                type="number"
-                                min="0"
-                                step="1"
-                                value={variant.stock}
-                                onChange={(event) =>
-                                  onVariantFieldChange(variant.key, "stock", event.target.value)
-                                }
-                                disabled={isInactiveVariant || isDeletingVariant}
-                              />
+                            <div className="space-y-1.5">
+                              <FieldLabel icon={<Barcode className="h-3.5 w-3.5" />}>
+                                Cod. barras
+                              </FieldLabel>
+                              <div className="relative">
+                                <Barcode className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                                <Input
+                                  type="text"
+                                  className="pl-10"
+                                  value={variant.codigoBarras}
+                                  placeholder="7501234567890"
+                                  onChange={(event) =>
+                                    onVariantFieldChange(variant.key, "codigoBarras", event.target.value)
+                                  }
+                                  disabled={isInactiveVariant || isDeletingVariant || isAutoBarcodeEnabled}
+                                />
+                              </div>
                             </div>
                           </div>
 
-                          <div className="space-y-1">
-                            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                              Código de Barras
-                            </p>
-                            <div className="relative">
-                              <Barcode className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                              <Input
-                                type="text"
-                                className="pl-10"
-                                value={variant.codigoBarras}
-                                placeholder="Ej. 7501234567890"
-                                onChange={(event) =>
-                                  onVariantFieldChange(variant.key, "codigoBarras", event.target.value)
-                                }
-                                disabled={isInactiveVariant || isDeletingVariant || isAutoBarcodeEnabled}
-                              />
-                            </div>
-                            {isAutoBarcodeEnabled ? (
-                              <p className="text-[11px] text-muted-foreground">
-                                Generado automaticamente
-                              </p>
-                            ) : (
-                              <p className="text-[11px] text-muted-foreground">Opcional</p>
-                            )}
+                          <div className="space-y-3 border-t pt-4">
+                            <FieldLabel>Stock por sucursal</FieldLabel>
+                            <ProductoVariantStockEditor
+                              sucursales={effectiveStockSucursales}
+                              values={variant.stocksSucursales}
+                              totalStock={variant.stock}
+                              disabled={isInactiveVariant || isDeletingVariant}
+                              onChange={(idSucursal, value) =>
+                                onVariantSucursalStockChange(
+                                  variant.key,
+                                  idSucursal,
+                                  value
+                                )
+                              }
+                            />
                           </div>
 
-                          <div className="grid gap-3 sm:grid-cols-2">
-                            <div className="space-y-1">
-                              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                Precio Regular
-                              </p>
+                          <div className="grid gap-3 border-t pt-4 md:grid-cols-2">
+                            <div className="space-y-1.5">
+                              <FieldLabel>Precio reg.</FieldLabel>
                               <CurrencyInput
                                 value={variant.precio}
+                                placeholder="0.00"
                                 onChange={(nextValue) =>
                                   onVariantFieldChange(variant.key, "precio", nextValue)
                                 }
@@ -736,20 +899,16 @@ export function ProductoVariantMatrixCard({
                               />
                             </div>
 
-                            <div className="space-y-1">
-                              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                Precio Mayor
-                              </p>
+                            <div className="space-y-1.5">
+                              <FieldLabel>Precio mayor</FieldLabel>
                               <CurrencyInput
                                 value={variant.precioMayor}
+                                placeholder="0.00"
                                 onChange={(nextValue) =>
                                   onVariantFieldChange(variant.key, "precioMayor", nextValue)
                                 }
                                 disabled={isInactiveVariant || isDeletingVariant}
                               />
-                              <p className="text-[11px] text-muted-foreground">
-                                Opcional
-                              </p>
                             </div>
                           </div>
                         </div>
@@ -791,29 +950,23 @@ export function ProductoVariantMatrixCard({
             </TabsContent>
 
             <TabsContent value="table">
-              <div className="overflow-x-auto rounded-xl border bg-background">
-                <table className="min-w-[1280px] w-full text-sm">
-                  <thead className="bg-muted/40">
+              <div className="overflow-x-auto rounded-[22px] border bg-background shadow-sm">
+                <table className="min-w-[1100px] w-full text-sm">
+                  <thead className="bg-muted/35">
                     <tr className="border-b">
-                      <th className="px-4 py-3 text-left font-semibold text-muted-foreground">
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                         Variante
                       </th>
-                      <th className="px-4 py-3 text-left font-semibold text-muted-foreground">
-                        SKU
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        SKU & Codigo
                       </th>
-                      <th className="px-4 py-3 text-left font-semibold text-muted-foreground">
-                        Stock
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Stock por sucursal
                       </th>
-                      <th className="px-4 py-3 text-left font-semibold text-muted-foreground">
-                        Precio
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Precios
                       </th>
-                      <th className="px-4 py-3 text-left font-semibold text-muted-foreground">
-                        Precio Mayor
-                      </th>
-                      <th className="px-4 py-3 text-left font-semibold text-muted-foreground">
-                        Cód. Barras
-                      </th>
-                      <th className="px-4 py-3 text-right font-semibold text-muted-foreground">
+                      <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                         Acciones
                       </th>
                     </tr>
@@ -822,8 +975,6 @@ export function ProductoVariantMatrixCard({
                     {visibleVariantRows.map((variant) => {
                       const isInactiveVariant = variant.estado === "INACTIVO"
                       const isDeletingVariant = deletingVariantKeys.includes(variant.key)
-                      const variantImageUrl =
-                        mediaByColor[variant.color.idColor]?.[0]?.previewUrl ?? null
 
                       return (
                         <tr
@@ -836,14 +987,14 @@ export function ProductoVariantMatrixCard({
                           <td className="px-4 py-4">
                             <div
                               className={cn(
-                                "min-w-[220px] transition",
+                                "min-w-[180px] transition",
                                 isInactiveVariant &&
                                   "pointer-events-none select-none blur-[2px] opacity-35"
                               )}
                             >
                               <VariantCombinationPreview
                                 variant={variant}
-                                imageUrl={variantImageUrl}
+                                colorImageUrl={mediaByColor[variant.color.idColor]?.[0]?.previewUrl ?? null}
                               />
                             </div>
                             {isInactiveVariant ? (
@@ -858,7 +1009,7 @@ export function ProductoVariantMatrixCard({
                           <td className="px-4 py-4">
                             <div
                               className={cn(
-                                "min-w-[220px] space-y-1 transition",
+                                "min-w-[240px] space-y-2 transition",
                                 isInactiveVariant &&
                                   "pointer-events-none select-none blur-[2px] opacity-35"
                               )}
@@ -872,106 +1023,75 @@ export function ProductoVariantMatrixCard({
                                 }
                                 disabled={isInactiveVariant || isDeletingVariant || isAutoSkuEnabled}
                               />
-                              {isAutoSkuEnabled ? (
-                                <p className="text-[11px] text-muted-foreground">
-                                  Generado automaticamente
-                                </p>
-                              ) : null}
-                            </div>
-                          </td>
-                          <td className="px-4 py-4">
-                            <div
-                              className={cn(
-                                "min-w-[120px] transition",
-                                isInactiveVariant &&
-                                  "pointer-events-none select-none blur-[2px] opacity-35"
-                              )}
-                            >
                               <Input
-                                type="number"
-                                min="0"
-                                step="1"
-                                value={variant.stock}
+                                type="text"
+                                value={variant.codigoBarras}
+                                placeholder="7501234567890"
                                 onChange={(event) =>
-                                  onVariantFieldChange(variant.key, "stock", event.target.value)
+                                  onVariantFieldChange(variant.key, "codigoBarras", event.target.value)
                                 }
-                                disabled={isInactiveVariant || isDeletingVariant}
+                                disabled={isInactiveVariant || isDeletingVariant || isAutoBarcodeEnabled}
                               />
                             </div>
                           </td>
                           <td className="px-4 py-4">
                             <div
                               className={cn(
-                                "min-w-[150px] transition",
+                                "min-w-[230px] transition",
+                                isInactiveVariant &&
+                                  "pointer-events-none select-none blur-[2px] opacity-35"
+                              )}
+                            >
+                              <ProductoVariantStockEditor
+                                sucursales={effectiveStockSucursales}
+                                values={variant.stocksSucursales}
+                                totalStock={variant.stock}
+                                compact
+                                disabled={isInactiveVariant || isDeletingVariant}
+                                onChange={(idSucursal, value) =>
+                                  onVariantSucursalStockChange(
+                                    variant.key,
+                                    idSucursal,
+                                    value
+                                  )
+                                }
+                              />
+                            </div>
+                          </td>
+                          <td className="px-4 py-4">
+                            <div
+                              className={cn(
+                                "min-w-[150px] space-y-2 transition",
                                 isInactiveVariant &&
                                   "pointer-events-none select-none blur-[2px] opacity-35"
                               )}
                             >
                               <CurrencyInput
                                 value={variant.precio}
+                                placeholder="Reg."
                                 onChange={(nextValue) =>
                                   onVariantFieldChange(variant.key, "precio", nextValue)
                                 }
                                 disabled={isInactiveVariant || isDeletingVariant}
                               />
-                            </div>
-                          </td>
-                          <td className="px-4 py-4">
-                            <div
-                              className={cn(
-                                "min-w-[150px] space-y-1 transition",
-                                isInactiveVariant &&
-                                  "pointer-events-none select-none blur-[2px] opacity-35"
-                              )}
-                            >
                               <CurrencyInput
                                 value={variant.precioMayor}
+                                placeholder="Mayor"
                                 onChange={(nextValue) =>
                                   onVariantFieldChange(variant.key, "precioMayor", nextValue)
                                 }
                                 disabled={isInactiveVariant || isDeletingVariant}
                               />
-                              <p className="text-[11px] text-muted-foreground">Opcional</p>
                             </div>
                           </td>
-                          <td className="px-4 py-4">
-                            <div
-                              className={cn(
-                                "min-w-[180px] space-y-1 transition",
-                                isInactiveVariant &&
-                                  "pointer-events-none select-none blur-[2px] opacity-35"
-                              )}
-                            >
-                              <div className="relative">
-                                <Barcode className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                                <Input
-                                  type="text"
-                                  className="pl-10"
-                                  value={variant.codigoBarras}
-                                  placeholder="Ej. 7501234567890"
-                                  onChange={(event) =>
-                                    onVariantFieldChange(variant.key, "codigoBarras", event.target.value)
-                                  }
-                                  disabled={isInactiveVariant || isDeletingVariant || isAutoBarcodeEnabled}
-                                />
-                              </div>
-                              {isAutoBarcodeEnabled ? (
-                                <p className="text-[11px] text-muted-foreground">
-                                  Generado automaticamente
-                                </p>
-                              ) : (
-                                <p className="text-[11px] text-muted-foreground">Opcional</p>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-4 py-4 text-right">
+                          <td className="px-4 py-4 text-center">
                             {isInactiveVariant ? (
                               <Button
                                 type="button"
                                 size="sm"
                                 onClick={() => onSetVariantStatus(variant.key, "ACTIVO")}
                               >
-                                Habilitar Variante
+                                Habilitar
                               </Button>
                             ) : (
                               <Button

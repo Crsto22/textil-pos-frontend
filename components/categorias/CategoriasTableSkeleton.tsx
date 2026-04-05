@@ -12,9 +12,6 @@ export function CategoriasTableSkeleton() {
           <td className="hidden px-4 py-3 lg:table-cell">
             <div className="h-4 w-44 animate-pulse rounded bg-muted" />
           </td>
-          <td className="hidden px-4 py-3 xl:table-cell">
-            <div className="h-4 w-32 animate-pulse rounded bg-muted" />
-          </td>
           <td className="px-4 py-3">
             <div className="h-5 w-20 animate-pulse rounded-full bg-muted" />
           </td>

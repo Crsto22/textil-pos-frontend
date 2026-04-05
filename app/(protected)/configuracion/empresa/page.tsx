@@ -10,6 +10,7 @@ import { EmpresaErrorAlert } from "@/components/configuracion/empresa/EmpresaErr
 import { EmpresaIdentidadCard } from "@/components/configuracion/empresa/EmpresaIdentidadCard"
 import { EmpresaLogoCard } from "@/components/configuracion/empresa/EmpresaLogoCard"
 import { EmpresaSkeleton } from "@/components/configuracion/empresa/EmpresaSkeleton"
+import { EmpresaUbicacionFiscalCard } from "@/components/configuracion/empresa/EmpresaUbicacionFiscalCard"
 import { SunatConnectionTab } from "@/components/configuracion/empresa/SunatConnectionTab"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useEmpresaConfig } from "@/lib/hooks/useEmpresaConfig"
@@ -39,11 +40,20 @@ export default function ConfigEmpresaPage() {
         setCorreo,
         telefono,
         setTelefono,
+        direccion,
+        setDireccion,
+        ubigeo,
+        departamento,
+        provincia,
+        distrito,
+        codigoEstablecimientoSunat,
+        setCodigoEstablecimientoSunat,
         generaFacturacionElectronica,
         setGeneraFacturacionElectronica,
 
         fetchEmpresa,
         resetForm,
+        handleLocationChange,
         handleSave,
         handleUpload,
         clearFieldError,
@@ -128,6 +138,27 @@ export default function ConfigEmpresaPage() {
                                         onRucChange={setRuc}
                                         onCorreoChange={setCorreo}
                                         onTelefonoChange={setTelefono}
+                                        onClearError={clearFieldError}
+                                    />
+
+                                    <EmpresaUbicacionFiscalCard
+                                        enabled={!isLoading}
+                                        direccion={direccion}
+                                        codigoEstablecimientoSunat={
+                                            codigoEstablecimientoSunat
+                                        }
+                                        locationFields={{
+                                            ubigeo,
+                                            departamento,
+                                            provincia,
+                                            distrito,
+                                        }}
+                                        formErrors={formErrors}
+                                        onDireccionChange={setDireccion}
+                                        onCodigoEstablecimientoSunatChange={
+                                            setCodigoEstablecimientoSunat
+                                        }
+                                        onLocationChange={handleLocationChange}
                                         onClearError={clearFieldError}
                                     />
                                 </div>

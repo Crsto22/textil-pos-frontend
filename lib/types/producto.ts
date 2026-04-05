@@ -10,7 +10,7 @@ export interface Producto {
   idCategoria: number | null
   nombreCategoria: string
   idSucursal: number | null
-  nombreSucursal: string
+  nombreSucursal: string | null
 }
 
 export interface ProductoResumenImagen {
@@ -18,6 +18,24 @@ export interface ProductoResumenImagen {
   urlThumb: string
   orden: number
   esPrincipal: boolean
+}
+
+export interface StockSucursalVenta {
+  idSucursal: number
+  nombreSucursal: string
+  stock: number
+}
+
+export interface ProductoVarianteStockSucursalRequest {
+  idSucursal: number
+  cantidad: number
+}
+
+export interface ProductoVarianteStockSucursalDetalle {
+  idSucursal: number
+  nombreSucursal: string
+  tipoSucursal: string
+  cantidad: number
 }
 
 export interface ProductoResumenColor {
@@ -40,6 +58,7 @@ export interface ProductoResumenTalla {
   ofertaInicio?: string | null
   ofertaFin?: string | null
   stock?: number | null
+  stocksSucursalesVenta?: StockSucursalVenta[]
   estado?: string | null
 }
 
@@ -68,7 +87,7 @@ export interface ProductoVarianteCreateRequest {
   precioOferta?: number | null
   ofertaInicio?: string | null
   ofertaFin?: string | null
-  stock: number
+  stocksSucursales: ProductoVarianteStockSucursalRequest[]
 }
 
 export interface ProductoImagenCreateRequest {
@@ -80,7 +99,6 @@ export interface ProductoImagenCreateRequest {
 }
 
 export interface ProductoInsertarCompletoRequest {
-  idSucursal: number
   idCategoria: number
   nombre: string
   descripcion?: string
@@ -151,6 +169,7 @@ export interface ProductoDetalleVariante {
   ofertaInicio: string | null
   ofertaFin: string | null
   stock: number
+  stocksSucursales: ProductoVarianteStockSucursalDetalle[]
   estado: string
 }
 

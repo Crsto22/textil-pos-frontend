@@ -154,6 +154,15 @@ function getStockLevelClass(stock: number): string {
   return "bg-rose-500"
 }
 
+function getEffectiveStock(
+  variante: ProductoDetalleResponse["variantes"][number],
+  idSucursal: number | null
+): number {
+  if (!idSucursal) return variante.stock
+  const entry = variante.stocksSucursales.find((s) => s.idSucursal === idSucursal)
+  return entry?.cantidad ?? variante.stock
+}
+
 function buildVariantPriceOptions(
   variant: ProductoDetalleResponse["variantes"][number] | null,
   currentDate: Date
@@ -224,6 +233,7 @@ interface ProductModalProps {
   onClose: () => void
   onConfirm: (variant: SelectedVariant) => void
   initialSelection?: CatalogVariantSelection | null
+  idSucursal?: number | null
 }
 
 export default function ProductModal({
@@ -231,6 +241,7 @@ export default function ProductModal({
   onClose,
   onConfirm,
   initialSelection = null,
+  idSucursal = null,
 }: ProductModalProps) {
   const [detalle, setDetalle] = useState<ProductoDetalleResponse | null>(null)
   const [detalleLoading, setDetalleLoading] = useState(false)
@@ -389,14 +400,16 @@ export default function ProductModal({
         previous !== null &&
         variantesPorColor.some(
           (variante) =>
-            variante.tallaId === previous && variante.estado === "ACTIVO" && variante.stock > 0
+            variante.tallaId === previous &&
+            variante.estado === "ACTIVO" &&
+            getEffectiveStock(variante, idSucursal) > 0
         )
       ) {
         return previous
       }
 
       const firstAvailable = variantesPorColor.find(
-        (variante) => variante.estado === "ACTIVO" && variante.stock > 0
+        (variante) => variante.estado === "ACTIVO" && getEffectiveStock(variante, idSucursal) > 0
       )
       return firstAvailable?.tallaId ?? variantesPorColor[0].tallaId
     })
@@ -472,8 +485,8 @@ export default function ProductModal({
 
   const maxCantidad = useMemo(() => {
     if (!selectedVariante) return 1
-    return Math.max(1, selectedVariante.stock)
-  }, [selectedVariante])
+    return Math.max(1, getEffectiveStock(selectedVariante, idSucursal))
+  }, [selectedVariante, idSucursal])
 
   useEffect(() => {
     setCantidad((previous) => Math.min(Math.max(previous, 1), maxCantidad))
@@ -502,12 +515,14 @@ export default function ProductModal({
 
   if (!product) return null
 
+  const effectiveStock = selectedVariante ? getEffectiveStock(selectedVariante, idSucursal) : 0
+
   const canConfirm =
     selectedVariante !== null &&
     selectedVariante.estado === "ACTIVO" &&
-    selectedVariante.stock > 0 &&
+    effectiveStock > 0 &&
     cantidad > 0 &&
-    cantidad <= selectedVariante.stock
+    cantidad <= effectiveStock
 
   const displayPrice =
     selectedPriceOption?.precio ?? selectedVariante?.precio ?? product.precioMin ?? 0
@@ -535,7 +550,7 @@ export default function ProductModal({
       color: selectedColor.nombre,
       colorId: selectedColor.colorId,
       cantidad,
-      stockDisponible: selectedVariante.stock,
+      stockDisponible: effectiveStock,
       sku: selectedVariante.sku,
       imageUrl: selectedImageUrl,
     })
@@ -788,7 +803,7 @@ export default function ProductModal({
                         {selectedColor.nombre}
                       </p>
                       <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                        Stock color: {variantesPorColor.reduce((sum, item) => sum + item.stock, 0)}
+                        Stock color: {variantesPorColor.reduce((sum, item) => sum + getEffectiveStock(item, idSucursal), 0)}
                       </p>
                     </div>
 
@@ -799,7 +814,8 @@ export default function ProductModal({
                         </div>
                       ) : (
                         variantesPorColor.map((variante) => {
-                          const agotado = variante.estado !== "ACTIVO" || variante.stock <= 0
+                          const stockVariante = getEffectiveStock(variante, idSucursal)
+                          const agotado = variante.estado !== "ACTIVO" || stockVariante <= 0
                           const selected = variante.tallaId === selectedTallaId
                           const showOfferPrice =
                             tienePrecioOfertaValido(variante) &&
@@ -826,9 +842,9 @@ export default function ProductModal({
                                 </span>
                                 <span className="inline-flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400">
                                   <span
-                                    className={`h-2 w-2 rounded-full ${getStockLevelClass(variante.stock)}`}
+                                    className={`h-2 w-2 rounded-full ${getStockLevelClass(stockVariante)}`}
                                   />
-                                  {variante.stock} u.
+                                  {stockVariante} u.
                                 </span>
                               </div>
 
@@ -882,7 +898,7 @@ export default function ProductModal({
                         onClick={() =>
                           setCantidad((previous) => Math.min(maxCantidad, previous + 1))
                         }
-                        disabled={!selectedVariante || selectedVariante.stock <= 0}
+                        disabled={!selectedVariante || effectiveStock <= 0}
                         variant="ghost"
                         size="icon"
                         className="h-9 w-9 rounded-lg text-slate-600 hover:bg-white disabled:opacity-40 dark:text-slate-300 dark:hover:bg-slate-700"

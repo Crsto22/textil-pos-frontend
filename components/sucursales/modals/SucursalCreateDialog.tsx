@@ -19,11 +19,11 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { SucursalUbigeoFields } from "@/components/sucursales/modals/SucursalUbigeoFields"
 import { useEmpresaOptions } from "@/lib/hooks/useEmpresaOptions"
 import {
   emptyCreate,
   type SucursalCreateRequest,
+  type TipoSucursal,
 } from "@/lib/types/sucursal"
 
 interface SucursalCreateDialogProps {
@@ -34,8 +34,6 @@ interface SucursalCreateDialogProps {
 
 const phoneRegex = /^\d{7,15}$/
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-const ubigeoRegex = /^\d{6}$/
-const sunatCodeRegex = /^\d{4}$/
 
 export function SucursalCreateDialog({
   open,
@@ -63,22 +61,20 @@ export function SucursalCreateDialog({
     () => empresas.some((empresa) => empresa.idEmpresa === form.idEmpresa),
     [empresas, form.idEmpresa]
   )
+  const telefono = form.telefono ?? ""
+  const correo = form.correo ?? ""
 
   const isCreateValid = useMemo(
     () =>
       form.nombre.trim() !== "" &&
+      form.ciudad.trim() !== "" &&
       form.direccion.trim() !== "" &&
-      form.departamento.trim() !== "" &&
-      form.provincia.trim() !== "" &&
-      form.distrito.trim() !== "" &&
-      phoneRegex.test(form.telefono) &&
-      emailRegex.test(form.correo) &&
-      ubigeoRegex.test(form.ubigeo) &&
-      sunatCodeRegex.test(form.codigoEstablecimientoSunat) &&
+      (telefono === "" || phoneRegex.test(telefono)) &&
+      (correo === "" || emailRegex.test(correo)) &&
       Number.isInteger(form.idEmpresa) &&
       form.idEmpresa > 0 &&
       hasEmpresaSeleccionada,
-    [form, hasEmpresaSeleccionada]
+    [correo, form, hasEmpresaSeleccionada, telefono]
   )
 
   const handleOpenChange = (nextOpen: boolean) => {
@@ -115,7 +111,7 @@ export function SucursalCreateDialog({
             <Label htmlFor="c-nombre-sucursal">Nombre</Label>
             <Input
               id="c-nombre-sucursal"
-              placeholder="Sucursal Centro"
+              placeholder="Sucursal Gamarra"
               value={form.nombre}
               onChange={(event) =>
                 setForm((previous) => ({
@@ -126,44 +122,48 @@ export function SucursalCreateDialog({
             />
           </div>
 
-          <div className="grid gap-2">
-            <Label htmlFor="c-descripcion-sucursal">Descripcion</Label>
-            <Input
-              id="c-descripcion-sucursal"
-              placeholder="Principal del centro"
-              value={form.descripcion}
-              onChange={(event) =>
-                setForm((previous) => ({
-                  ...previous,
-                  descripcion: event.target.value,
-                }))
-              }
-            />
-          </div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="grid gap-2">
+              <Label htmlFor="c-ciudad-sucursal">Ciudad</Label>
+              <Input
+                id="c-ciudad-sucursal"
+                placeholder="Lima"
+                value={form.ciudad}
+                onChange={(event) =>
+                  setForm((previous) => ({
+                    ...previous,
+                    ciudad: event.target.value,
+                  }))
+                }
+              />
+            </div>
 
-          <div className="grid gap-2">
-            <Label htmlFor="c-direccion-sucursal">Direccion</Label>
-            <Input
-              id="c-direccion-sucursal"
-              placeholder="Jr. Lima 100"
-              value={form.direccion}
-              onChange={(event) =>
-                setForm((previous) => ({
-                  ...previous,
-                  direccion: event.target.value,
-                }))
-              }
-            />
+            <div className="grid gap-2">
+              <Label htmlFor="c-direccion-sucursal">Direccion</Label>
+              <Input
+                id="c-direccion-sucursal"
+                placeholder="Jr. Gamarra 1234, La Victoria"
+                value={form.direccion}
+                onChange={(event) =>
+                  setForm((previous) => ({
+                    ...previous,
+                    direccion: event.target.value,
+                  }))
+                }
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="grid gap-2">
-              <Label htmlFor="c-telefono-sucursal">Telefono</Label>
+              <Label htmlFor="c-telefono-sucursal">
+                Telefono <span className="text-muted-foreground">(opcional)</span>
+              </Label>
               <Input
                 id="c-telefono-sucursal"
-                placeholder="987654321"
+                placeholder="014567890"
                 maxLength={15}
-                value={form.telefono}
+                value={telefono}
                 onChange={(event) =>
                   setForm((previous) => ({
                     ...previous,
@@ -171,18 +171,20 @@ export function SucursalCreateDialog({
                   }))
                 }
               />
-              {form.telefono.length > 0 && !phoneRegex.test(form.telefono) && (
+              {telefono.length > 0 && !phoneRegex.test(telefono) && (
                 <p className="text-xs text-red-500">Debe tener entre 7 y 15 digitos</p>
               )}
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="c-correo-sucursal">Correo</Label>
+              <Label htmlFor="c-correo-sucursal">
+                Correo <span className="text-muted-foreground">(opcional)</span>
+              </Label>
               <Input
                 id="c-correo-sucursal"
                 type="email"
-                placeholder="centro@empresa.com"
-                value={form.correo}
+                placeholder="gamarra@kimets.pe"
+                value={correo}
                 onChange={(event) =>
                   setForm((previous) => ({
                     ...previous,
@@ -190,13 +192,34 @@ export function SucursalCreateDialog({
                   }))
                 }
               />
-              {form.correo.length > 0 && !emailRegex.test(form.correo) && (
+              {correo.length > 0 && !emailRegex.test(correo) && (
                 <p className="text-xs text-red-500">Formato de correo invalido</p>
               )}
             </div>
           </div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="grid gap-2">
+              <Label htmlFor="c-tipo-sucursal">Tipo</Label>
+              <Select
+                value={form.tipo}
+                onValueChange={(value) =>
+                  setForm((previous) => ({
+                    ...previous,
+                    tipo: value as TipoSucursal,
+                  }))
+                }
+              >
+                <SelectTrigger className="w-full" id="c-tipo-sucursal">
+                  <SelectValue placeholder="Selecciona tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="VENTA">Venta</SelectItem>
+                  <SelectItem value="ALMACEN">Almacen</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="grid gap-2">
               <Label htmlFor="c-empresa-sucursal">Empresa</Label>
               {loadingEmpresas ? (
@@ -245,45 +268,7 @@ export function SucursalCreateDialog({
                 </Select>
               )}
             </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="c-codigo-sunat-sucursal">Codigo Establecimiento SUNAT</Label>
-              <Input
-                id="c-codigo-sunat-sucursal"
-                placeholder="0001"
-                maxLength={4}
-                value={form.codigoEstablecimientoSunat}
-                onChange={(event) =>
-                  setForm((previous) => ({
-                    ...previous,
-                    codigoEstablecimientoSunat: event.target.value
-                      .replace(/\D/g, "")
-                      .slice(0, 4),
-                  }))
-                }
-              />
-              {form.codigoEstablecimientoSunat.length > 0 &&
-                !sunatCodeRegex.test(form.codigoEstablecimientoSunat) && (
-                  <p className="text-xs text-red-500">Debe tener exactamente 4 digitos</p>
-                )}
-            </div>
           </div>
-
-          <SucursalUbigeoFields
-            enabled={open}
-            form={form}
-            idPrefix="c"
-            onChange={(location) =>
-              setForm((previous) => ({
-                ...previous,
-                ...location,
-              }))
-            }
-          />
-
-          {form.ubigeo.length > 0 && !ubigeoRegex.test(form.ubigeo) && (
-            <p className="text-xs text-red-500">Debe tener exactamente 6 digitos</p>
-          )}
         </div>
 
         <DialogFooter>

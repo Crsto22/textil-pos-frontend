@@ -1,6 +1,8 @@
 import { memo } from "react"
+import type React from "react"
 import {
-  BuildingOffice2Icon,
+  ArchiveBoxIcon,
+  BuildingStorefrontIcon,
   EnvelopeIcon,
   MapPinIcon,
   PencilSquareIcon,
@@ -11,7 +13,6 @@ import {
 
 import { SucursalesCardsSkeleton } from "@/components/sucursales/SucursalesCardsSkeleton"
 import { UserAvatar } from "@/components/ui/user-avatar"
-import { getSucursalLocationLabel } from "@/lib/sucursal"
 import { cn } from "@/lib/utils"
 import type { Sucursal } from "@/lib/types/sucursal"
 
@@ -26,25 +27,19 @@ interface SucursalesCardsProps {
 
 interface CardTheme {
   headerBg: string
-  iconBorder: string
-  iconText: string
   statusBadge: string
   statusText: string
 }
 
 const themes: Record<string, CardTheme> = {
   ACTIVO: {
-    headerBg: "bg-blue-50 dark:bg-blue-950/30",
-    iconBorder: "border-blue-400 dark:border-blue-500",
-    iconText: "text-blue-500 dark:text-blue-400",
+    headerBg: "bg-slate-50 dark:bg-slate-900/30",
     statusBadge:
       "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
     statusText: "Operativa",
   },
   INACTIVO: {
     headerBg: "bg-rose-50 dark:bg-rose-950/30",
-    iconBorder: "border-rose-400 dark:border-rose-500",
-    iconText: "text-rose-500 dark:text-rose-400",
     statusBadge:
       "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
     statusText: "Cerrada",
@@ -55,11 +50,52 @@ function getTheme(status: string): CardTheme {
   return (
     themes[status] ?? {
       headerBg: "bg-gray-50 dark:bg-gray-900/30",
-      iconBorder: "border-gray-400",
-      iconText: "text-gray-500 dark:text-gray-400",
       statusBadge:
         "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
       statusText: status,
+    }
+  )
+}
+
+/* ─── Tipo icon & color mapping ─── */
+
+interface TipoTheme {
+  iconBorder: string
+  iconBg: string
+  iconText: string
+  badge: string
+  badgeText: string
+  Icon: React.ComponentType<{ className?: string }>
+}
+
+const tipoThemes: Record<string, TipoTheme> = {
+  VENTA: {
+    iconBorder: "border-indigo-400 dark:border-indigo-500",
+    iconBg: "bg-indigo-50 dark:bg-indigo-950/40",
+    iconText: "text-indigo-500 dark:text-indigo-400",
+    badge: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300",
+    badgeText: "Venta",
+    Icon: BuildingStorefrontIcon,
+  },
+  ALMACEN: {
+    iconBorder: "border-amber-400 dark:border-amber-500",
+    iconBg: "bg-amber-50 dark:bg-amber-950/40",
+    iconText: "text-amber-500 dark:text-amber-400",
+    badge: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+    badgeText: "Almacen",
+    Icon: ArchiveBoxIcon,
+  },
+}
+
+function getTipoTheme(tipo: string): TipoTheme {
+  return (
+    tipoThemes[tipo] ?? {
+      iconBorder: "border-slate-400",
+      iconBg: "bg-slate-50 dark:bg-slate-900/40",
+      iconText: "text-slate-500 dark:text-slate-400",
+      badge: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
+      badgeText: tipo,
+      Icon: BuildingStorefrontIcon,
     }
   )
 }
@@ -118,6 +154,8 @@ function SucursalesCardsComponent({
     <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
       {sucursales.map((sucursal) => {
         const theme = getTheme(sucursal.estado)
+        const tipoTheme = getTipoTheme(sucursal.tipo)
+        const { Icon } = tipoTheme
         const usuarios = Array.isArray(sucursal.usuarios)
           ? sucursal.usuarios
           : []
@@ -138,8 +176,6 @@ function SucursalesCardsComponent({
           Number.isFinite(sucursal.usuariosFaltantes) && sucursal.usuariosFaltantes > 0
             ? sucursal.usuariosFaltantes
             : Math.max(0, usuariosTotal - usuariosPreview.length)
-        const locationLabel = getSucursalLocationLabel(sucursal)
-
 
         return (
           <article
@@ -158,13 +194,12 @@ function SucursalesCardsComponent({
                 <div className="flex items-start gap-3 min-w-0">
                   <div
                     className={cn(
-                      "flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 bg-white dark:bg-card",
-                      theme.iconBorder
+                      "flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2",
+                      tipoTheme.iconBorder,
+                      tipoTheme.iconBg
                     )}
                   >
-                    <BuildingOffice2Icon
-                      className={cn("h-5 w-5", theme.iconText)}
-                    />
+                    <Icon className={cn("h-5 w-5", tipoTheme.iconText)} />
                   </div>
                   <div className="min-w-0">
                     <h3 className="truncate text-[15px] font-bold leading-snug text-foreground">
@@ -182,6 +217,15 @@ function SucursalesCardsComponent({
                         )}
                       >
                         {theme.statusText}
+                      </span>
+                      <span
+                        className={cn(
+                          "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold",
+                          tipoTheme.badge
+                        )}
+                      >
+                        <Icon className="h-3 w-3" />
+                        {tipoTheme.badgeText}
                       </span>
                     </div>
                   </div>
@@ -216,31 +260,24 @@ function SucursalesCardsComponent({
               <p className="flex items-start gap-2.5 text-[13px] text-muted-foreground">
                 <MapPinIcon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/60" />
                 <span className="line-clamp-2 leading-snug">
-                  {sucursal.direccion || "Sin dirección"}
+                  {sucursal.direccion || "Sin direccion"}
+                  {sucursal.ciudad && (
+                    <span className="text-muted-foreground/70"> — {sucursal.ciudad}</span>
+                  )}
                 </span>
               </p>
-              <p className="flex items-center gap-2.5 text-[13px] text-muted-foreground">
-                <MapPinIcon className="h-4 w-4 shrink-0 text-muted-foreground/60" />
-                <span className="truncate">{locationLabel || "Ubicación no registrada"}</span>
-              </p>
-              <p className="flex items-center gap-2.5 text-[13px] text-muted-foreground">
-                <PhoneIcon className="h-4 w-4 shrink-0 text-muted-foreground/60" />
-                <span className="truncate">
-                  {sucursal.telefono || "Sin teléfono"}
-                </span>
-              </p>
-              <p className="flex items-center gap-2.5 text-[13px] text-muted-foreground">
-                <EnvelopeIcon className="h-4 w-4 shrink-0 text-muted-foreground/60" />
-                <span className="truncate">{sucursal.correo || "Sin correo"}</span>
-              </p>
-              <div className="flex flex-wrap items-center gap-2 pt-1">
-                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                  Ubigeo {sucursal.ubigeo || "-"}
-                </span>
-                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                  SUNAT {sucursal.codigoEstablecimientoSunat || "-"}
-                </span>
-              </div>
+              {sucursal.telefono && (
+                <p className="flex items-center gap-2.5 text-[13px] text-muted-foreground">
+                  <PhoneIcon className="h-4 w-4 shrink-0 text-muted-foreground/60" />
+                  <span className="truncate">{sucursal.telefono}</span>
+                </p>
+              )}
+              {sucursal.correo && (
+                <p className="flex items-center gap-2.5 text-[13px] text-muted-foreground">
+                  <EnvelopeIcon className="h-4 w-4 shrink-0 text-muted-foreground/60" />
+                  <span className="truncate">{sucursal.correo}</span>
+                </p>
+              )}
             </div>
 
             {/* ─── Staff section ─── */}
@@ -307,8 +344,6 @@ function SucursalesCardsComponent({
                 </div>
               )}
             </div>
-
-
 
             {/* ─── Bottom spacing ─── */}
             <div className="h-5" />

@@ -4,6 +4,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/lib/auth/auth-context";
 import { CompanyProvider } from "@/lib/company/company-context";
+import { CompanyHead } from "@/components/CompanyHead";
 import { Toaster } from "sonner";
 
 const soraLight = localFont({
@@ -33,6 +34,7 @@ export default function RootLayout({
         >
           <AuthProvider>
             <CompanyProvider>
+              <CompanyHead />
               {children}
               <Toaster
               richColors

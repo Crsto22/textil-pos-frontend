@@ -13,6 +13,7 @@ import { toast } from "sonner"
 
 import { useAuth } from "@/lib/auth/auth-context"
 import { authFetch } from "@/lib/auth/auth-fetch"
+import { parseStocksSucursalesVenta } from "@/lib/stock-sucursal-venta"
 import {
   SEARCH_DEBOUNCE_MS,
   useDebouncedValue,
@@ -101,6 +102,8 @@ function normalizeProductoResumen(producto: Producto | ProductoResumen): Product
               tallaId: talla.tallaId,
               nombre: talla.nombre,
               sku: typeof talla.sku === "string" ? talla.sku : null,
+              codigoBarras:
+                typeof talla.codigoBarras === "string" ? talla.codigoBarras : null,
               precio: typeof talla.precio === "number" ? talla.precio : null,
               precioMayor:
                 typeof talla.precioMayor === "number" ? talla.precioMayor : null,
@@ -111,6 +114,9 @@ function normalizeProductoResumen(producto: Producto | ProductoResumen): Product
               ofertaFin:
                 typeof talla.ofertaFin === "string" ? talla.ofertaFin : null,
               stock: typeof talla.stock === "number" ? talla.stock : null,
+              stocksSucursalesVenta: parseStocksSucursalesVenta(
+                talla.stocksSucursalesVenta
+              ),
               estado: typeof talla.estado === "string" ? talla.estado : null,
             }))
           : [],
@@ -119,6 +125,14 @@ function normalizeProductoResumen(producto: Producto | ProductoResumen): Product
 
   return {
     ...producto,
+    nombreCategoria:
+      typeof producto.nombreCategoria === "string" && producto.nombreCategoria.trim() !== ""
+        ? producto.nombreCategoria
+        : "Sin categoria",
+    nombreSucursal:
+      typeof producto.nombreSucursal === "string" && producto.nombreSucursal.trim() !== ""
+        ? producto.nombreSucursal
+        : null,
     precioMin: typeof resumen.precioMin === "number" ? resumen.precioMin : null,
     precioMax: typeof resumen.precioMax === "number" ? resumen.precioMax : null,
     colores: normalizedColores,
@@ -139,6 +153,7 @@ export function useProductos(enabled = true, idSucursal?: number | null) {
   const [idCategoriaFilter, setIdCategoriaFilter] = useState<number | null>(null)
   const [idColorFilter, setIdColorFilter] = useState<number | null>(null)
   const [conOfertaFilter, setConOfertaFilter] = useState(false)
+  const [soloDisponiblesFilter, setSoloDisponiblesFilter] = useState(false)
   const [searchPage, setSearchPage] = useState(0)
   const resetSearchPage = useCallback(() => {
     setSearchPage(0)
@@ -178,6 +193,9 @@ export function useProductos(enabled = true, idSucursal?: number | null) {
       appendOptionalPositiveInt(params, "idSucursal", idSucursal)
       if (conOfertaFilter) {
         params.set("conOferta", "true")
+      }
+      if (soloDisponiblesFilter) {
+        params.set("soloDisponibles", "true")
       }
 
       const response = await authFetch(`/api/producto/listar-resumen?${params.toString()}`, {
@@ -220,7 +238,7 @@ export function useProductos(enabled = true, idSucursal?: number | null) {
         setLoading(false)
       }
     }
-  }, [conOfertaFilter, idCategoriaFilter, idColorFilter, idSucursal])
+  }, [conOfertaFilter, idCategoriaFilter, idColorFilter, idSucursal, soloDisponiblesFilter])
 
   const fetchBuscar = useCallback(async (query: string, pageNumber: number) => {
     searchAbortRef.current?.abort()
@@ -240,6 +258,9 @@ export function useProductos(enabled = true, idSucursal?: number | null) {
       appendOptionalPositiveInt(params, "idSucursal", idSucursal)
       if (conOfertaFilter) {
         params.set("conOferta", "true")
+      }
+      if (soloDisponiblesFilter) {
+        params.set("soloDisponibles", "true")
       }
 
       const response = await authFetch(`/api/producto/buscar?${params.toString()}`, {
@@ -282,12 +303,12 @@ export function useProductos(enabled = true, idSucursal?: number | null) {
         setSearching(false)
       }
     }
-  }, [conOfertaFilter, idCategoriaFilter, idColorFilter, idSucursal])
+  }, [conOfertaFilter, idCategoriaFilter, idColorFilter, idSucursal, soloDisponiblesFilter])
 
   useEffect(() => {
     setPage(0)
     setSearchPage(0)
-  }, [conOfertaFilter, idCategoriaFilter, idColorFilter, idSucursal])
+  }, [conOfertaFilter, idCategoriaFilter, idColorFilter, idSucursal, soloDisponiblesFilter])
 
   useEffect(() => {
     if (!enabled || isAuthLoading || isSearchMode) return
@@ -523,6 +544,7 @@ export function useProductos(enabled = true, idSucursal?: number | null) {
     idCategoriaFilter,
     idColorFilter,
     conOfertaFilter,
+    soloDisponiblesFilter,
     debouncedSearch,
     isSearchMode,
     searchResults,
@@ -539,6 +561,7 @@ export function useProductos(enabled = true, idSucursal?: number | null) {
     setIdCategoriaFilter,
     setIdColorFilter,
     setConOfertaFilter,
+    setSoloDisponiblesFilter,
     setPage,
     setSearchPage,
     fetchProductos,

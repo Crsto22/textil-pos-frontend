@@ -1,4 +1,5 @@
 import type { ProductoResumen, ProductoResumenImagen } from "@/lib/types/producto"
+import { parseStocksSucursalesVenta } from "@/lib/stock-sucursal-venta"
 import type {
   VarianteResumenColor,
   VarianteResumenImagen,
@@ -136,8 +137,8 @@ function parseVarianteResumenProducto(value: unknown): VarianteResumenProducto |
     pickNullableNumber(payload, ["idSucursal"]) ??
     pickNullableNumber(sucursal, ["idSucursal"])
   const sucursalNombre =
-    pickString(payload, ["nombreSucursal"]) ||
-    pickString(sucursal, ["nombreSucursal", "nombre"])
+    pickNullableString(payload, ["nombreSucursal"]) ??
+    pickNullableString(sucursal, ["nombreSucursal", "nombre"])
 
   return {
     idProducto,
@@ -156,7 +157,7 @@ function parseVarianteResumenProducto(value: unknown): VarianteResumenProducto |
       sucursalId !== null || sucursalNombre
         ? {
             idSucursal: sucursalId,
-            nombreSucursal: sucursalNombre || "Sin sucursal",
+            nombreSucursal: sucursalNombre,
           }
         : null,
   }
@@ -204,6 +205,7 @@ export function parseVarianteResumenItem(value: unknown): VarianteResumenItem | 
     codigoBarras: pickNullableString(payload, ["codigoBarras"]),
     estado: pickString(payload, ["estado"], "ACTIVO"),
     stock: pickNullableNumber(payload, ["stock"]),
+    stocksSucursalesVenta: parseStocksSucursalesVenta(payload.stocksSucursalesVenta),
     precio: pickNullableNumber(payload, ["precio"]),
     precioMayor: pickNullableNumber(payload, ["precioMayor"]),
     precioOferta: pickNullableNumber(payload, ["precioOferta"]),
@@ -277,7 +279,7 @@ export function mapVarianteResumenToProductoResumen(
     idCategoria: item.producto.categoria?.idCategoria ?? null,
     nombreCategoria: item.producto.categoria?.nombreCategoria ?? "Sin categoria",
     idSucursal: item.producto.sucursal?.idSucursal ?? null,
-    nombreSucursal: item.producto.sucursal?.nombreSucursal ?? "Sin sucursal",
+    nombreSucursal: item.producto.sucursal?.nombreSucursal ?? null,
     precioMin: precioBase,
     precioMax: precioBase,
     colores: [
@@ -299,6 +301,7 @@ export function mapVarianteResumenToProductoResumen(
             ofertaInicio: item.ofertaInicio,
             ofertaFin: item.ofertaFin,
             stock: item.stock,
+            stocksSucursalesVenta: item.stocksSucursalesVenta,
             estado: item.estado,
           },
         ],

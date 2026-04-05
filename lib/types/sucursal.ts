@@ -1,22 +1,27 @@
 // Tipos para el modulo de Sucursales
 
+export type TipoSucursal = "VENTA" | "ALMACEN"
+
 export interface SucursalBase {
   nombre: string
-  descripcion: string
+  ciudad: string
   direccion: string
   telefono: string
   correo: string
-  ubigeo: string
-  departamento: string
-  provincia: string
-  distrito: string
-  codigoEstablecimientoSunat: string
+  tipo: TipoSucursal
   idEmpresa: number
+}
+
+export interface SucursalRequestBase
+  extends Omit<SucursalBase, "telefono" | "correo"> {
+  telefono?: string
+  correo?: string
 }
 
 export interface SucursalUsuarioDetalle {
   idUsuario: number
   nombreCompleto: string
+  rol: string
   fotoPerfilUrl: string | null
 }
 
@@ -31,37 +36,29 @@ export interface Sucursal extends SucursalBase {
   usuariosFaltantes: number
 }
 
-export type SucursalCreateRequest = SucursalBase
+export type SucursalCreateRequest = SucursalRequestBase
 
-export interface SucursalUpdateRequest extends SucursalBase {
+export interface SucursalUpdateRequest extends SucursalRequestBase {
   estado: "ACTIVO" | "INACTIVO" | string
 }
 
 export const emptyCreate: SucursalCreateRequest = {
   nombre: "",
-  descripcion: "",
+  ciudad: "",
   direccion: "",
   telefono: "",
   correo: "",
-  ubigeo: "",
-  departamento: "",
-  provincia: "",
-  distrito: "",
-  codigoEstablecimientoSunat: "",
+  tipo: "VENTA",
   idEmpresa: 1,
 }
 
 export const emptyUpdate: SucursalUpdateRequest = {
   nombre: "",
-  descripcion: "",
+  ciudad: "",
   direccion: "",
   telefono: "",
   correo: "",
-  ubigeo: "",
-  departamento: "",
-  provincia: "",
-  distrito: "",
-  codigoEstablecimientoSunat: "",
+  tipo: "VENTA",
   estado: "ACTIVO",
   idEmpresa: 1,
 }

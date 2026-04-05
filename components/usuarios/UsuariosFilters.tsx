@@ -1,4 +1,4 @@
-import { memo, useEffect, useLayoutEffect, useMemo, useRef } from "react"
+import { memo, useEffect, useMemo } from "react"
 
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
 import {
@@ -9,12 +9,12 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useSucursalOptions } from "@/lib/hooks/useSucursalOptions"
-import { useSucursalGlobal } from "@/lib/sucursal-global-context"
 import {
   ALL_USUARIO_BRANCH_FILTER,
   ALL_USUARIO_ROLE_FILTER,
+  getUsuarioRoleOptionsBySucursalType,
+  isUsuarioRolAllowedForSucursalType,
   type UsuarioRoleFilter,
-  USUARIO_ROLE_OPTIONS,
   isUsuarioRol,
 } from "@/lib/types/usuario"
 
@@ -31,20 +31,10 @@ function UsuariosFiltersComponent({
   onRoleFilterChange,
   onBranchFilterChange,
 }: UsuariosFiltersProps) {
-  const { sucursalGlobal } = useSucursalGlobal()
-  const onBranchFilterChangeRef = useRef(onBranchFilterChange)
-  useLayoutEffect(() => {
-    onBranchFilterChangeRef.current = onBranchFilterChange
-  })
-
-  // Sincronizar con sucursal global cuando cambia
-  useEffect(() => {
-    if (sucursalGlobal === null) return
-    onBranchFilterChangeRef.current(String(sucursalGlobal.idSucursal))
-  }, [sucursalGlobal])
-
   const {
     sucursalOptions,
+    getSucursalById,
+    getSucursalOptionById,
     loadingSucursales,
     errorSucursales,
     searchSucursal,
@@ -53,6 +43,26 @@ function UsuariosFiltersComponent({
 
   const hasSpecificBranchSelected =
     branchFilter !== "" && branchFilter !== ALL_USUARIO_BRANCH_FILTER
+  const selectedBranchType = useMemo(() => {
+    if (!hasSpecificBranchSelected) return null
+
+    const selectedBranchId = Number(branchFilter)
+    if (!Number.isInteger(selectedBranchId) || selectedBranchId <= 0) return null
+
+    return getSucursalById(selectedBranchId)?.tipo ?? null
+  }, [branchFilter, getSucursalById, hasSpecificBranchSelected])
+
+  const availableRoleOptions = useMemo(
+    () => getUsuarioRoleOptionsBySucursalType(selectedBranchType),
+    [selectedBranchType]
+  )
+
+  useEffect(() => {
+    if (roleFilter === ALL_USUARIO_ROLE_FILTER) return
+    if (isUsuarioRolAllowedForSucursalType(roleFilter, selectedBranchType)) return
+
+    onRoleFilterChange(ALL_USUARIO_ROLE_FILTER)
+  }, [onRoleFilterChange, roleFilter, selectedBranchType])
 
   const branchOptions = useMemo<ComboboxOption[]>(
     () => [
@@ -63,12 +73,12 @@ function UsuariosFiltersComponent({
       ...(
         hasSpecificBranchSelected &&
         !sucursalOptions.some((option) => option.value === branchFilter)
-          ? [{ value: branchFilter, label: `Sucursal #${branchFilter}` }]
+          ? [getSucursalOptionById(Number(branchFilter))]
           : []
       ),
       ...sucursalOptions,
     ],
-    [branchFilter, hasSpecificBranchSelected, sucursalOptions]
+    [branchFilter, getSucursalOptionById, hasSpecificBranchSelected, sucursalOptions]
   )
 
   return (
@@ -91,7 +101,7 @@ function UsuariosFiltersComponent({
         </SelectTrigger>
         <SelectContent>
           <SelectItem value={ALL_USUARIO_ROLE_FILTER}>Todos los roles</SelectItem>
-          {USUARIO_ROLE_OPTIONS.map((option) => (
+          {availableRoleOptions.map((option) => (
             <SelectItem key={option.value} value={option.value}>
               {option.label}
             </SelectItem>

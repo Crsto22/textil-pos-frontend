@@ -1,5 +1,9 @@
 import { ofertaEstaVigente, obtenerTextoExpiracionOferta, tienePrecioOfertaValido } from "@/lib/oferta-utils"
-import type { ProductoResumen, ProductoResumenTalla } from "@/lib/types/producto"
+import type {
+  ProductoResumen,
+  ProductoResumenTalla,
+  StockSucursalVenta,
+} from "@/lib/types/producto"
 import type { VentaLineaPrecioOption, VentaLineaPrecioTipo } from "@/lib/types/venta-price"
 
 export type CatalogViewMode = "productos" | "variantes"
@@ -31,6 +35,7 @@ export interface CatalogVariantItem {
   sku: string | null
   codigoBarras: string | null
   stock: number | null
+  stocksSucursalesVenta: StockSucursalVenta[]
   estado: string
   imageUrl: string | null
   regularPrice: number
@@ -160,6 +165,7 @@ export function matchesCatalogVariantQuery(
     item.sku ?? "",
     item.product.descripcion,
     item.product.nombreSucursal,
+    item.stocksSucursalesVenta.map((stockItem) => stockItem.nombreSucursal).join(" "),
   ]
     .map((value) => normalizeSearchText(value))
     .join(" ")
@@ -225,6 +231,9 @@ export function buildCatalogVariantItems(
           sku: normalizeLabel(talla.sku, "") || null,
           codigoBarras: normalizeLabel(talla.codigoBarras, "") || null,
           stock: typeof talla.stock === "number" ? talla.stock : null,
+          stocksSucursalesVenta: Array.isArray(talla.stocksSucursalesVenta)
+            ? talla.stocksSucursalesVenta
+            : [],
           estado: normalizeLabel(talla.estado, "ACTIVO"),
           imageUrl: color.imagenPrincipal?.urlThumb || color.imagenPrincipal?.url || null,
           regularPrice: typeof talla.precio === "number" ? talla.precio : 0,

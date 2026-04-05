@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 
+import { sanitizeSucursalRequestBody } from "@/lib/sucursal"
+
 const BACKEND_URL = process.env.BACKEND_URL
 
 export async function POST(request: NextRequest) {
@@ -23,7 +25,8 @@ export async function POST(request: NextRequest) {
 
     let body: string
     try {
-      body = JSON.stringify(await request.json())
+      const requestBody = await request.json()
+      body = JSON.stringify(sanitizeSucursalRequestBody(requestBody))
     } catch {
       return NextResponse.json(
         { message: "Body invalido o vacio" },

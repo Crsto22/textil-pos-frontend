@@ -1,3 +1,5 @@
+import { getRoleLabel } from "@/lib/auth/roles"
+
 const avatarColors = [
   { bg: "bg-blue-500", text: "text-white" },
   { bg: "bg-emerald-500", text: "text-white" },
@@ -33,16 +35,20 @@ export function formatFecha(iso: string): string {
 
 export const rolBadge: Record<string, { label: string; cls: string }> = {
   ADMINISTRADOR: {
-    label: "Administrador",
+    label: getRoleLabel("ADMINISTRADOR"),
     cls: "bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-400",
   },
   VENTAS: {
-    label: "Ventas",
+    label: getRoleLabel("VENTAS"),
     cls: "bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400",
   },
   ALMACEN: {
-    label: "Almacen",
+    label: getRoleLabel("ALMACEN"),
     cls: "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400",
+  },
+  VENTAS_ALMACEN: {
+    label: getRoleLabel("VENTAS_ALMACEN"),
+    cls: "bg-teal-100 text-teal-700 dark:bg-teal-500/15 dark:text-teal-400",
   },
 }
 
