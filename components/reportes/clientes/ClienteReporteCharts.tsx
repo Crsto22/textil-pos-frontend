@@ -242,7 +242,7 @@ export function ClienteRfmScatterChart({
           <ZAxis type="number" dataKey="bubbleSize" range={[90, 420]} />
           <Tooltip
             cursor={{ strokeDasharray: "3 3" }}
-            content={({ active, payload }: { active?: boolean; payload?: ScatterTooltipPayload[] }) => {
+            content={({ active, payload }: { active?: boolean; payload?: readonly ScatterTooltipPayload[] }) => {
               const item = payload?.[0]?.payload
               if (!active || !item) return null
 
