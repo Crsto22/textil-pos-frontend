@@ -48,7 +48,7 @@ export function SalesLineChart({ data }: SalesLineChartProps) {
                         borderRadius: "8px",
                         fontSize: "13px",
                     }}
-                    formatter={(value: number | undefined) => [`S/ ${(value ?? 0).toFixed(2)}`, "Ventas"]}
+                    formatter={(value) => [`S/ ${Number(value ?? 0).toFixed(2)}`, "Ventas"]}
                 />
                 <Line
                     type="monotone"
@@ -102,7 +102,7 @@ export function TopProductsBarChart({ data }: TopProductsBarChartProps) {
                         borderRadius: "8px",
                         fontSize: "13px",
                     }}
-                    formatter={(value: number | undefined) => [`${value ?? 0} unidades`, "Vendidos"]}
+                    formatter={(value) => [`${Number(value ?? 0)} unidades`, "Vendidos"]}
                 />
                 <Bar dataKey="cantidad" radius={[0, 6, 6, 0]} barSize={24}>
                     {data.map((_, idx) => (

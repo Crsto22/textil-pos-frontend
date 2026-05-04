@@ -490,8 +490,6 @@ export function OfertasRegistradasSection({ refreshToken }: OfertasRegistradasSe
         page={page}
         onPageChange={setPage}
         itemLabel="ofertas"
-        activePageClassName="bg-slate-900 text-white dark:bg-neutral-100 dark:text-neutral-950"
-        inactivePageClassName="text-muted-foreground hover:bg-slate-100 dark:hover:bg-neutral-800"
       />
     </div>
   )

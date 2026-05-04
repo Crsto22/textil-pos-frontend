@@ -5,7 +5,7 @@ interface TurnosPaginationProps {
   totalElements: number
   totalPages: number
   page: number
-  onPageChange: (page: number) => void
+  onPageChange: (value: number | ((prev: number) => number)) => void
 }
 
 function TurnosPaginationComponent({

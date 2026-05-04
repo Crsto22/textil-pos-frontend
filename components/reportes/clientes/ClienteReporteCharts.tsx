@@ -150,12 +150,12 @@ export function ClienteCohortChart({
               borderRadius: "14px",
               boxShadow: "0 12px 32px rgba(15, 23, 42, 0.12)",
             }}
-            labelFormatter={(_, payload) => {
-              const item = payload?.[0]?.payload
-              if (!item) return ""
+            labelFormatter={(label) => {
+              const item = chartData.find((entry) => entry.label === String(label))
+              if (!item) return String(label ?? "")
               return `${item.cohorteSemana} · inicio ${item.inicioSemanaLabel}`
             }}
-            formatter={(value: number | string, name: string) => {
+            formatter={(value, name) => {
               if (name === "clientesNuevos") {
                 return [formatPlainNumber(Number(value)), "Clientes nuevos"]
               }

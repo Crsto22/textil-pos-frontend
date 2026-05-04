@@ -11,7 +11,7 @@ import {
 } from "recharts"
 
 import { formatMonedaPen } from "@/components/productos/productos.utils"
-import type { DashboardSalePoint } from "@/lib/types/dashboard"
+import type { VentaResumenMontoPorDiaItem } from "@/lib/types/venta-resumen-reporte"
 
 export {
   ProductDonutChart as VentaDonutChart,
@@ -20,7 +20,13 @@ export {
 } from "@/components/reportes/productos/ProductoReporteCharts"
 
 interface VentaTendenciaChartProps {
-  data: DashboardSalePoint[]
+  data: Array<
+    VentaResumenMontoPorDiaItem & {
+      etiqueta?: string
+      granularidad?: string
+      label?: string
+    }
+  >
   emptyMessage?: string
 }
 
@@ -45,15 +51,23 @@ function formatIsoShortDate(value: string): string {
   return SHORT_DATE_FORMATTER.format(new Date(Date.UTC(year, month - 1, day)))
 }
 
-function formatTooltipLabel(item: DashboardSalePoint | undefined): string {
+function formatTooltipLabel(
+  item:
+    | (VentaResumenMontoPorDiaItem & {
+        etiqueta?: string
+        granularidad?: string
+        label?: string
+      })
+    | undefined
+): string {
   if (!item) return ""
   if (item.granularidad === "HORA") {
-    return `${formatIsoShortDate(item.fecha)} ${item.etiqueta}`
+    return `${formatIsoShortDate(item.fecha)} ${item.etiqueta ?? item.label ?? ""}`.trim()
   }
   if (item.granularidad === "MES") {
-    return item.etiqueta || item.fecha
+    return item.etiqueta || item.label || item.fecha
   }
-  return item.etiqueta || formatIsoShortDate(item.fecha)
+  return item.etiqueta || item.label || formatIsoShortDate(item.fecha)
 }
 
 export function VentaTendenciaChart({
@@ -64,6 +78,7 @@ export function VentaTendenciaChart({
     ...item,
     label:
       item.etiqueta ||
+      item.label ||
       (item.granularidad === "HORA" ? item.fecha : formatIsoShortDate(item.fecha)),
   }))
 
@@ -100,10 +115,12 @@ export function VentaTendenciaChart({
               borderRadius: "14px",
               boxShadow: "0 12px 32px rgba(15, 23, 42, 0.12)",
             }}
-            labelFormatter={(_, payload) =>
-              formatTooltipLabel(payload?.[0]?.payload as DashboardSalePoint | undefined)
+            labelFormatter={(label) =>
+              formatTooltipLabel(
+                chartData.find((item) => item.label === String(label))
+              )
             }
-            formatter={(value: number | string) => [
+            formatter={(value) => [
               formatMonedaPen(Number(value)),
               "Monto vendido",
             ]}

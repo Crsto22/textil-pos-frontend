@@ -229,10 +229,8 @@ export function UsuarioAnulacionesChart({
                 borderRadius: "14px",
                 boxShadow: "0 12px 32px rgba(15, 23, 42, 0.12)",
               }}
-              labelFormatter={(_, payload) =>
-                payload?.[0]?.payload?.label ? String(payload[0].payload.label) : ""
-              }
-              formatter={(value: number | string, name: string) =>
+              labelFormatter={(label) => String(label ?? "")}
+              formatter={(value, name) =>
                 name === "montoAnulado"
                   ? [formatMonedaPen(Number(value)), "Monto anulado"]
                   : [formatPlainNumber(Number(value)), "Anulaciones"]
@@ -362,12 +360,8 @@ export function UsuarioEvolucionChart({
                 borderRadius: "14px",
                 boxShadow: "0 12px 32px rgba(15, 23, 42, 0.12)",
               }}
-              labelFormatter={(_, payload) =>
-                payload?.[0]?.payload?.fecha
-                  ? formatIsoShortDate(String(payload[0].payload.fecha))
-                  : ""
-              }
-              formatter={(value: number | string, name: string) => [
+              labelFormatter={(label) => String(label ?? "")}
+              formatter={(value, name) => [
                 formatMetricValue(Number(value), activeMetric),
                 name,
               ]}

@@ -6,11 +6,14 @@ export interface Categoria {
   descripcion: string
   estado: string
   fechaRegistro: string
+  idSucursal?: number | null
+  nombreSucursal?: string | null
 }
 
 export interface CategoriaCreateRequest {
   nombreCategoria: string
   descripcion: string
+  idSucursal?: number | null
 }
 
 export interface CategoriaUpdateRequest {

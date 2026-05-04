@@ -89,6 +89,7 @@ import { AgregarStockModal } from "@/components/stock/AgregarStockModal";
 import { buildSucursalComboboxOption } from "@/lib/sucursal";
 import type {
   CotizacionCreateRequest,
+  CotizacionResponse,
   CotizacionWriteResponse,
 } from "@/lib/types/cotizacion";
 import type {

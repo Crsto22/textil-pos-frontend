@@ -194,7 +194,7 @@ export function ProductDonutChart({
               }}
               labelStyle={{ color: theme.foreground }}
               itemStyle={{ color: theme.foreground }}
-              formatter={(value: number | string) => [
+              formatter={(value) => [
                 formatValueByType(Number(value), valueType),
                 valueType === "currency" ? "Monto" : "Unidades",
               ]}
@@ -330,10 +330,8 @@ export function ProductRankingAreaChart({
               }}
               labelStyle={{ color: theme.foreground }}
               itemStyle={{ color: theme.foreground }}
-              labelFormatter={(_, payload) =>
-                payload?.[0]?.payload?.label ? String(payload[0].payload.label) : ""
-              }
-              formatter={(value: number | string) => [
+              labelFormatter={(label) => String(label ?? "")}
+              formatter={(value) => [
                 formatValueByType(Number(value), valueType),
                 valueType === "currency" ? "Monto" : "Unidades",
               ]}
@@ -431,10 +429,8 @@ export function ProductRankingBarChart({
             }}
             labelStyle={{ color: theme.foreground }}
             itemStyle={{ color: theme.foreground }}
-            labelFormatter={(_, payload) =>
-              payload?.[0]?.payload?.label ? String(payload[0].payload.label) : ""
-            }
-            formatter={(value: number | string) => [
+              labelFormatter={(label) => String(label ?? "")}
+            formatter={(value) => [
               formatValueByType(Number(value), valueType),
               valueType === "currency" ? "Monto" : "Unidades",
             ]}
@@ -450,7 +446,6 @@ export function ProductRankingBarChart({
               dataKey="value"
               position="right"
               formatter={(value: number | string) => formatAxisValue(Number(value), valueType)}
-              fill={theme.mutedForeground}
               className="text-[11px] font-medium"
             />
           </Bar>

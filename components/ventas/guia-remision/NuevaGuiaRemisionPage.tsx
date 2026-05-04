@@ -122,6 +122,7 @@ function escanearToResumenItem(data: VarianteEscanearResponse): VarianteResumenI
     },
     color: data.color ? { idColor: data.color.idColor, nombre: data.color.nombre, hex: data.color.hex ?? null } : null,
     talla: data.talla ? { idTalla: data.talla.idTalla, nombre: data.talla.nombre } : null,
+    grupoImagen: null,
     imagenPrincipal: data.imagenPrincipal
       ? {
           idColorImagen: null,
