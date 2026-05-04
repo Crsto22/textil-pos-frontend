@@ -445,7 +445,7 @@ export function ProductRankingBarChart({
             <LabelList
               dataKey="value"
               position="right"
-              formatter={(value: number | string) => formatAxisValue(Number(value), valueType)}
+              formatter={(value) => formatAxisValue(Number(value ?? 0), valueType)}
               className="text-[11px] font-medium"
             />
           </Bar>
