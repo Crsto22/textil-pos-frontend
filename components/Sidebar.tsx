@@ -22,6 +22,7 @@ import {
     XMarkIcon,
     HomeModernIcon,
     BuildingOffice2Icon,
+    CalendarDaysIcon,
     ClipboardDocumentListIcon,
     SwatchIcon,
     TagIcon,
@@ -29,6 +30,7 @@ import {
     DocumentArrowUpIcon,
     DocumentTextIcon,
     QueueListIcon,
+    TruckIcon,
     ChevronDownIcon,
     MagnifyingGlassIcon,
     ChartBarIcon,
@@ -49,6 +51,7 @@ import {
     WrenchScrewdriverIcon as WrenchScrewdriverIconSolid,
     UsersIcon as UsersIconSolid,
     BuildingOffice2Icon as BuildingOffice2IconSolid,
+    CalendarDaysIcon as CalendarDaysIconSolid,
     ClipboardDocumentListIcon as ClipboardDocumentListIconSolid,
     SwatchIcon as SwatchIconSolid,
     TagIcon as TagIconSolid,
@@ -56,6 +59,7 @@ import {
     DocumentArrowUpIcon as DocumentArrowUpIconSolid,
     DocumentTextIcon as DocumentTextIconSolid,
     QueueListIcon as QueueListIconSolid,
+    TruckIcon as TruckIconSolid,
     ChartBarIcon as ChartBarIconSolid,
     DocumentChartBarIcon as DocumentChartBarIconSolid,
     ChartPieIcon as ChartPieIconSolid,
@@ -71,7 +75,7 @@ interface SidebarProps {
     onToggleCollapse: () => void
 }
 
-interface SidebarItem {
+export interface SidebarItem {
     label: string
     href: string
     icon: ComponentType<{ className?: string }>
@@ -79,12 +83,12 @@ interface SidebarItem {
     disabled?: boolean
 }
 
-interface SidebarSection {
+export interface SidebarSection {
     subtitle: string
     items: SidebarItem[]
 }
 
-const navSections: SidebarSection[] = [
+export const navSections: SidebarSection[] = [
     {
         subtitle: "Principal",
         items: [
@@ -100,6 +104,14 @@ const navSections: SidebarSection[] = [
         ],
     },
     {
+        subtitle: "Historial",
+        items: [
+            { label: "Historial de ventas", href: "/ventas/historial-ventas", icon: ClipboardDocumentListIcon, iconActive: ClipboardDocumentListIconSolid },
+            { label: "Historial cotizaciones", href: "/ventas/cotizacion/historial", icon: DocumentTextIcon, iconActive: DocumentTextIconSolid },
+            { label: "Historial pagos", href: "/ventas/pagos", icon: BanknotesIcon, iconActive: BanknotesIconSolid },
+        ],
+    },
+    {
         subtitle: "Facturacion",
         items: [
             { label: "Comprobantes", href: "/ventas/historial", icon: ClipboardDocumentListIcon, iconActive: ClipboardDocumentListIconSolid },
@@ -108,16 +120,17 @@ const navSections: SidebarSection[] = [
         ],
     },
     {
-        subtitle: "Historial",
+        subtitle: "GRE",
         items: [
-            { label: "Historial cotizaciones", href: "/ventas/cotizacion/historial", icon: ClipboardDocumentListIcon, iconActive: ClipboardDocumentListIconSolid },
-            { label: "Historial pagos", href: "/ventas/pagos", icon: BanknotesIcon, iconActive: BanknotesIconSolid },
+            { label: "GRE Remitente", href: "/ventas/guia-remision", icon: TruckIcon, iconActive: TruckIconSolid },
+            { label: "Conductores", href: "/ventas/guia-remision/conductores", icon: UserCircleIcon, iconActive: UserCircleIconSolid },
         ],
     },
     {
         subtitle: "Catalogo",
         items: [
             { label: "Productos", href: "/productos", icon: CubeIcon, iconActive: CubeIconSolid },
+            { label: "Ofertas", href: "/productos/ofertas", icon: TagIcon, iconActive: TagIconSolid },
             { label: "Carga masiva", href: "/productos/carga-masiva", icon: DocumentArrowUpIcon, iconActive: DocumentArrowUpIconSolid },
             { label: "Categorias", href: "/productos/categorias", icon: RectangleStackIcon, iconActive: RectangleStackIconSolid },
             { label: "Tallas", href: "/productos/tallas", icon: TagIcon, iconActive: TagIconSolid },
@@ -164,6 +177,7 @@ const navSections: SidebarSection[] = [
         subtitle: "Administracion",
         items: [
             { label: "Sucursales", href: "/sucursales", icon: BuildingOffice2Icon, iconActive: BuildingOffice2IconSolid },
+            { label: "Turnos", href: "/turnos", icon: CalendarDaysIcon, iconActive: CalendarDaysIconSolid },
             { label: "Usuarios", href: "/usuarios", icon: WrenchScrewdriverIcon, iconActive: WrenchScrewdriverIconSolid },
         ],
     },
@@ -212,7 +226,6 @@ export function Sidebar({ isOpen, collapsed, onClose, onToggleCollapse }: Sideba
     const companyDisplayName = getEmpresaDisplayName(company)
     const [searchTerm, setSearchTerm] = useState("")
     const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(getStoredExpandedSections)
-
     useEffect(() => {
         try {
             window.localStorage.setItem(

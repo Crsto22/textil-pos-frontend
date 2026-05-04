@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import type { BackendLoginResponse } from "@/lib/auth/types"
 import { forwardCookies, safeParseJson, setSessionUserCookie } from "../_helpers"
+import { resolvePublicAssetUrl } from "@/lib/server/public-asset-url"
 
 const BACKEND_URL = process.env.BACKEND_URL
 
@@ -55,12 +56,19 @@ export async function POST(request: NextRequest) {
       correo: data.correo,
       dni: data.dni,
       telefono: data.telefono,
-      fotoPerfilUrl: data.fotoPerfilUrl,
+      fotoPerfilUrl: resolvePublicAssetUrl(data.fotoPerfilUrl),
       rol: data.rol,
+      estado: "estado" in data ? data.estado : "ACTIVO",
       fechaCreacion: data.fechaCreacion,
       idSucursal: data.idSucursal,
       nombreSucursal: data.nombreSucursal,
       tipoSucursal: data.tipoSucursal,
+      sucursalesPermitidas: "sucursalesPermitidas" in data ? data.sucursalesPermitidas ?? [] : [],
+      idTurno: "idTurno" in data ? data.idTurno : null,
+      nombreTurno: "nombreTurno" in data ? data.nombreTurno : null,
+      horaInicioTurno: "horaInicioTurno" in data ? data.horaInicioTurno : null,
+      horaFinTurno: "horaFinTurno" in data ? data.horaFinTurno : null,
+      diasTurno: "diasTurno" in data ? (data.diasTurno as string[] | null) : null,
     }
 
     const response = NextResponse.json(

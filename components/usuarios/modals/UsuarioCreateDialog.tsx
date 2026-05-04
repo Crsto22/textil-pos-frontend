@@ -13,11 +13,14 @@ import { Button } from "@/components/ui/button"
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { SucursalMultiSelect } from "@/components/ui/sucursal-multi-select"
 import { Switch } from "@/components/ui/switch"
 import { RoleMasterDetail } from "@/components/usuarios/RoleMasterDetail"
 import { useSucursalOptions } from "@/lib/hooks/useSucursalOptions"
+import { useTurnoOptions } from "@/lib/hooks/useTurnoOptions"
 import {
   emptyCreateForm,
+  getSucursalTipoFilterByRol,
   getUsuarioRoleOptionsBySucursalType,
   isUsuarioRol,
   validateUsuarioRoleAssignment,
@@ -49,6 +52,7 @@ export function UsuarioCreateDialog({
   }, [open])
 
   const {
+    sucursales,
     sucursalOptions,
     getSucursalById,
     getSucursalOptionById,
@@ -57,6 +61,30 @@ export function UsuarioCreateDialog({
     searchSucursal,
     setSearchSucursal,
   } = useSucursalOptions(open)
+  const {
+    turnoOptions,
+    loadingTurnos,
+    errorTurnos,
+    searchTurno,
+    setSearchTurno,
+  } = useTurnoOptions(open)
+
+  const [searchSucursalesAdicionales, setSearchSucursalesAdicionales] = useState("")
+
+  const sucursalTipoFilter = useMemo(
+    () => getSucursalTipoFilterByRol(form.rol || null),
+    [form.rol]
+  )
+
+  const sucursalesAdicionalesOptions = useMemo(() => {
+    if (!sucursalTipoFilter) return sucursalOptions
+    return (Array.isArray(sucursales) ? sucursales : [])
+      .filter((sucursal) => sucursal.tipo === sucursalTipoFilter)
+      .map((sucursal) => ({
+        value: String(sucursal.idSucursal),
+        label: sucursal.nombre || `Sucursal #${sucursal.idSucursal}`,
+      }))
+  }, [sucursales, sucursalOptions, sucursalTipoFilter])
 
   const hasValidSucursal = hasValidSucursalId(form.idSucursal)
 
@@ -80,19 +108,33 @@ export function UsuarioCreateDialog({
     [form.idSucursal, form.rol, selectedSucursalType]
   )
 
+  const filteredSucursalOptions = useMemo(() => {
+    if (!sucursalTipoFilter) return sucursalOptions
+    return (Array.isArray(sucursales) ? sucursales : [])
+      .filter((sucursal) => sucursal.tipo === sucursalTipoFilter)
+      .map((sucursal) => ({
+        value: String(sucursal.idSucursal),
+        label: sucursal.nombre || `Sucursal #${sucursal.idSucursal}`,
+      }))
+  }, [sucursales, sucursalOptions, sucursalTipoFilter])
+
   const comboboxOptions = useMemo<ComboboxOption[]>(
     () =>
       [
         { value: "", label: "Sin sucursal" },
         ...(
           hasValidSucursal &&
-          !sucursalOptions.some((option) => option.value === String(form.idSucursal))
+          !filteredSucursalOptions.some((option) => option.value === String(form.idSucursal))
             ? [getSucursalOptionById(Number(form.idSucursal))]
             : []
         ),
-        ...sucursalOptions,
+        ...filteredSucursalOptions,
       ],
-    [form.idSucursal, getSucursalOptionById, hasValidSucursal, sucursalOptions]
+    [form.idSucursal, getSucursalOptionById, hasValidSucursal, filteredSucursalOptions]
+  )
+  const turnoComboboxOptions = useMemo<ComboboxOption[]>(
+    () => [{ value: "", label: "Sin turno" }, ...turnoOptions],
+    [turnoOptions]
   )
 
   const showSucursalField = form.rol !== "" && form.rol !== "ADMINISTRADOR"
@@ -114,6 +156,8 @@ export function UsuarioCreateDialog({
     if (!nextOpen) {
       setForm(emptyCreateForm)
       setSearchSucursal("")
+      setSearchSucursalesAdicionales("")
+      setSearchTurno("")
     }
   }
 
@@ -124,6 +168,8 @@ export function UsuarioCreateDialog({
       ...form,
       rol: form.rol,
       idSucursal: form.rol === "ADMINISTRADOR" ? null : form.idSucursal,
+      idsSucursales: form.rol === "ADMINISTRADOR" ? null : (form.idsSucursales ?? []),
+      idTurno: form.idTurno,
       ...(form.estado === "INACTIVO" ? { estado: "INACTIVO" } : {}),
     }
 
@@ -247,6 +293,29 @@ export function UsuarioCreateDialog({
           </div>
 
           <div className="grid gap-2">
+            <Label htmlFor="c-turno">Turno</Label>
+            <Combobox
+              id="c-turno"
+              value={typeof form.idTurno === "number" ? String(form.idTurno) : ""}
+              options={turnoComboboxOptions}
+              searchValue={searchTurno}
+              onSearchValueChange={setSearchTurno}
+              onValueChange={(value) => {
+                const parsed = Number(value)
+                setForm((previous) => ({
+                  ...previous,
+                  idTurno: Number.isInteger(parsed) && parsed > 0 ? parsed : null,
+                }))
+              }}
+              placeholder="Selecciona un turno"
+              searchPlaceholder="Buscar turno..."
+              emptyMessage="No se encontraron turnos"
+              loading={loadingTurnos}
+            />
+            {errorTurnos ? <p className="text-xs text-red-500">{errorTurnos}</p> : null}
+          </div>
+
+          <div className="grid gap-2">
             <div className="flex items-center justify-between">
               <Label>Rol y permisos</Label>
               <div className="flex items-center gap-2">
@@ -291,7 +360,7 @@ export function UsuarioCreateDialog({
 
           {showSucursalField ? (
             <div className="grid gap-2">
-              <Label htmlFor="c-sucursal">Sucursal</Label>
+              <Label htmlFor="c-sucursal">Sucursal principal</Label>
               <Combobox
                 id="c-sucursal"
                 value={hasValidSucursal ? String(form.idSucursal) : ""}
@@ -303,7 +372,13 @@ export function UsuarioCreateDialog({
                   const resolvedId =
                     Number.isInteger(parsed) && parsed > 0 ? parsed : null
 
-                  setForm((p) => ({ ...p, idSucursal: resolvedId }))
+                  setForm((p) => ({
+                    ...p,
+                    idSucursal: resolvedId,
+                    idsSucursales: resolvedId
+                      ? (p.idsSucursales ?? []).filter((id) => id !== resolvedId)
+                      : p.idsSucursales,
+                  }))
                 }}
                 placeholder="Selecciona una sucursal"
                 searchPlaceholder="Buscar sucursal..."
@@ -323,6 +398,35 @@ export function UsuarioCreateDialog({
               El rol Administrador no requiere sucursal y se guardara sin
               sucursal asignada.
             </p>
+          ) : null}
+
+          {showSucursalField && hasValidSucursal ? (
+            <div className="grid gap-2">
+              <Label>Sucursales adicionales</Label>
+              <SucursalMultiSelect
+                options={sucursalesAdicionalesOptions}
+                selectedIds={form.idsSucursales ?? []}
+                onSelectionChange={(ids) =>
+                  setForm((p) => ({ ...p, idsSucursales: ids }))
+                }
+                searchValue={searchSucursalesAdicionales}
+                onSearchValueChange={setSearchSucursalesAdicionales}
+                placeholder="Seleccionar sucursales adicionales..."
+                searchPlaceholder="Buscar sucursal..."
+                emptyMessage={
+                  sucursalTipoFilter === "VENTA"
+                    ? "No se encontraron sucursales de tipo Venta"
+                    : "No se encontraron sucursales"
+                }
+                loading={loadingSucursales}
+                excludeIds={form.idSucursal ? [form.idSucursal] : []}
+              />
+              <p className="text-xs text-muted-foreground">
+                {sucursalTipoFilter === "VENTA"
+                  ? "Solo se muestran sucursales de tipo Venta para el rol Ventas."
+                  : "Estas sucursales se suman a la principal para dar acceso al usuario."}
+              </p>
+            </div>
           ) : null}
         </div>
 

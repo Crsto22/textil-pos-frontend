@@ -34,6 +34,7 @@ interface SucursalCreateDialogProps {
 
 const phoneRegex = /^\d{7,15}$/
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const codigoSunatRegex = /^\d{4}$/
 
 export function SucursalCreateDialog({
   open,
@@ -63,18 +64,21 @@ export function SucursalCreateDialog({
   )
   const telefono = form.telefono ?? ""
   const correo = form.correo ?? ""
+  const codigoCodigo = form.codigoEstablecimientoSunat ?? ""
 
   const isCreateValid = useMemo(
     () =>
       form.nombre.trim() !== "" &&
       form.ciudad.trim() !== "" &&
       form.direccion.trim() !== "" &&
+      (form.ubigeo ?? "").length === 6 &&
       (telefono === "" || phoneRegex.test(telefono)) &&
       (correo === "" || emailRegex.test(correo)) &&
+      (codigoCodigo === "" || codigoSunatRegex.test(codigoCodigo)) &&
       Number.isInteger(form.idEmpresa) &&
       form.idEmpresa > 0 &&
       hasEmpresaSeleccionada,
-    [correo, form, hasEmpresaSeleccionada, telefono]
+    [correo, codigoCodigo, form, hasEmpresaSeleccionada, telefono]
   )
 
   const handleOpenChange = (nextOpen: boolean) => {
@@ -194,6 +198,48 @@ export function SucursalCreateDialog({
               />
               {correo.length > 0 && !emailRegex.test(correo) && (
                 <p className="text-xs text-red-500">Formato de correo invalido</p>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="grid gap-2">
+              <Label htmlFor="c-ubigeo-sucursal">Ubigeo</Label>
+              <Input
+                id="c-ubigeo-sucursal"
+                placeholder="Ej: 150131"
+                maxLength={6}
+                value={form.ubigeo ?? ""}
+                onChange={(event) =>
+                  setForm((previous) => ({
+                    ...previous,
+                    ubigeo: event.target.value.replace(/\D/g, "").slice(0, 6),
+                  }))
+                }
+              />
+              {(form.ubigeo?.length ?? 0) > 0 && (form.ubigeo?.length ?? 0) !== 6 && (
+                <p className="text-xs text-red-500">El ubigeo debe tener exactamente 6 digitos</p>
+              )}
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="c-codigo-sunat-sucursal">
+                Cod. Establecimiento SUNAT <span className="text-muted-foreground">(opcional)</span>
+              </Label>
+              <Input
+                id="c-codigo-sunat-sucursal"
+                placeholder="Ej: 0001"
+                maxLength={4}
+                value={codigoCodigo}
+                onChange={(event) =>
+                  setForm((previous) => ({
+                    ...previous,
+                    codigoEstablecimientoSunat: event.target.value.replace(/\D/g, "").slice(0, 4),
+                  }))
+                }
+              />
+              {codigoCodigo.length > 0 && !codigoSunatRegex.test(codigoCodigo) && (
+                <p className="text-xs text-red-500">Debe tener exactamente 4 digitos</p>
               )}
             </div>
           </div>

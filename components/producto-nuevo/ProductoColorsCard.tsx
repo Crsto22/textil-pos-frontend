@@ -2,6 +2,7 @@
 
 import { useMemo, useState, type Dispatch, type SetStateAction } from "react"
 import { Plus } from "lucide-react"
+import { LoaderSpinner } from "@/components/ui/loader-spinner"
 
 import { ColorCreateDialog } from "@/components/colores/modals/ColorCreateDialog"
 import { ColoresPagination } from "@/components/colores/ColoresPagination"
@@ -116,7 +117,7 @@ export function ProductoColorsCard({
 
       <div className="min-h-0 flex-1">
         {loadingColores ? (
-          <p className="text-sm text-muted-foreground">Cargando colores...</p>
+          <LoaderSpinner size="sm" text="Cargando colores..." />
         ) : errorColores ? (
           <p className="text-sm text-red-500">{errorColores}</p>
         ) : availableColors.length === 0 ? (

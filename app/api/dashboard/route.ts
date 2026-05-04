@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 
 const BACKEND_URL = process.env.BACKEND_URL
-const ALLOWED_QUERY_KEYS = ["filtro", "idSucursal"] as const
+const ALLOWED_QUERY_KEYS = ["filtro", "desde", "hasta", "idSucursal"] as const
 
 function buildForwardQuery(request: NextRequest): string {
   const incomingSearchParams = new URL(request.url).searchParams

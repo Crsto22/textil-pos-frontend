@@ -1,4 +1,5 @@
 import { getRoleLabel } from "@/lib/auth/roles"
+import type { SucursalPermitida } from "@/lib/types/usuario"
 
 const avatarColors = [
   { bg: "bg-blue-500", text: "text-white" },
@@ -70,4 +71,46 @@ export function getSucursalDisplay(rol: string, nombreSucursal?: string | null) 
   if (nombreNormalizado) return nombreNormalizado
   if (rol === "ADMINISTRADOR") return "GLOBAL"
   return "Sin sucursal asignada"
+}
+
+export function getSucursalesAdicionalesDisplay(
+  sucursalesPermitidas?: SucursalPermitida[] | null,
+  idSucursalPrincipal?: number | null
+): string[] {
+  if (!Array.isArray(sucursalesPermitidas) || sucursalesPermitidas.length === 0) {
+    return []
+  }
+
+  return sucursalesPermitidas
+    .filter((s) => s.idSucursal !== idSucursalPrincipal)
+    .map((s) => s.nombreSucursal)
+}
+
+const DIA_LABEL_SHORT: Record<string, string> = {
+  LUNES: "Lun",
+  MARTES: "Mar",
+  MIERCOLES: "Mié",
+  JUEVES: "Jue",
+  VIERNES: "Vie",
+  SABADO: "Sáb",
+  DOMINGO: "Dom",
+}
+
+export function getTurnoDisplay(
+  nombreTurno?: string | null,
+  horaInicioTurno?: string | null,
+  horaFinTurno?: string | null,
+  diasTurno?: string[] | null
+) {
+  const nombre = nombreTurno?.trim()
+  const horario = [horaInicioTurno?.trim(), horaFinTurno?.trim()].filter(Boolean).join(" – ")
+  const diasLabel =
+    Array.isArray(diasTurno) && diasTurno.length > 0
+      ? diasTurno.map((d) => DIA_LABEL_SHORT[d] ?? d.slice(0, 3)).join(", ")
+      : null
+
+  if (nombre && horario && diasLabel) return `${nombre} (${horario}) · ${diasLabel}`
+  if (nombre && horario) return `${nombre} (${horario})`
+  if (nombre) return nombre
+  return "Sin turno asignado"
 }

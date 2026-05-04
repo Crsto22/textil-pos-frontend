@@ -10,6 +10,7 @@ import type {
   OfertaBulkFormDraft,
   OfertaFormDraft,
   ProductoVarianteOfertaLoteItemRequest,
+  ProductoVarianteOfertaSucursalItemRequest,
 } from "@/lib/types/oferta"
 import type { ProductoDetalleVariante } from "@/lib/types/producto"
 
@@ -206,6 +207,85 @@ export function buildOfertaRemovalItems(
     ofertaInicio: null,
     ofertaFin: null,
   }))
+}
+
+export async function patchOfertaSucursal(
+  idProductoVariante: number,
+  idSucursal: number,
+  data: { precioOferta: number | null; ofertaInicio: string | null; ofertaFin: string | null }
+): Promise<{ ok: true; message: string } | { ok: false; message: string }> {
+  try {
+    const response = await authFetch(
+      `/api/variante/oferta/${idProductoVariante}/sucursal/${idSucursal}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }
+    )
+    const payload = await parseJsonSafe(response)
+
+    if (!response.ok) {
+      const message =
+        payload && typeof payload === "object" && "message" in payload && typeof payload.message === "string"
+          ? payload.message
+          : "No se pudo actualizar la oferta de sucursal."
+      return { ok: false, message }
+    }
+
+    const message =
+      payload && typeof payload === "object" && "message" in payload && typeof payload.message === "string"
+        ? payload.message
+        : data.precioOferta === null
+          ? "Oferta de sucursal eliminada correctamente."
+          : "Oferta de sucursal actualizada correctamente."
+
+    return { ok: true, message }
+  } catch (requestError) {
+    return {
+      ok: false,
+      message:
+        requestError instanceof Error
+          ? requestError.message
+          : "No se pudo actualizar la oferta de sucursal.",
+    }
+  }
+}
+
+export async function patchOfertasSucursalLote(
+  items: ProductoVarianteOfertaSucursalItemRequest[]
+): Promise<{ ok: true; message: string } | { ok: false; message: string }> {
+  try {
+    const response = await authFetch("/api/variante/ofertas/sucursal/lote", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items }),
+    })
+    const data = await parseJsonSafe(response)
+
+    if (!response.ok) {
+      const message =
+        data && typeof data === "object" && "message" in data && typeof data.message === "string"
+          ? data.message
+          : "No se pudieron actualizar las ofertas de sucursal."
+      return { ok: false, message }
+    }
+
+    const message =
+      data && typeof data === "object" && "message" in data && typeof data.message === "string"
+        ? data.message
+        : "Ofertas de sucursal actualizadas correctamente."
+
+    return { ok: true, message }
+  } catch (requestError) {
+    return {
+      ok: false,
+      message:
+        requestError instanceof Error
+          ? requestError.message
+          : "No se pudieron actualizar las ofertas de sucursal.",
+    }
+  }
 }
 
 export async function patchOfertasLote(

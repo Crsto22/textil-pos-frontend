@@ -1,7 +1,10 @@
 import type { ProductoResumen, ProductoResumenImagen } from "@/lib/types/producto"
 import { parseStocksSucursalesVenta } from "@/lib/stock-sucursal-venta"
+import { resolveBackendUrl } from "@/lib/resolve-backend-url"
 import type {
+  ImagenesPorColorGroup,
   VarianteResumenColor,
+  VarianteResumenGrupoImagen,
   VarianteResumenImagen,
   VarianteResumenItem,
   VarianteResumenPageResponse,
@@ -93,10 +96,13 @@ function parseVarianteResumenImagen(value: unknown): VarianteResumenImagen | nul
   if (!payload) return null
 
   const idColorImagen = pickNullableNumber(payload, ["idColorImagen"])
-  const url = pickString(payload, ["url"])
-  const urlThumb = pickString(payload, ["urlThumb"])
+  const rawUrl = pickString(payload, ["url"])
+  const rawThumb = pickString(payload, ["urlThumb"])
 
-  if (!url && !urlThumb) return null
+  if (!rawUrl && !rawThumb) return null
+
+  const url = resolveBackendUrl(rawUrl) ?? rawUrl
+  const urlThumb = resolveBackendUrl(rawThumb || rawUrl) ?? rawThumb
 
   return {
     idColorImagen,
@@ -190,6 +196,55 @@ function parseVarianteResumenTalla(value: unknown): VarianteResumenTalla | null 
   }
 }
 
+function parseVarianteResumenGrupoImagen(value: unknown): VarianteResumenGrupoImagen | null {
+  const payload = asRecord(value)
+  if (!payload) return null
+
+  const key = pickString(payload, ["key"])
+  const idProducto = pickNumber(payload, ["idProducto"])
+  const idColor = pickNumber(payload, ["idColor"])
+
+  if (!key || idProducto <= 0 || idColor <= 0) return null
+
+  return { key, idProducto, idColor }
+}
+
+function parseImagenesPorColorGroup(value: unknown): ImagenesPorColorGroup | null {
+  const payload = asRecord(value)
+  if (!payload) return null
+
+  const key = pickString(payload, ["key"])
+  const idProducto = pickNumber(payload, ["idProducto"])
+  const idColor = pickNumber(payload, ["idColor"])
+
+  if (!key || idProducto <= 0 || idColor <= 0) return null
+
+  return {
+    key,
+    idProducto,
+    idColor,
+    imagenPrincipal: parseVarianteResumenImagen(payload.imagenPrincipal),
+    imagenes: parseVarianteResumenImagenList(payload.imagenes),
+  }
+}
+
+function parseImagenesPorColorList(value: unknown): ImagenesPorColorGroup[] {
+  if (!Array.isArray(value)) return []
+  return value
+    .map((item) => parseImagenesPorColorGroup(item))
+    .filter((item): item is ImagenesPorColorGroup => item !== null)
+}
+
+export function buildImagenesPorColorMap(
+  groups: ImagenesPorColorGroup[]
+): Map<string, VarianteResumenImagen | null> {
+  const map = new Map<string, VarianteResumenImagen | null>()
+  for (const group of groups) {
+    map.set(group.key, group.imagenPrincipal ?? group.imagenes[0] ?? null)
+  }
+  return map
+}
+
 export function parseVarianteResumenItem(value: unknown): VarianteResumenItem | null {
   const payload = asRecord(value)
   if (!payload) return null
@@ -215,6 +270,7 @@ export function parseVarianteResumenItem(value: unknown): VarianteResumenItem | 
     producto,
     color: parseVarianteResumenColor(payload.color),
     talla: parseVarianteResumenTalla(payload.talla),
+    grupoImagen: parseVarianteResumenGrupoImagen(payload.grupoImagen),
     imagenPrincipal: parseVarianteResumenImagen(payload.imagenPrincipal),
     imagenes: parseVarianteResumenImagenList(payload.imagenes),
   }
@@ -233,6 +289,7 @@ export function parseVarianteResumenPageResponse(value: unknown): VarianteResume
 
   return {
     content: parseVarianteResumenItemList(payload?.content),
+    imagenesPorColor: parseImagenesPorColorList(payload?.imagenesPorColor),
     page: pickNumber(payload, ["page", "number"]),
     size: pickNumber(payload, ["size"]),
     totalPages: pickNumber(payload, ["totalPages"]),
@@ -258,16 +315,20 @@ function toProductoResumenImagen(
 }
 
 export function mapVarianteResumenToProductoResumen(
-  item: VarianteResumenItem
+  item: VarianteResumenItem,
+  imagenesPorColorMap?: Map<string, VarianteResumenImagen | null>
 ): ProductoResumen {
   const precioBase = item.precio ?? item.precioVigente ?? 0
   const colorId = item.color?.idColor ?? item.idProductoVariante
   const tallaId = item.talla?.idTalla ?? item.idProductoVariante
-  const fallbackImage =
+
+  const resolvedImage =
+    (item.grupoImagen?.key ? imagenesPorColorMap?.get(item.grupoImagen.key) : undefined) ??
     item.imagenPrincipal ??
     item.imagenes.find((image) => image.esPrincipal) ??
     item.imagenes[0] ??
     null
+  const fallbackImage = resolvedImage
 
   return {
     idProducto: item.producto.idProducto,

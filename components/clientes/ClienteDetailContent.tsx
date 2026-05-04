@@ -35,14 +35,19 @@ function WhatsAppIcon({ className }: { className?: string }) {
     )
 }
 
-function getWhatsAppUrl(telefono: string): string {
-    const cleaned = telefono.replace(/\D/g, "")
+function getWhatsAppUrl(telefono?: string | null): string | null {
+    const cleaned = telefono?.replace(/\D/g, "") ?? ""
+    if (!cleaned) return null
+
     const number = cleaned.startsWith("51") ? cleaned : `51${cleaned}`
     return `https://wa.me/${number}`
 }
 
-function getMailtoUrl(correo: string): string {
-    return `mailto:${correo}`
+function getMailtoUrl(correo?: string | null): string | null {
+    const normalizedCorreo = correo?.trim()
+    if (!normalizedCorreo) return null
+
+    return `mailto:${normalizedCorreo}`
 }
 
 interface ClienteDetailContentProps {
@@ -67,6 +72,8 @@ export function ClienteDetailContent({
 
     const color = getAvatarColor(clienteBase.idCliente)
     const initials = getInitials(clienteBase.nombres)
+    const whatsappUrl = getWhatsAppUrl(clienteBase.telefono)
+    const mailtoUrl = getMailtoUrl(clienteBase.correo)
     const tipoDoc =
         tipoDocumentoBadge[clienteBase.tipoDocumento] ?? {
             label: clienteBase.tipoDocumento,
@@ -107,17 +114,25 @@ export function ClienteDetailContent({
 
                 <div className="mt-4 grid w-full grid-cols-2 gap-3">
                     <a
-                        href={getWhatsAppUrl(clienteBase.telefono)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center justify-center gap-2 rounded-full border border-border bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+                        href={whatsappUrl ?? undefined}
+                        target={whatsappUrl ? "_blank" : undefined}
+                        rel={whatsappUrl ? "noopener noreferrer" : undefined}
+                        aria-disabled={!whatsappUrl}
+                        onClick={(event) => {
+                            if (!whatsappUrl) event.preventDefault()
+                        }}
+                        className="inline-flex items-center justify-center gap-2 rounded-full border border-border bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted aria-disabled:pointer-events-none aria-disabled:opacity-50"
                     >
                         <WhatsAppIcon className="h-4 w-4 text-green-500" />
                         WhatsApp
                     </a>
                     <a
-                        href={getMailtoUrl(clienteBase.correo)}
-                        className="inline-flex items-center justify-center gap-2 rounded-full border border-border bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+                        href={mailtoUrl ?? undefined}
+                        aria-disabled={!mailtoUrl}
+                        onClick={(event) => {
+                            if (!mailtoUrl) event.preventDefault()
+                        }}
+                        className="inline-flex items-center justify-center gap-2 rounded-full border border-border bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted aria-disabled:pointer-events-none aria-disabled:opacity-50"
                     >
                         <EnvelopeIcon className="h-4 w-4 text-blue-500" />
                         Correo
@@ -136,7 +151,7 @@ export function ClienteDetailContent({
                             <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                                 Telefono
                             </p>
-                            <p className="text-sm font-medium">{clienteBase.telefono}</p>
+                            <p className="text-sm font-medium">{clienteBase.telefono || "Sin telefono"}</p>
                         </div>
                     </div>
                     <div className="flex items-start gap-3">
@@ -146,7 +161,7 @@ export function ClienteDetailContent({
                                 Correo
                             </p>
                             <p className="break-all text-sm font-medium">
-                                {clienteBase.correo}
+                                {clienteBase.correo || "Sin correo"}
                             </p>
                         </div>
                     </div>

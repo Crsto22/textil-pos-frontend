@@ -72,6 +72,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     initAuth()
   }, [fetchCurrentUser])
 
+  // Escucha sesion expirada (refresh token vencido) → logout limpio + redirect
+  useEffect(() => {
+    const handleSessionExpired = async () => {
+      clearAccessToken()
+      setUser(null)
+      try {
+        await fetch("/api/auth/logout", { method: "POST", credentials: "include" })
+      } catch { /* ignorar */ }
+      window.location.href = "/login?session=expired"
+    }
+
+    window.addEventListener("auth:session-expired", handleSessionExpired)
+    return () => window.removeEventListener("auth:session-expired", handleSessionExpired)
+  }, [])
+
   const login = useCallback(
     async (credentials: LoginRequest): Promise<{ ok: boolean; message?: string }> => {
       try {

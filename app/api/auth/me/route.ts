@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { safeParseJson, setSessionUserCookie } from "../_helpers"
 import type { AuthUser } from "@/lib/auth/types"
+import { normalizeAssetUrlField } from "@/lib/server/public-asset-url"
 
 const BACKEND_URL = process.env.BACKEND_URL
 
@@ -43,7 +44,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ message }, { status })
     }
 
-    const user: AuthUser = await backendRes.json()
+    const user = normalizeAssetUrlField(
+      (await backendRes.json()) as AuthUser,
+      "fotoPerfilUrl"
+    ) as AuthUser
     const response = NextResponse.json(user, { status: 200 })
 
     // Mantener session_user sincronizada con el dato vivo de DB.

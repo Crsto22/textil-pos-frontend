@@ -13,6 +13,7 @@ interface ExportVentaReportePdfParams {
   idUsuario?: number | null
   idSucursal?: number | null
   idCliente?: number | null
+  tiposComprobante?: string[]
   incluirAnuladas?: boolean
 }
 
@@ -39,6 +40,13 @@ function buildQueryString(params: ExportVentaReportePdfParams): string {
   if (typeof params.idCliente === "number" && params.idCliente > 0) {
     searchParams.set("idCliente", String(params.idCliente))
   }
+
+  params.tiposComprobante?.forEach((tipo) => {
+    const normalizedTipo = tipo.trim()
+    if (normalizedTipo) {
+      searchParams.append("tipoComprobante", normalizedTipo)
+    }
+  })
 
   if (params.incluirAnuladas === true) {
     searchParams.set("incluirAnuladas", "true")

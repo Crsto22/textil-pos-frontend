@@ -275,6 +275,7 @@ export function useUsuarios() {
       const normalizedPayload: UsuarioCreateRequest = {
         ...payload,
         idSucursal: usuarioRolRequiresSucursal(payload.rol) ? payload.idSucursal : null,
+        idsSucursales: usuarioRolRequiresSucursal(payload.rol) ? (payload.idsSucursales ?? []) : null,
       }
 
       const validation = validateUsuarioRoleAssignment(
@@ -328,6 +329,7 @@ export function useUsuarios() {
       const normalizedPayload: UsuarioUpdateRequest = {
         ...payload,
         idSucursal: usuarioRolRequiresSucursal(payload.rol) ? payload.idSucursal : null,
+        idsSucursales: usuarioRolRequiresSucursal(payload.rol) ? (payload.idsSucursales ?? []) : null,
       }
 
       const validation = validateUsuarioRoleAssignment(
@@ -347,7 +349,7 @@ export function useUsuarios() {
       }
 
       try {
-        const response = await authFetch(`/api/usuarios/actualizar/${id}`, {
+        const response = await authFetch(`/api/usuario/actualizar/${id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(normalizedPayload),
@@ -384,7 +386,7 @@ export function useUsuarios() {
   const deleteUsuario = useCallback(
     async (id: number) => {
       try {
-        const response = await authFetch(`/api/usuarios/eliminar/${id}`, {
+        const response = await authFetch(`/api/usuario/eliminar/${id}`, {
           method: "DELETE",
         })
 
@@ -419,7 +421,7 @@ export function useUsuarios() {
     async (id: number, payload: UsuarioResetPasswordRequest) => {
       setIsResettingPassword(true)
       try {
-        const response = await authFetch(`/api/usuarios/resetear-password/${id}`, {
+        const response = await authFetch(`/api/usuario/resetear-password/${id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),

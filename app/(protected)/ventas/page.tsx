@@ -7,15 +7,20 @@ import {
   ArrowPathIcon,
   BuildingStorefrontIcon,
   CheckCircleIcon,
+  ChevronRightIcon,
+  ClipboardDocumentListIcon,
   ClockIcon,
   CubeIcon,
   MagnifyingGlassIcon,
+  PlusIcon,
   ShoppingBagIcon,
   TagIcon,
   TicketIcon,
+  UserCircleIcon,
   XMarkIcon,
   QrCodeIcon,
 } from "@heroicons/react/24/outline"
+import { LoaderSpinner } from "@/components/ui/loader-spinner"
 import { toast } from "sonner"
 
 import { formatMonedaPen } from "@/components/productos/productos.utils"
@@ -25,11 +30,14 @@ import CatalogViewToggle from "@/components/ventas/CatalogViewToggle"
 import CategoryFilter from "@/components/ventas/CategoryFilter"
 import CartItem, { type CartItemData } from "@/components/ventas/CartItem"
 import ClientSelect, { type ClientSelection } from "@/components/ventas/ClientSelect"
+import ClientSelectSheetContent from "@/components/ventas/ClientSelectSheetContent"
+import ProductModal, { type SelectedVariant } from "@/components/ventas/ProductModal"
 import PaymentMethod, {
   type PaymentKey,
 } from "@/components/ventas/PaymentMethod"
 import { Button } from "@/components/ui/button"
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
+import { Switch } from "@/components/ui/switch"
 import {
   Dialog,
   DialogContent,
@@ -38,10 +46,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
 import { useAuth } from "@/lib/auth/auth-context"
 import { roleCanManageStock } from "@/lib/auth/roles"
 import ProductCard from "@/components/ventas/ProductCard"
-import ProductModal, { type SelectedVariant } from "@/components/ventas/ProductModal"
 import { authFetch } from "@/lib/auth/auth-fetch"
 import {
   buildCatalogVariantItems,
@@ -72,6 +85,7 @@ import {
   appliesIgvForComprobante,
   calculateIncludedIgvAmount,
 } from "@/lib/venta-tax"
+import { openVentaDocument, getVentaDownloadConfig } from "@/lib/venta-documents"
 
 const DEFAULT_CLIENT: ClientSelection = { idCliente: null, nombre: "Cliente Generico" }
 const DEFAULT_IGV_PORCENTAJE = 18
@@ -276,15 +290,6 @@ function extractVentaInsertResponse(payload: unknown): VentaInsertResponse | nul
         typeof candidate.sunatCdrNombre === "string" && candidate.sunatCdrNombre.trim()
           ? candidate.sunatCdrNombre
           : null,
-      sunatAutoDispatchTriggered:
-        typeof candidate.sunatAutoDispatchTriggered === "boolean"
-          ? candidate.sunatAutoDispatchTriggered
-          : undefined,
-      sunatAutoDispatchError:
-        typeof candidate.sunatAutoDispatchError === "string" &&
-        candidate.sunatAutoDispatchError.trim()
-          ? candidate.sunatAutoDispatchError
-          : null,
     }
   }
 
@@ -330,11 +335,21 @@ export default function VentasPage() {
   const isAdmin = user?.rol === "ADMINISTRADOR"
   const canManageStock = roleCanManageStock(user?.rol)
   const userHasSucursal = hasValidSucursalId(user?.idSucursal)
+  const userSucursales = user?.sucursalesPermitidas ?? []
+  const hasMultipleSucursales = !isAdmin && userSucursales.length > 1
   const [catalogViewMode, setCatalogViewMode] = useCatalogViewMode()
   const isVariantView = catalogViewMode === "variantes"
 
-  const [selectedSucursalId, setSelectedSucursalId] = useState<number | null>(null)
+  const [selectedSucursalId, setSelectedSucursalId] = useState<number | null>(
+    userHasSucursal ? user.idSucursal : null
+  )
   const [pendingSucursalChange, setPendingSucursalChange] = useState<string | null>(null)
+  const [addProductSheetOpen, setAddProductSheetOpen] = useState(false)
+  const [sucursalSheetOpen, setSucursalSheetOpen] = useState(false)
+  const [comprobanteSheetOpen, setComprobanteSheetOpen] = useState(false)
+  const [clienteSheetOpen, setClienteSheetOpen] = useState(false)
+  const [sheetSearchSucursal, setSheetSearchSucursal] = useState("")
+  const [sheetSearchComprobante, setSheetSearchComprobante] = useState("")
   const [stockModalOpen, setStockModalOpen] = useState(false)
   const [stockModalSession, setStockModalSession] = useState(0)
   const [stockModalDefaults, setStockModalDefaults] = useState<{
@@ -352,6 +367,16 @@ export default function VentasPage() {
     searchSucursal,
     setSearchSucursal,
   } = useSucursalOptions(isAdmin)
+
+  const nonAdminSucursalVentaOptions = useMemo<ComboboxOption[]>(
+    () =>
+      hasMultipleSucursales
+        ? userSucursales
+            .filter((s) => !s.tipoSucursal || s.tipoSucursal === "VENTA")
+            .map((s) => ({ value: String(s.idSucursal), label: s.nombreSucursal }))
+        : [],
+    [hasMultipleSucursales, userSucursales],
+  )
 
   const sucursalesVenta = useMemo(
     () => sucursales.filter((sucursal) => sucursal.tipo === "VENTA"),
@@ -374,18 +399,32 @@ export default function VentasPage() {
   )
 
   const effectiveSelectedSucursalId =
-    hasValidSucursalId(selectedSucursalId) && sucursalesVentaIds.has(selectedSucursalId)
+    hasValidSucursalId(selectedSucursalId) &&
+    (isAdmin ? sucursalesVentaIds.has(selectedSucursalId) : true)
       ? selectedSucursalId
-      : defaultAdminSucursalId
+      : isAdmin
+        ? defaultAdminSucursalId
+        : userHasSucursal
+          ? user.idSucursal
+          : null
 
   const hasSelectedSucursal = hasValidSucursalId(effectiveSelectedSucursalId)
   const resolvedSucursalId = isAdmin
     ? hasSelectedSucursal
       ? effectiveSelectedSucursalId
       : null
-    : userHasSucursal
-      ? user?.idSucursal ?? null
-      : null
+    : hasMultipleSucursales
+      ? hasSelectedSucursal
+        ? effectiveSelectedSucursalId
+        : null
+      : userHasSucursal
+        ? user?.idSucursal ?? null
+        : null
+
+  // Sincronizar filtro "Solo disponibles" con localStorage
+  const [initialSoloDisponibles] = useState(
+    () => typeof window !== "undefined" ? localStorage.getItem("pos_solo_disponibles") !== "0" : true
+  )
 
   const {
     search: searchProductos,
@@ -406,7 +445,7 @@ export default function VentasPage() {
     setDisplayedPage: setDisplayedPageProductos,
     error: errorProductosListado,
     refreshCurrentView: refreshProductosView,
-  } = useProductos(!isVariantView && resolvedSucursalId !== null, resolvedSucursalId)
+  } = useProductos(!isVariantView && resolvedSucursalId !== null, resolvedSucursalId, initialSoloDisponibles, true)
   const {
     search: searchVariantes,
     setSearch: setSearchVariantes,
@@ -426,7 +465,27 @@ export default function VentasPage() {
     setDisplayedPage: setDisplayedPageVariantes,
     error: errorVariantesListado,
     refreshCurrentView: refreshVariantesView,
-  } = useCatalogoVariantes(isVariantView && resolvedSucursalId !== null, resolvedSucursalId)
+  } = useCatalogoVariantes(isVariantView && resolvedSucursalId !== null, resolvedSucursalId, initialSoloDisponibles, true)
+  const {
+    search: sheetSearch,
+    setSearch: setSheetSearch,
+    idCategoriaFilter: sheetIdCategoriaFilter,
+    idColorFilter: sheetIdColorFilter,
+    conOfertaFilter: sheetConOfertaFilter,
+    soloDisponiblesFilter: sheetSoloDisponiblesFilter,
+    setIdCategoriaFilter: setSheetIdCategoriaFilter,
+    setIdColorFilter: setSheetIdColorFilter,
+    setConOfertaFilter: setSheetConOfertaFilter,
+    setSoloDisponiblesFilter: setSheetSoloDisponiblesFilter,
+    displayedCatalogVariants: sheetCatalogVariants,
+    displayedTotalElements: sheetTotalElements,
+    displayedTotalPages: sheetTotalPages,
+    displayedPage: sheetPage,
+    displayedLoading: sheetLoading,
+    setDisplayedPage: setSheetPage,
+    error: sheetError,
+    refreshCurrentView: refreshSheetView,
+  } = useCatalogoVariantes(addProductSheetOpen && resolvedSucursalId !== null, resolvedSucursalId, initialSoloDisponibles, true)
   const [cart, setCart] = useState<CartItemData[]>([])
   const [selectedPayment, setSelectedPayment] = useState<PaymentKey | null>(null)
   const [paymentOperationCode, setPaymentOperationCode] = useState("")
@@ -438,10 +497,21 @@ export default function VentasPage() {
   const [discountDraft, setDiscountDraft] = useState<DiscountState>(() => createEmptyDiscountState())
   const [isDiscountEditorActive, setIsDiscountEditorActive] = useState(false)
   const [selectedComprobanteId, setSelectedComprobanteId] = useState("")
-  const [modalProduct, setModalProduct] = useState<ProductoResumen | null>(null)
-  const [modalVariantSelection, setModalVariantSelection] =
-    useState<CatalogVariantSelection | null>(null)
   const [submittingVenta, setSubmittingVenta] = useState(false)
+  const [autoOpenDoc, setAutoOpenDoc] = useState(
+    () => typeof window !== "undefined" ? localStorage.getItem("pos_auto_open_doc") !== "0" : true
+  )
+  const [autoOpenDocType, setAutoOpenDocType] = useState<"pdf" | "ticket">(
+    () => {
+      if (typeof window !== "undefined") {
+        const stored = localStorage.getItem("pos_auto_open_doc_type")
+        return stored === "ticket" ? "ticket" : "pdf"
+      }
+      return "pdf"
+    }
+  )
+  const [modalProduct, setModalProduct] = useState<ProductoResumen | null>(null)
+  const [modalVariantSelection, setModalVariantSelection] = useState<CatalogVariantSelection | null>(null)
   const [categoriasDisponibles, setCategoriasDisponibles] = useState<CategoryFilterOption[]>([])
   const [categoryPage, setCategoryPage] = useState(0)
   const [categoryTotalPages, setCategoryTotalPages] = useState(1)
@@ -474,7 +544,7 @@ export default function VentasPage() {
       const defaultType = priceOptions.some((o) => o.type === "oferta") ? "oferta" as const : "normal" as const
       const selectedPrice = priceOptions.find((o) => o.type === defaultType)?.precio ?? data.precioVigente
 
-      const imageUrl = data.imagenPrincipal?.urlThumb ?? data.imagenPrincipal?.url ?? null
+      const imageUrl = data.imagenPrincipal?.url ?? data.imagenPrincipal?.urlThumb ?? null
 
       setCart((previous) => {
         const index = previous.findIndex((item) => item.varianteId === data.idProductoVariante)
@@ -684,7 +754,7 @@ export default function VentasPage() {
     setSearchComprobante,
   } = useComprobanteOptions({
     enabled: true,
-    idSucursal: resolvedSucursalId,
+    habilitadoVenta: true,
   })
   const {
     methods: activeMetodosPago,
@@ -768,6 +838,52 @@ export default function VentasPage() {
     ? displayedCatalogVariants.length
     : displayedProductos.length
 
+  const currentSucursalDisplayName = useMemo(() => {
+    if (isAdmin) {
+      if (!hasSelectedSucursal) return "Selecciona sucursal"
+      const found = sucursalComboboxOptions.find(
+        (o) => o.value === String(effectiveSelectedSucursalId)
+      )
+      return found?.label || `Sucursal #${effectiveSelectedSucursalId}`
+    }
+    if (hasMultipleSucursales) {
+      if (!hasSelectedSucursal) return "Selecciona sucursal"
+      const found = nonAdminSucursalVentaOptions.find(
+        (o) => o.value === String(effectiveSelectedSucursalId)
+      )
+      return found?.label || user?.nombreSucursal || `Sucursal #${effectiveSelectedSucursalId}`
+    }
+    return userHasSucursal
+      ? user?.nombreSucursal || `Sucursal #${user?.idSucursal}`
+      : "Sin sucursal asignada"
+  }, [isAdmin, hasMultipleSucursales, userHasSucursal, user, hasSelectedSucursal, sucursalComboboxOptions, effectiveSelectedSucursalId, nonAdminSucursalVentaOptions])
+
+  const currentComprobanteDisplayName = useMemo(() => {
+    if (!selectedComprobante) {
+      if (loadingComprobantes) return "Cargando..."
+      return "Selecciona comprobante"
+    }
+    return `${selectedComprobante.tipoComprobante} ${selectedComprobante.serie}`
+  }, [selectedComprobante, loadingComprobantes])
+
+  const sucursalSheetOptions = isAdmin
+    ? [{ value: "", label: "Todas las sucursales" }, ...sucursalComboboxOptions]
+    : hasMultipleSucursales
+      ? nonAdminSucursalVentaOptions
+      : []
+
+  const filteredSucursalSheetOptions = useMemo(() => {
+    if (!sheetSearchSucursal.trim()) return sucursalSheetOptions
+    const lower = sheetSearchSucursal.toLowerCase()
+    return sucursalSheetOptions.filter((o) => o.label.toLowerCase().includes(lower))
+  }, [sucursalSheetOptions, sheetSearchSucursal])
+
+  const filteredComprobanteSheetOptions = useMemo(() => {
+    if (!sheetSearchComprobante.trim()) return comprobanteOptions
+    const lower = sheetSearchComprobante.toLowerCase()
+    return comprobanteOptions.filter((o) => o.label.toLowerCase().includes(lower))
+  }, [comprobanteOptions, sheetSearchComprobante])
+
   const subtotal = cart.reduce((sum, item) => sum + item.precio * item.cantidad, 0)
   const totalItems = cart.reduce((sum, item) => sum + item.cantidad, 0)
   const parsedDiscountValue = parseDiscountValue(discount.value)
@@ -811,7 +927,7 @@ export default function VentasPage() {
   const continueHint = useMemo(() => {
     if (cart.length === 0) return "Agrega al menos una variante"
     if (resolvedSucursalId === null) {
-      return isAdmin
+      return isAdmin || hasMultipleSucursales
         ? "Selecciona una sucursal"
         : "Tu usuario no tiene sucursal asignada"
     }
@@ -936,11 +1052,13 @@ export default function VentasPage() {
 
   const handleSoloDisponiblesFilterChange = useCallback(
     (value: boolean) => {
+      if (typeof window !== "undefined") {
+        localStorage.setItem("pos_solo_disponibles", value ? "1" : "0")
+      }
       if (isVariantView) {
         setSoloDisponiblesFilterVariantes(value)
         return
       }
-
       setSoloDisponiblesFilterProductos(value)
     },
     [isVariantView, setSoloDisponiblesFilterProductos, setSoloDisponiblesFilterVariantes]
@@ -957,17 +1075,6 @@ export default function VentasPage() {
     },
     [isVariantView, setDisplayedPageProductos, setDisplayedPageVariantes]
   )
-
-  const closeModal = useCallback(() => {
-    setModalProduct(null)
-    setModalVariantSelection(null)
-  }, [])
-
-  const openProductModal = useCallback((producto: ProductoResumen, colorId: number | null = null) => {
-    setModalVariantSelection(colorId !== null ? { colorId, tallaId: 0 } : null)
-    setModalProduct(producto)
-
-  }, [])
 
   const handleClientCreateOpenChange = useCallback((open: boolean) => {
     setIsClientCreateOpen(open)
@@ -990,19 +1097,19 @@ export default function VentasPage() {
 
   }, [])
 
-  const handleEditCartItemPrice = useCallback((item: CartItemData, newPrice: number) => {
-    setCart((previous) =>
-      previous.map((current) => {
-        if (item.varianteId && current.varianteId) {
-          return current.varianteId === item.varianteId
-            ? { ...current, precio: newPrice, precioSeleccionado: "editado" }
-            : current
-        }
-        return current.id === item.id && current.talla === item.talla && current.color === item.color
-          ? { ...current, precio: newPrice, precioSeleccionado: "editado" }
-          : current
-      })
-    )
+  const handleSelectClientAndClose = useCallback((client: ClientSelection) => {
+    setSelectedClient(client)
+    setClienteSheetOpen(false)
+  }, [])
+
+  const closeModal = useCallback(() => {
+    setModalProduct(null)
+    setModalVariantSelection(null)
+  }, [])
+
+  const openProductModal = useCallback((producto: ProductoResumen, colorId: number | null = null) => {
+    setModalVariantSelection(colorId !== null ? { colorId, tallaId: 0 } : null)
+    setModalProduct(producto)
   }, [])
 
   const addVariantToCart = useCallback((variant: SelectedVariant) => {
@@ -1023,9 +1130,7 @@ export default function VentasPage() {
       if (index >= 0) {
         return previous.map((item, idx) => {
           if (idx !== index) return item
-
           const stockDisponible = variant.stockDisponible ?? item.stockDisponible ?? null
-
           return {
             ...item,
             cantidad: clampCartQuantity(item.cantidad + variant.cantidad, stockDisponible),
@@ -1055,8 +1160,22 @@ export default function VentasPage() {
         },
       ]
     })
-
   }, [canManageStock, openStockModal, resolvedSucursalId])
+
+  const handleEditCartItemPrice = useCallback((item: CartItemData, newPrice: number) => {
+    setCart((previous) =>
+      previous.map((current) => {
+        if (item.varianteId && current.varianteId) {
+          return current.varianteId === item.varianteId
+            ? { ...current, precio: newPrice, precioSeleccionado: "editado" }
+            : current
+        }
+        return current.id === item.id && current.talla === item.talla && current.color === item.color
+          ? { ...current, precio: newPrice, precioSeleccionado: "editado" }
+          : current
+      })
+    )
+  }, [])
 
   const handleSelectCatalogVariant = useCallback((variant: CatalogVariantItem) => {
     if (!variant.variantId || variant.variantId <= 0) {
@@ -1101,6 +1220,7 @@ export default function VentasPage() {
     })
 
   }, [router])
+
 
   const handleSelectCartItemPrice = useCallback(
     (targetItem: CartItemData, priceType: VentaLineaPrecioTipo) => {
@@ -1300,6 +1420,7 @@ export default function VentasPage() {
         idSucursal: resolvedSucursalId,
         idCliente: selectedClient.idCliente,
         tipoComprobante: selectedComprobante.tipoComprobante,
+        serie: selectedComprobante.serie,
         moneda: "PEN",
         formaPago: "CONTADO",
         igvPorcentaje: DEFAULT_IGV_PORCENTAJE,
@@ -1344,18 +1465,15 @@ export default function VentasPage() {
       return {
         ventaId: ventaResponse?.idVenta ?? null,
         sunatEstado: ventaResponse?.sunatEstado ?? null,
-        sunatAutoDispatchError: ventaResponse?.sunatAutoDispatchError ?? null,
       }
     })()
 
     toast.promise(ventaPromise, {
       loading: "Registrando venta...",
-      success: ({ ventaId, sunatEstado, sunatAutoDispatchError }) => ({
-        message: sunatAutoDispatchError
-          ? "Venta registrada. SUNAT requiere revision manual."
-          : sunatEstado
-            ? `Venta registrada - SUNAT ${sunatEstado}`
-            : "Venta registrada",
+      success: ({ ventaId, sunatEstado }) => ({
+        message: sunatEstado
+          ? `Venta registrada - SUNAT ${sunatEstado}`
+          : "Venta registrada",
         action: {
           label: ventaId ? "Ver venta" : "Ver historial",
           onClick: () => {
@@ -1370,12 +1488,13 @@ export default function VentasPage() {
     })
 
     void ventaPromise
-      .then((result) => {
+      .then(({ ventaId }) => {
         resetVentaDraft()
         void refreshCurrentView()
-
-        if (result.sunatAutoDispatchError) {
-          toast.error(result.sunatAutoDispatchError)
+        if (autoOpenDoc && ventaId) {
+          void openVentaDocument(
+            getVentaDownloadConfig(autoOpenDocType === "ticket" ? "ticket" : "comprobante", { idVenta: ventaId })
+          )
         }
       })
       .catch(() => {
@@ -1401,6 +1520,8 @@ export default function VentasPage() {
     selectedPayment,
     submittingVenta,
     total,
+    autoOpenDoc,
+    autoOpenDocType,
   ])
 
   return (
@@ -1412,6 +1533,7 @@ export default function VentasPage() {
         onClose={closeModal}
         onConfirm={addVariantToCart}
       />
+
       <ClienteCreateDialog
         open={isClientCreateOpen}
         onOpenChange={handleClientCreateOpenChange}
@@ -1447,7 +1569,7 @@ export default function VentasPage() {
       </Dialog>
 
       <div className="flex h-[calc(100vh-7rem)] min-h-0 gap-5">
-        <div className="flex min-h-0 min-w-0 flex-[7] flex-col gap-3">
+        <div className="hidden sm:flex min-h-0 min-w-0 flex-[7] flex-col gap-3">
           <div className="flex shrink-0 flex-col gap-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               <div className="relative flex-1">
@@ -1511,6 +1633,16 @@ export default function VentasPage() {
                     <ArrowPathIcon className="h-3.5 w-3.5 animate-spin" />
                   )}
                 </button>
+                <button
+                  type="button"
+                  onClick={() => { void refreshCurrentView() }}
+                  disabled={displayedLoading}
+                  title="Recargar catalogo"
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 transition-all hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700/70"
+                  aria-label="Recargar catalogo"
+                >
+                  <ArrowPathIcon className={`h-4 w-4 ${displayedLoading ? "animate-spin" : ""}`} />
+                </button>
                 <CatalogViewToggle
                   value={catalogViewMode}
                   onChange={setCatalogViewMode}
@@ -1561,9 +1693,8 @@ export default function VentasPage() {
                 </p>
               </div>
             ) : displayedLoading ? (
-              <div className="flex h-full flex-col items-center justify-center gap-3">
-                <ArrowPathIcon className="h-8 w-8 animate-spin text-blue-500" />
-                <p className="text-sm text-slate-400">Cargando catalogo...</p>
+              <div className="flex h-full items-center justify-center">
+                <LoaderSpinner text="Cargando catalogo..." />
               </div>
             ) : errorProductos ? (
               <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
@@ -1632,7 +1763,7 @@ export default function VentasPage() {
           </div>
         </div>
 
-        <div className="flex min-h-0 min-w-[340px] max-w-[450px] flex-[3.4] flex-col gap-2">
+        <div className="flex min-h-0 w-full sm:min-w-[340px] sm:max-w-[450px] sm:flex-[3.4] flex-col gap-2">
           <div className="flex shrink-0 items-center justify-between py-1">
             <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">
               Panel de Venta
@@ -1640,19 +1771,139 @@ export default function VentasPage() {
             <LiveClock />
           </div>
 
-          <div className="flex shrink-0 flex-col gap-2 px-1">
+          {/* ─── Selectores MOBILE — filas tapeables ─── */}
+          <div className="sm:hidden shrink-0 flex flex-col gap-2">
+            {/* Sucursal + Comprobante en 2 columnas */}
+            <div className="grid grid-cols-2 gap-2">
+              {isAdmin || hasMultipleSucursales ? (
+                <button
+                  type="button"
+                  onClick={() => { setSheetSearchSucursal(""); setSucursalSheetOpen(true) }}
+                  className="flex items-center gap-2 rounded-2xl border border-slate-100 bg-white px-3 py-2.5 text-left transition hover:bg-slate-50 shadow-sm dark:border-slate-700/60 dark:bg-slate-800/80 dark:hover:bg-slate-700/40"
+                >
+                  <BuildingStorefrontIcon className="h-4 w-4 shrink-0 text-blue-500" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Sucursal</p>
+                    <p className={`truncate text-xs font-medium ${hasSelectedSucursal ? "text-slate-800 dark:text-slate-100" : "text-slate-400 dark:text-slate-500"}`}>
+                      {currentSucursalDisplayName}
+                    </p>
+                  </div>
+                  <ChevronRightIcon className="h-3.5 w-3.5 shrink-0 text-slate-300 dark:text-slate-600" />
+                </button>
+              ) : (
+                <div className="flex items-center gap-2 rounded-2xl border border-slate-100 bg-white px-3 py-2.5 shadow-sm dark:border-slate-700/60 dark:bg-slate-800/80">
+                  <BuildingStorefrontIcon className="h-4 w-4 shrink-0 text-blue-500" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Sucursal</p>
+                    <p className="truncate text-xs font-medium text-slate-800 dark:text-slate-100">{currentSucursalDisplayName}</p>
+                  </div>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={() => { setSheetSearchComprobante(""); setComprobanteSheetOpen(true) }}
+                disabled={resolvedSucursalId === null}
+                className="flex items-center gap-2 rounded-2xl border border-slate-100 bg-white px-3 py-2.5 text-left transition hover:bg-slate-50 shadow-sm disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700/60 dark:bg-slate-800/80 dark:hover:bg-slate-700/40"
+              >
+                <ClipboardDocumentListIcon className="h-4 w-4 shrink-0 text-violet-500" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Comprobante</p>
+                  <p className={`truncate text-xs font-medium ${selectedComprobante ? "text-slate-800 dark:text-slate-100" : "text-slate-400 dark:text-slate-500"}`}>
+                    {currentComprobanteDisplayName}
+                  </p>
+                </div>
+                <ChevronRightIcon className="h-3.5 w-3.5 shrink-0 text-slate-300 dark:text-slate-600" />
+              </button>
+            </div>
+
+            {/* Abrir comprobante toggle */}
+            <div className="flex items-center justify-between gap-2 rounded-2xl border border-slate-100 bg-white px-3 py-2.5 shadow-sm dark:border-slate-700/60 dark:bg-slate-800/80">
+              <div className="flex items-center gap-2 min-w-0">
+                <TicketIcon className="h-3.5 w-3.5 shrink-0 text-violet-500" />
+                <div className="min-w-0">
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Abrir al confirmar</p>
+                  <p className="text-xs font-medium text-slate-700 dark:text-slate-200">
+                    {autoOpenDoc ? (autoOpenDocType === "ticket" ? "Ticket" : "PDF") : "Desactivado"}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {autoOpenDoc && (
+                  <div className="flex items-center gap-0.5 rounded-lg border border-slate-100 bg-slate-50 p-0.5 dark:border-slate-700 dark:bg-slate-900/50">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAutoOpenDocType("pdf")
+                        localStorage.setItem("pos_auto_open_doc_type", "pdf")
+                      }}
+                      className={[
+                        "rounded-md px-2 py-0.5 text-[10px] font-bold transition-all",
+                        autoOpenDocType === "pdf"
+                          ? "bg-white text-blue-700 shadow-sm dark:bg-slate-800 dark:text-blue-400"
+                          : "text-slate-400",
+                      ].join(" ")}
+                    >
+                      PDF
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAutoOpenDocType("ticket")
+                        localStorage.setItem("pos_auto_open_doc_type", "ticket")
+                      }}
+                      className={[
+                        "rounded-md px-2 py-0.5 text-[10px] font-bold transition-all",
+                        autoOpenDocType === "ticket"
+                          ? "bg-white text-amber-700 shadow-sm dark:bg-slate-800 dark:text-amber-400"
+                          : "text-slate-400",
+                      ].join(" ")}
+                    >
+                      Ticket
+                    </button>
+                  </div>
+                )}
+                <Switch
+                  checked={autoOpenDoc}
+                  onCheckedChange={(checked) => {
+                    setAutoOpenDoc(checked)
+                    localStorage.setItem("pos_auto_open_doc", checked ? "1" : "0")
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Cliente — fila completa */}
+            <button
+              type="button"
+              onClick={() => setClienteSheetOpen(true)}
+              className="flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-3 text-left transition hover:bg-slate-50 shadow-sm dark:border-slate-700/60 dark:bg-slate-800/80 dark:hover:bg-slate-700/40"
+            >
+              <UserCircleIcon className="h-4 w-4 shrink-0 text-emerald-500" />
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Cliente</p>
+                <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">
+                  {selectedClient.nombre || "Cliente Generico"}
+                </p>
+              </div>
+              <ChevronRightIcon className="h-4 w-4 shrink-0 text-slate-300 dark:text-slate-600" />
+            </button>
+          </div>
+
+          {/* ─── Selectores DESKTOP — comboboxes ─── */}
+          <div className="hidden sm:flex shrink-0 flex-col gap-2 px-1">
             <div className="flex items-center gap-2">
               <SectionLabel>Sucursal</SectionLabel>
               <div className="flex-1">
-                {isAdmin ? (
+                {isAdmin || hasMultipleSucursales ? (
                   <Combobox
                     id="venta-sucursal"
                     value={hasSelectedSucursal ? String(effectiveSelectedSucursalId) : ""}
-                    options={sucursalComboboxOptions}
+                    options={isAdmin ? sucursalComboboxOptions : nonAdminSucursalVentaOptions}
                     searchValue={searchSucursal}
                     onSearchValueChange={setSearchSucursal}
                     onValueChange={handleSucursalChange}
-                    placeholder="Selecciona sucursal"
+                    placeholder={isAdmin ? "Selecciona sucursal" : "Sucursal"}
                     searchPlaceholder="Buscar sucursal..."
                     emptyMessage="No se encontraron sucursales"
                     loading={loadingSucursales}
@@ -1664,6 +1915,54 @@ export default function VentasPage() {
                         ? user?.nombreSucursal || `Sucursal #${user?.idSucursal}`
                         : "Sin sucursal asignada"}
                     </span>
+                  </div>
+                )}
+              </div>
+              <div className="flex shrink-0 flex-col items-end gap-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                    Abrir doc
+                  </span>
+                  <Switch
+                    checked={autoOpenDoc}
+                    onCheckedChange={(checked) => {
+                      setAutoOpenDoc(checked)
+                      localStorage.setItem("pos_auto_open_doc", checked ? "1" : "0")
+                    }}
+                  />
+                </div>
+                {autoOpenDoc && (
+                  <div className="flex items-center gap-0.5 rounded-lg border border-slate-200 bg-slate-50 p-0.5 dark:border-slate-700 dark:bg-slate-900/50">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAutoOpenDocType("pdf")
+                        localStorage.setItem("pos_auto_open_doc_type", "pdf")
+                      }}
+                      className={[
+                        "rounded-md px-2.5 py-1 text-[10px] font-bold transition-all",
+                        autoOpenDocType === "pdf"
+                          ? "bg-white text-blue-700 shadow-sm dark:bg-slate-800 dark:text-blue-400"
+                          : "text-slate-400 hover:text-slate-600",
+                      ].join(" ")}
+                    >
+                      PDF
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAutoOpenDocType("ticket")
+                        localStorage.setItem("pos_auto_open_doc_type", "ticket")
+                      }}
+                      className={[
+                        "rounded-md px-2.5 py-1 text-[10px] font-bold transition-all",
+                        autoOpenDocType === "ticket"
+                          ? "bg-white text-amber-700 shadow-sm dark:bg-slate-800 dark:text-amber-400"
+                          : "text-slate-400 hover:text-slate-600",
+                      ].join(" ")}
+                    >
+                      Ticket
+                    </button>
                   </div>
                 )}
               </div>
@@ -1713,6 +2012,15 @@ export default function VentasPage() {
               </div>
             </div>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setAddProductSheetOpen(true)}
+            className="sm:hidden flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-blue-300 bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-600 transition hover:bg-blue-100 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-400 dark:hover:bg-blue-500/20"
+          >
+            <PlusIcon className="h-4 w-4" />
+            Agregar Producto
+          </button>
 
           <div className="relative min-h-0 flex-1 overflow-hidden">
             <div
@@ -1838,7 +2146,126 @@ export default function VentasPage() {
             </div>
           </div>
 
-          <div className="flex shrink-0 flex-col gap-2">
+          {/* ─── Footer MOBILE — barra inferior ─── */}
+          <div className="sm:hidden shrink-0 overflow-hidden rounded-t-2xl border border-slate-100 bg-white shadow-[0_-4px_20px_rgba(0,0,0,0.07)] dark:border-slate-700/60 dark:bg-slate-900 px-4 pb-4 pt-3">
+            {!isPaymentStepActive && (
+              <div className="mb-2.5 flex items-center justify-between">
+                {isDiscountEditorActive ? (
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-blue-600 dark:text-blue-400">
+                      <TicketIcon className="h-3.5 w-3.5" />
+                      Editando descuento
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleApplyDiscount}
+                      className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 dark:hover:bg-slate-800"
+                    >
+                      <XMarkIcon className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleOpenDiscountEditor}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-300 dark:hover:text-blue-400"
+                  >
+                    <TicketIcon className="h-3 w-3" />
+                    {payloadDiscountType ? "Editar descuento" : "Aplicar descuento"}
+                  </button>
+                )}
+                <div className="text-right">
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 tabular-nums">
+                    Subtotal {formatMonedaPen(subtotal)}
+                  </p>
+                  {showIgvSummary && (
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 tabular-nums">
+                      IGV {formatMonedaPen(footerIgv)}
+                    </p>
+                  )}
+                  {visibleDiscountAmount > 0 && (
+                    <p className="text-[10px] font-medium text-emerald-500 tabular-nums">
+                      -{formatMonedaPen(visibleDiscountAmount)}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {isDiscountEditorActive && !isPaymentStepActive && (
+              <div className="mb-2.5 flex items-center gap-2">
+                <div className="flex h-9 items-center rounded-full border border-slate-200 bg-slate-50 p-1 shadow-sm dark:border-slate-700 dark:bg-slate-900/70">
+                  {DISCOUNT_MODE_OPTIONS.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => handleDiscountDraftModeChange(option.value)}
+                      className={[
+                        "flex h-7 min-w-9 items-center justify-center rounded-full px-2.5 text-xs font-semibold transition-all",
+                        discountDraft.mode === option.value
+                          ? "bg-[#5964f2] text-white shadow-[0_6px_14px_rgba(89,100,242,0.4)]"
+                          : "text-slate-500 hover:bg-white hover:text-slate-700 dark:text-slate-400",
+                      ].join(" ")}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  type="number"
+                  min="0"
+                  step={discountDraft.mode === "percent" ? "0.1" : "0.01"}
+                  max={discountDraft.mode === "percent" ? "100" : undefined}
+                  value={discountDraft.value}
+                  onChange={handleDiscountDraftValueChange}
+                  placeholder={discountDraft.mode === "percent" ? "12" : "25.00"}
+                  className="h-9 flex-1 rounded-full border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 outline-none placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-100"
+                />
+              </div>
+            )}
+
+            <div className="flex items-end justify-between gap-3 border-t border-slate-100 pt-2.5 dark:border-slate-700/60">
+              <div>
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  Total a Pagar
+                </p>
+                <p className="mt-0.5 tabular-nums text-2xl font-extrabold leading-none tracking-tight text-slate-900 dark:text-slate-50">
+                  {formatMonedaPen(footerTotal)}
+                </p>
+              </div>
+              <Button
+                type="button"
+                size="lg"
+                onClick={() => {
+                  if (isPaymentStepActive) { void handleFinalizarVenta(); return }
+                  handleOpenPaymentDrawer()
+                }}
+                disabled={isPrimaryActionDisabled}
+                className={[
+                  "h-auto rounded-[22px] px-6 py-3 text-sm font-bold transition-all duration-200",
+                  !isPrimaryActionDisabled
+                    ? "shadow-sm active:scale-[0.97]"
+                    : "cursor-not-allowed bg-slate-100 text-slate-400 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-600",
+                ].join(" ")}
+              >
+                {submittingVenta ? (
+                  <><ArrowPathIcon className="h-4 w-4 animate-spin" /> Registrando...</>
+                ) : isPaymentStepActive ? (
+                  <><CheckCircleIcon className="h-4 w-4" /> Confirmar</>
+                ) : (
+                  <><CheckCircleIcon className="h-4 w-4" /> Continuar</>
+                )}
+              </Button>
+            </div>
+            {isPrimaryActionDisabled && primaryActionHint && (
+              <p className="mt-1.5 text-center text-[10px] text-slate-400 dark:text-slate-600">
+                {primaryActionHint}
+              </p>
+            )}
+          </div>
+
+          {/* ─── Footer DESKTOP — card original ─── */}
+          <div className="hidden sm:flex shrink-0 flex-col gap-2">
             <Card className="overflow-hidden">
               <div className="px-4 py-3.5">
                 {!isPaymentStepActive && (
@@ -1953,7 +2380,6 @@ export default function VentasPage() {
               </div>
             </Card>
 
-
             <Button
               type="button"
               size="lg"
@@ -1994,6 +2420,293 @@ export default function VentasPage() {
 
         </div>
       </div>
+
+      {/* ─── Sheet SUCURSAL ─── */}
+      <Sheet open={sucursalSheetOpen} onOpenChange={setSucursalSheetOpen}>
+        <SheetContent side="bottom" className="flex h-[75dvh] flex-col gap-0 p-0">
+          <SheetHeader className="shrink-0 border-b border-slate-100 px-4 pb-3 pt-4 dark:border-slate-700/60">
+            <SheetTitle className="text-sm">Seleccionar Sucursal</SheetTitle>
+          </SheetHeader>
+
+          <div className="shrink-0 px-4 pt-3">
+            <div className="relative">
+              <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Buscar sucursal..."
+                value={sheetSearchSucursal}
+                onChange={(e) => setSheetSearchSucursal(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              />
+            </div>
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-2 space-y-1">
+            {filteredSucursalSheetOptions.map((option) => {
+              const isSelected =
+                option.value === ""
+                  ? !hasSelectedSucursal
+                  : option.value === String(effectiveSelectedSucursalId)
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => {
+                    handleSucursalChange(option.value)
+                    setSucursalSheetOpen(false)
+                  }}
+                  className={`flex w-full items-center justify-between rounded-xl px-4 py-3 text-left text-sm transition ${
+                    isSelected
+                      ? "bg-blue-50 font-semibold text-blue-700 dark:bg-blue-500/10 dark:text-blue-300"
+                      : "hover:bg-slate-50 text-slate-700 dark:text-slate-200 dark:hover:bg-slate-800/60"
+                  }`}
+                >
+                  {option.label}
+                  {isSelected && <CheckCircleIcon className="h-4 w-4 text-blue-500 shrink-0" />}
+                </button>
+              )
+            })}
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* ─── Sheet COMPROBANTE ─── */}
+      <Sheet open={comprobanteSheetOpen} onOpenChange={setComprobanteSheetOpen}>
+        <SheetContent side="bottom" className="flex h-[70dvh] flex-col gap-0 p-0">
+          <SheetHeader className="shrink-0 border-b border-slate-100 px-4 pb-3 pt-4 dark:border-slate-700/60">
+            <SheetTitle className="text-sm">Seleccionar Comprobante</SheetTitle>
+          </SheetHeader>
+
+          <div className="shrink-0 px-4 pt-3">
+            <div className="relative">
+              <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Buscar comprobante..."
+                value={sheetSearchComprobante}
+                onChange={(e) => setSheetSearchComprobante(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              />
+            </div>
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-2 space-y-1">
+            {filteredComprobanteSheetOptions.length === 0 ? (
+              <div className="flex h-full items-center justify-center text-sm text-slate-400">
+                No se encontraron comprobantes
+              </div>
+            ) : (
+              filteredComprobanteSheetOptions.map((option) => {
+                const isSelected = option.value === effectiveSelectedComprobanteId
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => {
+                      setSelectedComprobanteId(option.value)
+                      setComprobanteSheetOpen(false)
+                    }}
+                    className={`flex w-full items-center justify-between rounded-xl px-4 py-3 text-left text-sm transition ${
+                      isSelected
+                        ? "bg-violet-50 font-semibold text-violet-700 dark:bg-violet-500/10 dark:text-violet-300"
+                        : "hover:bg-slate-50 text-slate-700 dark:text-slate-200 dark:hover:bg-slate-800/60"
+                    }`}
+                  >
+                    {option.label}
+                    {isSelected && <CheckCircleIcon className="h-4 w-4 text-violet-500 shrink-0" />}
+                  </button>
+                )
+              })
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* ─── Sheet CLIENTE ─── */}
+      <Sheet open={clienteSheetOpen} onOpenChange={setClienteSheetOpen}>
+        <SheetContent side="bottom" className="flex h-[65dvh] flex-col gap-0 p-0">
+          <SheetHeader className="shrink-0 border-b border-slate-100 px-4 pb-3 pt-4 dark:border-slate-700/60">
+            <SheetTitle className="text-sm">Seleccionar Cliente</SheetTitle>
+          </SheetHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto pb-6 pt-2">
+            <ClientSelectSheetContent
+              selected={selectedClient}
+              onSelect={handleSelectClientAndClose}
+              onCreateClientRequest={(prefill) => {
+                setClienteSheetOpen(false)
+                handleClientCreateRequest(prefill)
+              }}
+              tipoDocumentoFilter={clienteTipoDocumentoFilter}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Sheet catálogo — solo mobile */}
+      <Sheet open={addProductSheetOpen} onOpenChange={setAddProductSheetOpen}>
+        <SheetContent side="bottom" className="flex h-[100dvh] flex-col gap-0 p-0">
+          <SheetHeader className="shrink-0 border-b border-slate-100 px-4 pb-3 pt-4 dark:border-slate-700/60">
+            <SheetTitle className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+              Agregar Producto
+            </SheetTitle>
+          </SheetHeader>
+
+          <div className="flex shrink-0 flex-col gap-2 px-4 pt-3">
+            {/* Barra de búsqueda */}
+            <div className="relative">
+              <MagnifyingGlassIcon className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Buscar por SKU, nombre, color o talla..."
+                value={sheetSearch}
+                onChange={(event) => setSheetSearch(event.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm shadow-sm placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800"
+              />
+            </div>
+
+            {/* Botones de filtro */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-0.5">
+              <button
+                type="button"
+                onClick={() => setSheetConOfertaFilter(!sheetConOfertaFilter)}
+                className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold transition-all ${
+                  sheetConOfertaFilter
+                    ? "border-blue-500 bg-blue-50 text-blue-700 dark:border-blue-500/70 dark:bg-blue-500/10 dark:text-blue-200"
+                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                }`}
+                aria-pressed={sheetConOfertaFilter}
+              >
+                <TagIcon className="h-3.5 w-3.5" />
+                {sheetConOfertaFilter ? "Ofertas activas" : "Solo ofertas"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSheetSoloDisponiblesFilter(!sheetSoloDisponiblesFilter)}
+                className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold transition-all ${
+                  sheetSoloDisponiblesFilter
+                    ? "border-emerald-500 bg-emerald-50 text-emerald-700 dark:border-emerald-500/70 dark:bg-emerald-500/10 dark:text-emerald-200"
+                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                }`}
+                aria-pressed={sheetSoloDisponiblesFilter}
+              >
+                <CheckCircleIcon className="h-3.5 w-3.5" />
+                {sheetSoloDisponiblesFilter ? "Disponibles" : "Disponible"}
+              </button>
+            </div>
+
+            {/* Filtros de categoría/color */}
+            {resolvedSucursalId !== null && (
+              <>
+                <div className="rounded-xl border border-slate-100 bg-white px-3 py-2.5 shadow-sm dark:border-slate-700/60 dark:bg-slate-800/60">
+                  <CategoryFilter
+                    categories={categoriasDisponibles}
+                    colors={coloresDisponibles}
+                    activeCategoryId={sheetIdCategoriaFilter}
+                    onCategoryChange={setSheetIdCategoriaFilter}
+                    activeColorId={sheetIdColorFilter}
+                    onColorChange={setSheetIdColorFilter}
+                    categoryPage={safeCategoryPage}
+                    categoryTotalPages={categoryTotalPages}
+                    onCategoryNextPage={handleNextCategoryPage}
+                    onCategoryPrevPage={handlePrevCategoryPage}
+                    colorPage={safeColorPage}
+                    colorTotalPages={colorTotalPages}
+                    onColorNextPage={handleNextColorPage}
+                    onColorPrevPage={handlePrevColorPage}
+                  />
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Mostrando {sheetCatalogVariants.length} variante(s) en esta pagina.
+                </p>
+              </>
+            )}
+          </div>
+
+          {/* Grid de variantes — scrollable */}
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-2">
+            {resolvedSucursalId === null ? (
+              <div className="flex h-full flex-col items-center justify-center py-16 text-center">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700">
+                  <BuildingStorefrontIcon className="h-6 w-6 text-slate-400 dark:text-slate-500" />
+                </div>
+                <p className="mt-3 text-sm font-semibold text-slate-600 dark:text-slate-300">
+                  Selecciona una sucursal
+                </p>
+                <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+                  Elige una sucursal en el panel principal
+                </p>
+              </div>
+            ) : sheetLoading ? (
+              <div className="flex h-full items-center justify-center">
+                <LoaderSpinner text="Cargando catalogo..." />
+              </div>
+            ) : sheetError ? (
+              <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+                <CubeIcon className="h-12 w-12 text-rose-200 dark:text-rose-800" />
+                <p className="text-sm font-semibold text-slate-500">{sheetError}</p>
+                <button
+                  onClick={() => { void refreshSheetView() }}
+                  className="text-xs text-blue-500 hover:underline"
+                >
+                  Reintentar
+                </button>
+              </div>
+            ) : sheetCatalogVariants.length > 0 ? (
+              <div className="grid grid-cols-2 gap-3 xs:grid-cols-3">
+                {sheetCatalogVariants.map((variant) => (
+                  <ProductCard
+                    key={variant.key}
+                    product={variant.product}
+                    variantItem={variant}
+                    onAdd={() => handleSelectCatalogVariant(variant)}
+                    cartQty={cart.find((i) => i.varianteId === variant.variantId)?.cantidad ?? 0}
+                    onAddStock={
+                      canManageStock && variant.stock !== null && variant.stock <= 0
+                        ? () => {
+                            openStockModal({
+                              idSucursal: resolvedSucursalId,
+                              codigoBarras: variant.codigoBarras ?? null,
+                              query: !variant.codigoBarras
+                                ? `${variant.productName} ${variant.tallaName}`
+                                : null,
+                            })
+                          }
+                        : undefined
+                    }
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="flex h-full flex-col items-center justify-center py-16 text-center">
+                <CubeIcon className="mb-3 h-12 w-12 text-slate-200 dark:text-slate-700" />
+                <p className="text-sm font-semibold text-slate-400">Sin resultados</p>
+              </div>
+            )}
+
+            {!sheetLoading && !sheetError && (
+              <ProductosPagination
+                totalElements={sheetTotalElements}
+                totalPages={sheetTotalPages}
+                page={sheetPage}
+                onPageChange={setSheetPage}
+                itemLabel="variantes"
+              />
+            )}
+          </div>
+
+          {/* Botón Vender */}
+          <div className="shrink-0 border-t border-slate-100 p-4 dark:border-slate-700/60">
+            <Button
+              className="w-full h-12 text-base font-semibold"
+              onClick={() => setAddProductSheetOpen(false)}
+              disabled={cart.length === 0}
+            >
+              Vender{cart.length > 0 ? ` (${cart.reduce((s, i) => s + i.cantidad, 0)} items)` : ""}
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <AgregarStockModal
         key={`stock-modal-${stockModalSession}`}

@@ -15,6 +15,7 @@ interface ProductCardProps {
   onAdd: (product: ProductoResumen, colorId: number | null) => void
   variantItem?: CatalogVariantItem
   onAddStock?: () => void
+  cartQty?: number
 }
 
 function normalizeHexColor(code: string | null | undefined): string {
@@ -88,7 +89,7 @@ function getVariantStockBadgeClass(talla: ProductoResumenTalla | null) {
   return "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
 }
 
-export default function ProductCard({ product, onAdd, variantItem, onAddStock }: ProductCardProps) {
+export default function ProductCard({ product, onAdd, variantItem, onAddStock, cartQty = 0 }: ProductCardProps) {
   const isVariantCard = Boolean(variantItem)
   const [selectedColorId, setSelectedColorId] = useState<number | null>(() =>
     variantItem?.colorId ?? getDefaultColorId(product)
@@ -157,6 +158,11 @@ export default function ProductCard({ product, onAdd, variantItem, onAddStock }:
       )}
     >
       <div className="relative h-52 w-full overflow-hidden border-b bg-slate-50 dark:bg-slate-900/40">
+        {cartQty > 0 && (
+          <div className="absolute right-2 top-2 z-20 flex min-w-[22px] items-center justify-center rounded-full bg-blue-600 px-1.5 py-0.5 text-[11px] font-bold leading-none text-white shadow-md ring-2 ring-white dark:ring-slate-900">
+            {cartQty}
+          </div>
+        )}
         {imageUrl ? (
           <Image
             src={imageUrl}
@@ -182,12 +188,12 @@ export default function ProductCard({ product, onAdd, variantItem, onAddStock }:
           </div>
         )}
 
-        {/* Banda "Sin stock" - variante agotada */}
+        {/* Banda "No disponible" - variante agotada */}
         {variantNoStock && (
           <div className="absolute bottom-0 left-0 right-0 flex items-center justify-center gap-1.5 bg-rose-600/90 py-1.5 backdrop-blur-sm">
             <NoSymbolIcon className="h-3.5 w-3.5 text-white" />
             <span className="text-xs font-semibold uppercase tracking-wide text-white">
-              Sin stock · Talla {variantSizeLabel}
+              No disponible · Talla {variantSizeLabel}
             </span>
           </div>
         )}

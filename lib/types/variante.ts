@@ -40,6 +40,20 @@ export interface VarianteResumenTalla {
   nombre: string
 }
 
+export interface VarianteResumenGrupoImagen {
+  key: string
+  idProducto: number
+  idColor: number
+}
+
+export interface ImagenesPorColorGroup {
+  key: string
+  idProducto: number
+  idColor: number
+  imagenPrincipal: VarianteResumenImagen | null
+  imagenes: VarianteResumenImagen[]
+}
+
 export interface VarianteResumenItem {
   idProductoVariante: number
   sku: string | null
@@ -56,6 +70,7 @@ export interface VarianteResumenItem {
   producto: VarianteResumenProducto
   color: VarianteResumenColor | null
   talla: VarianteResumenTalla | null
+  grupoImagen: VarianteResumenGrupoImagen | null
   imagenPrincipal: VarianteResumenImagen | null
   imagenes: VarianteResumenImagen[]
 }
@@ -77,7 +92,9 @@ export interface VarianteDeleteResponse {
   message: string
 }
 
-export type VarianteResumenPageResponse = PageResponse<VarianteResumenItem>
+export interface VarianteResumenPageResponse extends PageResponse<VarianteResumenItem> {
+  imagenesPorColor: ImagenesPorColorGroup[]
+}
 
 export interface VarianteCatalogoProducto {
   idProducto: number

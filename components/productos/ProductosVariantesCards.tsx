@@ -88,7 +88,7 @@ function VarianteCard({ variant, onEditVariante, onDeleteVariante, onShowBarcode
       )}
     >
       {/* Imagen con badges */}
-      <div className="relative flex h-56 w-full items-center justify-center overflow-hidden border-b bg-slate-50 dark:bg-slate-900/40">
+      <div className="relative flex h-40 w-full items-center justify-center overflow-hidden border-b bg-slate-50 sm:h-56 dark:bg-slate-900/40">
         {variant.imageUrl ? (
           <Image
             key={`${variant.variantId}-${variant.imageUrl}`}
@@ -118,12 +118,12 @@ function VarianteCard({ variant, onEditVariante, onDeleteVariante, onShowBarcode
           </button>
         )}
 
-        {/* Banda "Sin stock" en la parte inferior de la imagen */}
+        {/* Banda inferior de imagen — estado de stock */}
         {(noStock || noStockRegistered) && (
           <div className="absolute bottom-0 left-0 right-0 flex items-center justify-center gap-1.5 bg-rose-600/90 py-1.5 backdrop-blur-sm">
             <NoSymbolIcon className="h-3.5 w-3.5 text-white" />
             <span className="text-xs font-semibold uppercase tracking-wide text-white">
-              {noStockRegistered ? "Sin stock registrado" : "Sin stock"}
+              {noStockRegistered ? "No disponible en esta sucursal" : "Sin stock"}
             </span>
           </div>
         )}
@@ -147,37 +147,37 @@ function VarianteCard({ variant, onEditVariante, onDeleteVariante, onShowBarcode
       </div>
 
       {/* Cuerpo */}
-      <div className="flex flex-1 flex-col space-y-3 p-4">
+      <div className="flex flex-1 flex-col space-y-2 p-3 sm:space-y-3 sm:p-4">
         {/* Categoria */}
         <p className="inline-flex self-start rounded-md bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
           {variant.categoryName || "Sin categoria"}
         </p>
 
         {/* Nombre */}
-        <h3 className="line-clamp-2 text-base font-semibold text-foreground">
+        <h3 className="line-clamp-2 text-sm font-semibold text-foreground sm:text-base">
           {variant.productName}
         </h3>
 
         {/* SKU */}
         {variant.sku && (
-          <p className="text-xs text-muted-foreground">
+          <p className="text-[11px] text-muted-foreground sm:text-xs">
             SKU: <span className="font-medium text-foreground">{variant.sku}</span>
           </p>
         )}
 
         {/* Precio */}
-        <div className="flex flex-wrap items-baseline gap-2">
+        <div className="flex flex-wrap items-baseline gap-1.5">
           {typeof variant.offerPrice === "number" && variant.offerPrice > 0 ? (
             <>
-              <span className="text-lg font-semibold text-red-600 dark:text-red-400">
+              <span className="text-sm font-semibold text-red-600 sm:text-lg dark:text-red-400">
                 {formatMonedaPen(variant.offerPrice)}
               </span>
-              <span className="text-sm text-muted-foreground line-through">
+              <span className="text-xs text-muted-foreground line-through sm:text-sm">
                 {formatMonedaPen(variant.regularPrice)}
               </span>
             </>
           ) : (
-            <span className="text-lg font-semibold text-blue-600 dark:text-blue-400">
+            <span className="text-sm font-semibold text-blue-600 sm:text-lg dark:text-blue-400">
               {formatMonedaPen(variant.regularPrice)}
             </span>
           )}
@@ -189,17 +189,17 @@ function VarianteCard({ variant, onEditVariante, onDeleteVariante, onShowBarcode
         </div>
 
         {/* Color + talla chips */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
           <span
             className={cn(
-              "h-5 w-5 rounded-full border",
+              "h-4 w-4 shrink-0 rounded-full border sm:h-5 sm:w-5",
               light ? "border-gray-300 dark:border-gray-500" : "border-transparent"
             )}
             style={{ backgroundColor: hex }}
             title={variant.colorName}
           />
-          <span className="text-xs text-muted-foreground">{variant.colorName}</span>
-          <span className="rounded-md border border-blue-500 bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+          <span className="text-[11px] text-muted-foreground sm:text-xs">{variant.colorName}</span>
+          <span className="rounded-md border border-blue-500 bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700 sm:px-2.5 sm:text-xs dark:bg-blue-900/30 dark:text-blue-300">
             {variant.tallaName}
           </span>
           {typeof variant.offerPrice === "number" && variant.offerPrice > 0 && (
@@ -211,44 +211,42 @@ function VarianteCard({ variant, onEditVariante, onDeleteVariante, onShowBarcode
         </div>
 
         {/* Stock por sucursal */}
-        <div className="space-y-1.5">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            Stock por sucursal
+        <div className="space-y-1">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Stock
           </p>
           {variant.stocksSucursalesVenta.length > 0 ? (
-            <div className="overflow-hidden rounded-lg border text-xs">
+            <div className="overflow-hidden rounded-lg border text-[11px] sm:text-xs">
               {variant.stocksSucursalesVenta.map((s) => (
                 <div
                   key={s.idSucursal}
                   className={cn(
-                    "flex items-center justify-between px-2 py-1",
+                    "flex items-center justify-between px-2 py-0.5",
                     getStockRowClass(s.stock)
                   )}
                 >
-                  <span className="text-muted-foreground">{s.nombreSucursal}</span>
-                  <span className={getStockValueClass(s.stock)}>
-                    {s.stock <= 0 ? "Sin stock" : `${s.stock} und.`}
+                  <span className="truncate text-muted-foreground">{s.nombreSucursal}</span>
+                  <span className={cn("ml-1 shrink-0", getStockValueClass(s.stock))}>
+                    {s.stock <= 0 ? "0" : s.stock}
                   </span>
                 </div>
               ))}
               {variant.stocksSucursalesVenta.length > 1 && (
                 <div
                   className={cn(
-                    "flex items-center justify-between border-t px-2 py-1",
-                    totalStock <= 0
-                      ? "bg-rose-50 dark:bg-rose-900/10"
-                      : "bg-muted/20"
+                    "flex items-center justify-between border-t px-2 py-0.5",
+                    totalStock <= 0 ? "bg-rose-50 dark:bg-rose-900/10" : "bg-muted/20"
                   )}
                 >
                   <span className="font-semibold text-muted-foreground">Total</span>
                   <span className={cn("font-semibold", getStockValueClass(totalStock))}>
-                    {totalStock} und.
+                    {totalStock}
                   </span>
                 </div>
               )}
             </div>
           ) : (
-            <p className="text-xs text-rose-500 dark:text-rose-400">Sin sucursales con stock</p>
+            <p className="text-[11px] text-rose-500 dark:text-rose-400">No disponible en esta sucursal</p>
           )}
         </div>
 
@@ -256,11 +254,11 @@ function VarianteCard({ variant, onEditVariante, onDeleteVariante, onShowBarcode
         <div className="flex-1" />
 
         {/* Botones de accion */}
-        <div className="flex items-center justify-end gap-1 border-t pt-3">
+        <div className="flex items-center justify-end gap-1 border-t pt-2 sm:pt-3">
           {variant.codigoBarras && (
             <button
               type="button"
-              className="inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-medium text-muted-foreground transition-colors hover:bg-violet-50 hover:text-violet-600 dark:hover:bg-violet-500/10 dark:hover:text-violet-400"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-violet-50 hover:text-violet-600 dark:hover:bg-violet-500/10 dark:hover:text-violet-400"
               title="Ver codigo de barras"
               onClick={() => onShowBarcode(variant)}
             >
@@ -269,23 +267,23 @@ function VarianteCard({ variant, onEditVariante, onDeleteVariante, onShowBarcode
           )}
           <button
             type="button"
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-medium text-muted-foreground transition-colors hover:bg-blue-50 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-blue-500/10 dark:hover:text-blue-400"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-blue-50 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto sm:gap-1.5 sm:px-3 dark:hover:bg-blue-500/10 dark:hover:text-blue-400"
             title="Editar variante"
             onClick={() => onEditVariante(variant)}
             disabled={!canManage}
           >
             <PencilSquareIcon className="h-4 w-4" />
-            Editar
+            <span className="hidden text-xs font-medium sm:inline">Editar</span>
           </button>
           <button
             type="button"
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-medium text-muted-foreground transition-colors hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-red-900/30 dark:hover:text-red-400"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto sm:gap-1.5 sm:px-3 dark:hover:bg-red-900/30 dark:hover:text-red-400"
             title="Eliminar variante"
             onClick={() => onDeleteVariante(variant)}
             disabled={!canManage}
           >
             <TrashIcon className="h-4 w-4" />
-            Eliminar
+            <span className="hidden text-xs font-medium sm:inline">Eliminar</span>
           </button>
         </div>
       </div>
@@ -303,14 +301,14 @@ function ProductosVariantesCardsComponent({
 }: ProductosVariantesCardsProps) {
   if (loading) {
     return (
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
         {Array.from({ length: 10 }, (_, i) => (
           <div key={i} className="overflow-hidden rounded-2xl border bg-card shadow-sm">
-            <div className="h-56 animate-pulse bg-muted" />
-            <div className="space-y-3 p-4">
+            <div className="h-40 animate-pulse bg-muted sm:h-56" />
+            <div className="space-y-2 p-3 sm:space-y-3 sm:p-4">
               <div className="h-3 w-16 animate-pulse rounded bg-muted" />
               <div className="h-4 w-3/4 animate-pulse rounded bg-muted" />
-              <div className="h-5 w-24 animate-pulse rounded bg-muted" />
+              <div className="h-4 w-24 animate-pulse rounded bg-muted" />
               <div className="h-10 animate-pulse rounded bg-muted" />
             </div>
           </div>
@@ -328,7 +326,7 @@ function ProductosVariantesCardsComponent({
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-5">
+    <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
       {variants.map((variant) => (
         <VarianteCard
           key={variant.key}

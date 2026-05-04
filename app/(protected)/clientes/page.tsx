@@ -139,10 +139,10 @@ export default function ClientesPage() {
         detalle?.idCliente === selectedCliente?.idCliente ? detalle : null
 
     return (
-        <div className="space-y-6">
-            <div className="flex gap-6">
+        <div className="space-y-4 sm:space-y-6">
+            <div className="flex gap-4 xl:gap-6">
                 <div className="min-w-0 flex-1">
-                    <div className="mb-6 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                    <div className="mb-4 flex flex-col gap-3 sm:mb-6 xl:flex-row xl:items-center xl:justify-between">
                         <div className="flex w-full flex-col gap-3 lg:flex-row lg:items-center">
                             <div className="w-full lg:max-w-md">
                                 <ClientesSearch search={search} onSearchChange={setSearch} />

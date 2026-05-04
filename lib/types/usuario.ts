@@ -46,6 +46,14 @@ export function usuarioRolRequiresSucursal(
   return Boolean(rol) && rol !== "ADMINISTRADOR"
 }
 
+export function getSucursalTipoFilterByRol(
+  rol: UsuarioRol | null | undefined
+): "VENTA" | undefined {
+  if (!rol || rol === "ADMINISTRADOR") return undefined
+  if (rol === "VENTAS") return "VENTA"
+  return undefined
+}
+
 export function isUsuarioRolAllowedForSucursalType(
   rol: UsuarioRol,
   tipoSucursal: TipoSucursal | null | undefined
@@ -166,6 +174,12 @@ export function validateUsuarioRoleAssignment(
   }
 }
 
+export interface SucursalPermitida {
+  idSucursal: number
+  nombreSucursal: string
+  tipoSucursal: string | null
+}
+
 interface UsuarioBaseResponse {
   idUsuario: number
   nombre: string
@@ -175,10 +189,17 @@ interface UsuarioBaseResponse {
   correo: string
   fotoPerfilUrl: string | null
   rol: UsuarioRol
+  estado?: "ACTIVO" | "INACTIVO" | string
   fechaCreacion: string
   idSucursal: number | null
   nombreSucursal: string | null
   tipoSucursal: TipoSucursal | null
+  sucursalesPermitidas?: SucursalPermitida[]
+  idTurno: number | null
+  nombreTurno: string | null
+  horaInicioTurno: string | null
+  horaFinTurno: string | null
+  diasTurno: string[] | null
 }
 
 export interface UsuarioSesionResponse extends UsuarioBaseResponse {
@@ -201,6 +222,8 @@ export interface UsuarioCreateRequest {
   rol: UsuarioRol
   estado?: "ACTIVO" | "INACTIVO" | string
   idSucursal: number | null
+  idsSucursales?: number[] | null
+  idTurno?: number | null
 }
 
 export interface UsuarioUpdateRequest {
@@ -212,6 +235,8 @@ export interface UsuarioUpdateRequest {
   rol: UsuarioRol
   estado: string
   idSucursal: number | null
+  idsSucursales?: number[] | null
+  idTurno?: number | null
 }
 
 export interface UsuarioCreateFormState
@@ -239,6 +264,8 @@ export const emptyCreate: UsuarioCreateRequest = {
   rol: "VENTAS",
   estado: "ACTIVO",
   idSucursal: null,
+  idsSucursales: [],
+  idTurno: null,
 }
 
 export const emptyCreateForm: UsuarioCreateFormState = {
@@ -255,6 +282,8 @@ export const emptyUpdate: UsuarioUpdateRequest = {
   rol: "VENTAS",
   estado: "ACTIVO",
   idSucursal: null,
+  idsSucursales: [],
+  idTurno: null,
 }
 
 export const emptyUpdateForm: UsuarioUpdateFormState = {

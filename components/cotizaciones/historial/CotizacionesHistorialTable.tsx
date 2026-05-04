@@ -1,9 +1,23 @@
 import {
   ArrowPathIcon,
+  ArrowRightCircleIcon,
   ArrowTopRightOnSquareIcon,
+  ChevronRightIcon,
   DocumentArrowDownIcon,
+  EllipsisVerticalIcon,
+  EyeIcon,
+  PencilSquareIcon,
 } from "@heroicons/react/24/outline"
+import { LoaderSpinner } from "@/components/ui/loader-spinner"
 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import type { CotizacionHistorial } from "@/lib/types/cotizacion"
 import {
   formatComprobante,
@@ -52,15 +66,8 @@ export function CotizacionesHistorialTable({
   const canGoPrev = page > 0
   const canGoNext = page + 1 < totalPages
 
-  const canEdit = (estado: string) => estado.trim().toUpperCase() === "ACTIVA"
-  const canChangeStatus = (estado: string) => {
-    const normalizedEstado = estado.trim().toUpperCase()
-    return normalizedEstado.length > 0 && !["ACTIVA", "CONVERTIDA"].includes(normalizedEstado)
-  }
-  const canConvert = (estado: string) => estado.trim().toUpperCase() === "ACTIVA"
-
   return (
-    <section className="space-y-3 rounded-2xl border bg-card p-4 shadow-sm">
+    <section className="space-y-3 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-700/60 dark:bg-slate-800/80">
       {error && (
         <div className="flex items-center justify-between rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-900/60 dark:bg-rose-900/20 dark:text-rose-300">
           <span>{error}</span>
@@ -92,8 +99,8 @@ export function CotizacionesHistorialTable({
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={9} className="px-3 py-14 text-center text-sm text-muted-foreground">
-                  Cargando cotizaciones...
+                <td colSpan={9} className="px-3 py-14 text-center">
+                  <LoaderSpinner text="Cargando cotizaciones..." />
                 </td>
               </tr>
             ) : cotizaciones.length === 0 ? (
@@ -122,75 +129,18 @@ export function CotizacionesHistorialTable({
                       {cotizacion.estado}
                     </span>
                   </td>
-                  <td className="px-3 py-3">
-                    <div className="flex flex-wrap items-center justify-center gap-2">
-                      <button
-                        type="button"
-                        title="Ver comprobante PDF"
-                        aria-label={`Ver comprobante PDF de la cotizacion ${formatComprobante(cotizacion)}`}
-                        onClick={() => onOpenPdf(cotizacion)}
-                        disabled={
-                          openingPdfCotizacionId === cotizacion.idCotizacion ||
-                          downloadingPdfCotizacionId === cotizacion.idCotizacion
-                        }
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-blue-300 bg-blue-50 text-blue-700 transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-blue-700/50 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/35"
-                      >
-                        {openingPdfCotizacionId === cotizacion.idCotizacion ? (
-                          <ArrowPathIcon className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <ArrowTopRightOnSquareIcon className="h-4 w-4" />
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        title="Descargar comprobante PDF"
-                        aria-label={`Descargar comprobante PDF de la cotizacion ${formatComprobante(cotizacion)}`}
-                        onClick={() => onDownloadPdf(cotizacion)}
-                        disabled={
-                          openingPdfCotizacionId === cotizacion.idCotizacion ||
-                          downloadingPdfCotizacionId === cotizacion.idCotizacion
-                        }
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-300 bg-red-50 text-red-700 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-700/50 dark:bg-red-900/20 dark:text-red-300 dark:hover:bg-red-900/35"
-                      >
-                        {downloadingPdfCotizacionId === cotizacion.idCotizacion ? (
-                          <ArrowPathIcon className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <DocumentArrowDownIcon className="h-4 w-4" />
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onViewDetail(cotizacion)}
-                        className="inline-flex rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-                      >
-                        Detalle
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onEdit(cotizacion)}
-                        disabled={!canEdit(cotizacion.estado)}
-                        className="inline-flex rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-                      >
-                        Editar
-                      </button>
-                      {canChangeStatus(cotizacion.estado) && (
-                        <button
-                          type="button"
-                          onClick={() => onChangeStatus(cotizacion)}
-                          className="inline-flex rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-                        >
-                          Reactivar
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => onConvert(cotizacion)}
-                        disabled={!canConvert(cotizacion.estado)}
-                        className="inline-flex rounded-lg border border-blue-300 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-blue-700/50 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/35"
-                      >
-                        Convertir
-                      </button>
-                    </div>
+                  <td className="px-3 py-3 text-center">
+                    <ActionButtons
+                      cotizacion={cotizacion}
+                      openingPdfCotizacionId={openingPdfCotizacionId}
+                      downloadingPdfCotizacionId={downloadingPdfCotizacionId}
+                      onViewDetail={onViewDetail}
+                      onOpenPdf={onOpenPdf}
+                      onDownloadPdf={onDownloadPdf}
+                      onEdit={onEdit}
+                      onChangeStatus={onChangeStatus}
+                      onConvert={onConvert}
+                    />
                   </td>
                 </tr>
               ))
@@ -199,124 +149,123 @@ export function CotizacionesHistorialTable({
         </table>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 lg:hidden">
+      <div className="space-y-3 lg:hidden">
         {loading ? (
-          <article className="rounded-xl border p-6 text-center text-sm text-muted-foreground">
-            Cargando cotizaciones...
+          <article className="rounded-2xl border border-slate-100 bg-slate-50/80 p-6 dark:border-slate-700 dark:bg-slate-900/40">
+            <LoaderSpinner text="Cargando cotizaciones..." />
           </article>
         ) : cotizaciones.length === 0 ? (
-          <article className="rounded-xl border p-6 text-center text-sm text-muted-foreground">
+          <article className="rounded-2xl border border-slate-100 bg-slate-50/80 p-6 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
             Sin cotizaciones para los filtros seleccionados
           </article>
         ) : (
           cotizaciones.map((cotizacion) => (
-            <article key={cotizacion.idCotizacion} className="rounded-xl border bg-background p-3">
-              <div className="mb-2 flex items-start justify-between gap-2">
-                <div>
-                  <p className="text-sm font-semibold">{cotizacion.nombreCliente || "Sin cliente"}</p>
-                  <p className="text-xs text-muted-foreground">{formatFechaHora(cotizacion.fecha)}</p>
+            <div
+              key={cotizacion.idCotizacion}
+              role="button"
+              tabIndex={0}
+              onClick={() => onViewDetail(cotizacion)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault()
+                  onViewDetail(cotizacion)
+                }
+              }}
+              className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4 text-left transition hover:border-slate-200 hover:bg-white dark:border-slate-700 dark:bg-slate-900/40 dark:hover:bg-slate-900/70"
+            >
+              <div className="flex items-start gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">
+                        {cotizacion.nombreCliente || "Sin cliente"}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                        {formatFechaHora(cotizacion.fecha)}
+                      </p>
+                    </div>
+                    <ChevronRightIcon className="h-4 w-4 shrink-0 text-slate-300 dark:text-slate-600" />
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <span className="inline-flex rounded-full bg-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-700 dark:bg-slate-700 dark:text-slate-200">
+                      #{cotizacion.idCotizacion}
+                    </span>
+                    <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${getEstadoBadgeClass(cotizacion.estado)}`}>
+                      {cotizacion.estado}
+                    </span>
+                  </div>
                 </div>
-                <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${getEstadoBadgeClass(cotizacion.estado)}`}>
-                  {cotizacion.estado}
-                </span>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="rounded-lg bg-muted/40 p-2">
-                  <p className="text-muted-foreground">Cotizacion</p>
-                  <p className="font-semibold">{formatComprobante(cotizacion)}</p>
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <div className="rounded-xl border border-slate-200/70 bg-white px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/80">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                    Documento
+                  </p>
+                  <p className="mt-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                    {formatComprobante(cotizacion)}
+                  </p>
                 </div>
-                <div className="rounded-lg bg-muted/40 p-2">
-                  <p className="text-muted-foreground">Total</p>
-                  <p className="font-semibold">{formatMonto(cotizacion.total)}</p>
+                <div className="rounded-xl border border-slate-200/70 bg-white px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/80">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                    Total
+                  </p>
+                  <p className="mt-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                    {formatMonto(cotizacion.total)}
+                  </p>
                 </div>
-                <div className="rounded-lg bg-muted/40 p-2">
-                  <p className="text-muted-foreground">Sucursal</p>
-                  <p className="font-semibold">{cotizacion.nombreSucursal || "Sin sucursal"}</p>
+                <div className="rounded-xl border border-slate-200/70 bg-white px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/80">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                    Usuario
+                  </p>
+                  <p className="mt-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                    {cotizacion.nombreUsuario || "Sin usuario"}
+                  </p>
                 </div>
-                <div className="rounded-lg bg-muted/40 p-2">
-                  <p className="text-muted-foreground">Items</p>
-                  <p className="font-semibold">{cotizacion.items}</p>
-                </div>
-                <div className="rounded-lg bg-muted/40 p-2">
-                  <p className="text-muted-foreground">Usuario</p>
-                  <p className="font-semibold">{cotizacion.nombreUsuario || "Sin usuario"}</p>
+                <div className="rounded-xl border border-slate-200/70 bg-white px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/80">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                    Sucursal e items
+                  </p>
+                  <p className="mt-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                    {cotizacion.nombreSucursal || "Sin sucursal"}
+                  </p>
+                  <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                    {cotizacion.items} item(s)
+                  </p>
                 </div>
               </div>
-              <div className="mt-3 flex flex-wrap justify-end gap-2">
+
+              <div className="mt-4 flex items-center gap-2">
                 <button
                   type="button"
-                  title="Ver comprobante PDF"
-                  aria-label={`Ver comprobante PDF de la cotizacion ${formatComprobante(cotizacion)}`}
-                  onClick={() => onOpenPdf(cotizacion)}
-                  disabled={
-                    openingPdfCotizacionId === cotizacion.idCotizacion ||
-                    downloadingPdfCotizacionId === cotizacion.idCotizacion
-                  }
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-blue-300 bg-blue-50 text-blue-700 transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-blue-700/50 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/35"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onViewDetail(cotizacion)
+                  }}
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-100 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300"
                 >
-                  {openingPdfCotizacionId === cotizacion.idCotizacion ? (
-                    <ArrowPathIcon className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <ArrowTopRightOnSquareIcon className="h-4 w-4" />
-                  )}
+                  <EyeIcon className="h-4 w-4" />
+                  Ver detalle
                 </button>
-                <button
-                  type="button"
-                  title="Descargar comprobante PDF"
-                  aria-label={`Descargar comprobante PDF de la cotizacion ${formatComprobante(cotizacion)}`}
-                  onClick={() => onDownloadPdf(cotizacion)}
-                  disabled={
-                    openingPdfCotizacionId === cotizacion.idCotizacion ||
-                    downloadingPdfCotizacionId === cotizacion.idCotizacion
-                  }
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-300 bg-red-50 text-red-700 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-700/50 dark:bg-red-900/20 dark:text-red-300 dark:hover:bg-red-900/35"
-                >
-                  {downloadingPdfCotizacionId === cotizacion.idCotizacion ? (
-                    <ArrowPathIcon className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <DocumentArrowDownIcon className="h-4 w-4" />
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onViewDetail(cotizacion)}
-                  className="inline-flex rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-                >
-                  Detalle
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onEdit(cotizacion)}
-                  disabled={!canEdit(cotizacion.estado)}
-                  className="inline-flex rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-                >
-                  Editar
-                </button>
-                {canChangeStatus(cotizacion.estado) && (
-                  <button
-                    type="button"
-                    onClick={() => onChangeStatus(cotizacion)}
-                    className="inline-flex rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-                  >
-                    Reactivar
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => onConvert(cotizacion)}
-                  disabled={!canConvert(cotizacion.estado)}
-                  className="inline-flex rounded-lg border border-blue-300 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-blue-700/50 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/35"
-                >
-                  Convertir
-                </button>
+                <ActionButtons
+                  cotizacion={cotizacion}
+                  openingPdfCotizacionId={openingPdfCotizacionId}
+                  downloadingPdfCotizacionId={downloadingPdfCotizacionId}
+                  onViewDetail={onViewDetail}
+                  onOpenPdf={onOpenPdf}
+                  onDownloadPdf={onDownloadPdf}
+                  onEdit={onEdit}
+                  onChangeStatus={onChangeStatus}
+                  onConvert={onConvert}
+                />
               </div>
-            </article>
+            </div>
           ))
         )}
       </div>
 
-      <div className="flex items-center justify-between border-t pt-3">
+      <div className="flex items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-700/60">
         <p className="text-xs text-muted-foreground">
           {totalElements} cotizaciones
           {totalPages > 0 && ` - Pagina ${page + 1} de ${totalPages}`}
@@ -326,7 +275,7 @@ export function CotizacionesHistorialTable({
             type="button"
             disabled={!canGoPrev}
             onClick={() => onPageChange(page - 1)}
-            className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
           >
             Anterior
           </button>
@@ -334,12 +283,132 @@ export function CotizacionesHistorialTable({
             type="button"
             disabled={!canGoNext}
             onClick={() => onPageChange(page + 1)}
-            className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
           >
             Siguiente
           </button>
         </div>
       </div>
     </section>
+  )
+}
+
+interface ActionButtonsProps {
+  cotizacion: CotizacionHistorial
+  openingPdfCotizacionId: number | null
+  downloadingPdfCotizacionId: number | null
+  onViewDetail: (cotizacion: CotizacionHistorial) => void
+  onOpenPdf: (cotizacion: CotizacionHistorial) => void
+  onDownloadPdf: (cotizacion: CotizacionHistorial) => void
+  onEdit: (cotizacion: CotizacionHistorial) => void
+  onChangeStatus: (cotizacion: CotizacionHistorial) => void
+  onConvert: (cotizacion: CotizacionHistorial) => void
+}
+
+function ActionButtons({
+  cotizacion,
+  openingPdfCotizacionId,
+  downloadingPdfCotizacionId,
+  onViewDetail,
+  onOpenPdf,
+  onDownloadPdf,
+  onEdit,
+  onChangeStatus,
+  onConvert,
+}: ActionButtonsProps) {
+  const normalizedEstado = cotizacion.estado.trim().toUpperCase()
+  const isActiva = normalizedEstado === "ACTIVA"
+  const isConvertida = normalizedEstado === "CONVERTIDA"
+  const canChangeStatus = normalizedEstado.length > 0 && !["ACTIVA", "CONVERTIDA"].includes(normalizedEstado)
+  const isBusy =
+    openingPdfCotizacionId === cotizacion.idCotizacion ||
+    downloadingPdfCotizacionId === cotizacion.idCotizacion
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          onClick={(event) => event.stopPropagation()}
+          className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+        >
+          {isBusy ? (
+            <ArrowPathIcon className="h-4 w-4 animate-spin" />
+          ) : (
+            <EllipsisVerticalIcon className="h-4 w-4" />
+          )}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-52">
+        <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground">
+          #{cotizacion.idCotizacion} · {formatComprobante(cotizacion)}
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+
+        <DropdownMenuItem onClick={() => onViewDetail(cotizacion)}>
+          <EyeIcon className="mr-2 h-4 w-4 text-slate-500" />
+          Ver detalle
+        </DropdownMenuItem>
+
+        <DropdownMenuItem
+          onClick={() => onEdit(cotizacion)}
+          disabled={!isActiva}
+          className="text-amber-700 focus:text-amber-700 dark:text-amber-400"
+        >
+          <PencilSquareIcon className="mr-2 h-4 w-4" />
+          Editar
+        </DropdownMenuItem>
+
+        {canChangeStatus && (
+          <DropdownMenuItem
+            onClick={() => onChangeStatus(cotizacion)}
+            className="text-emerald-700 focus:text-emerald-700 dark:text-emerald-400"
+          >
+            <ArrowPathIcon className="mr-2 h-4 w-4" />
+            Reactivar
+          </DropdownMenuItem>
+        )}
+
+        <DropdownMenuItem
+          onClick={() => onConvert(cotizacion)}
+          disabled={!isActiva || isConvertida}
+          className="text-blue-700 focus:text-blue-700 dark:text-blue-400"
+        >
+          <ArrowRightCircleIcon className="mr-2 h-4 w-4" />
+          Convertir a venta
+        </DropdownMenuItem>
+
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel className="text-[11px] font-medium text-muted-foreground">
+          Documentos
+        </DropdownMenuLabel>
+
+        <DropdownMenuItem
+          onClick={() => onOpenPdf(cotizacion)}
+          disabled={isBusy}
+          className="text-blue-700 focus:text-blue-700 dark:text-blue-400"
+        >
+          {openingPdfCotizacionId === cotizacion.idCotizacion ? (
+            <ArrowPathIcon className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <ArrowTopRightOnSquareIcon className="mr-2 h-4 w-4" />
+          )}
+          Abrir PDF
+        </DropdownMenuItem>
+
+        <DropdownMenuItem
+          onClick={() => onDownloadPdf(cotizacion)}
+          disabled={isBusy}
+          className="text-rose-700 focus:text-rose-700 dark:text-rose-400"
+        >
+          {downloadingPdfCotizacionId === cotizacion.idCotizacion ? (
+            <ArrowPathIcon className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <DocumentArrowDownIcon className="mr-2 h-4 w-4" />
+          )}
+          Descargar PDF
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

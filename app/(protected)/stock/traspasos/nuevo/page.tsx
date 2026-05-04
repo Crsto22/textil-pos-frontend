@@ -7,25 +7,50 @@ import { useRouter } from "next/navigation"
 import {
   ArrowLeftIcon,
   ArrowLongRightIcon,
+  ArrowPathIcon,
   ArrowsRightLeftIcon,
   BuildingStorefrontIcon,
   CheckCircleIcon,
   CubeIcon,
   MagnifyingGlassIcon,
+  MinusIcon,
+  PlusIcon,
+  QrCodeIcon,
   TrashIcon,
   XCircleIcon,
 } from "@heroicons/react/24/outline"
 import { toast } from "sonner"
 
 import { useAuth } from "@/lib/auth/auth-context"
+import { isAdministratorRole } from "@/lib/auth/roles"
+import { useCanFilterBySucursal } from "@/lib/hooks/useCanFilterByUsuario"
 import { authFetch } from "@/lib/auth/auth-fetch"
+import { buildImagenesPorColorMap, parseVarianteResumenPageResponse } from "@/lib/variante-resumen"
 import { useSucursalOptions } from "@/lib/hooks/useSucursalOptions"
+import { useGlobalBarcodeScanner } from "@/lib/hooks/useGlobalBarcodeScanner"
 import type { Sucursal } from "@/lib/types/sucursal"
 import type { TrasladoCreateRequest } from "@/lib/types/traslado"
 import type { VarianteResumenItem } from "@/lib/types/variante"
 
 async function parseJsonSafe<T>(res: Response): Promise<T | null> {
   try { return (await res.json()) as T } catch { return null }
+}
+
+function applyImagesToVariantes(
+  items: VarianteResumenItem[],
+  imageMap: ReturnType<typeof buildImagenesPorColorMap>
+): VarianteResumenItem[] {
+  return items.map((item) => {
+    const key = item.grupoImagen?.key
+    if (!key) return item
+    const img = imageMap.get(key)
+    if (!img) return item
+    return { ...item, imagenPrincipal: img }
+  })
+}
+
+function getVariantImageUrl(item: Pick<VarianteResumenItem, "imagenPrincipal">): string | null {
+  return item.imagenPrincipal?.url || item.imagenPrincipal?.urlThumb || null
 }
 
 // ─── Item de traspaso (variante + cantidad) ──────────────────────────────────
@@ -152,9 +177,9 @@ function ItemRow({
     >
       <div className="flex items-start gap-2.5">
         <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg border bg-muted">
-          {item.variante.imagenPrincipal?.urlThumb ? (
+          {getVariantImageUrl(item.variante) ? (
             <Image
-              src={item.variante.imagenPrincipal.urlThumb}
+              src={getVariantImageUrl(item.variante)!}
               alt={item.variante.producto?.nombre ?? ""}
               fill sizes="40px" className="object-cover"
             />
@@ -185,21 +210,35 @@ function ItemRow({
 
       <div className="mt-2 flex items-center gap-2">
         <label className="text-xs text-muted-foreground">Cant:</label>
-        <input
-          type="number"
-          min={1}
-          step={1}
-          value={item.cantidad}
-          onChange={(e) => {
-            const v = Number.parseInt(e.target.value, 10)
-            if (Number.isInteger(v) && v > 0) onCantidadChange(v)
-          }}
-          className={`w-20 rounded-md border bg-background px-2 py-1 text-xs tabular-nums focus:outline-none focus:ring-2 ${
-            insuficiente
-              ? "border-red-400 focus:border-red-500 focus:ring-red-500/20"
-              : "focus:border-blue-500 focus:ring-blue-500/20"
-          }`}
-        />
+        <div className={`flex h-8 items-stretch overflow-hidden rounded-lg border ${
+          insuficiente ? "border-red-400" : "border-input"
+        }`}>
+          <button
+            type="button"
+            onClick={() => onCantidadChange(Math.max(1, item.cantidad - 1))}
+            className="flex w-8 shrink-0 items-center justify-center border-r bg-muted/50 text-muted-foreground transition-colors hover:bg-muted active:bg-muted/80"
+          >
+            <MinusIcon className="h-3 w-3" />
+          </button>
+          <input
+            type="number"
+            min={1}
+            step={1}
+            value={item.cantidad}
+            onChange={(e) => {
+              const v = Number.parseInt(e.target.value, 10)
+              if (Number.isInteger(v) && v > 0) onCantidadChange(v)
+            }}
+            className="w-12 bg-background px-1 text-center text-xs tabular-nums focus:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+          />
+          <button
+            type="button"
+            onClick={() => onCantidadChange(item.cantidad + 1)}
+            className="flex w-8 shrink-0 items-center justify-center border-l bg-muted/50 text-muted-foreground transition-colors hover:bg-muted active:bg-muted/80"
+          >
+            <PlusIcon className="h-3 w-3" />
+          </button>
+        </div>
         {insuficiente && (
           <span className="text-xs text-red-500">Insuficiente</span>
         )}
@@ -215,7 +254,9 @@ export default function NuevoTraspasoPage() {
   const { user } = useAuth()
   const { sucursales, loadingSucursales } = useSucursalOptions(true)
 
-  const isAdmin = user?.rol === "ADMINISTRADOR"
+  const isAdmin = isAdministratorRole(user?.rol)
+  const canFilterBySucursal = useCanFilterBySucursal()
+  const isMultiSucursalNonAdmin = !isAdmin && canFilterBySucursal && (user?.sucursalesPermitidas ?? []).length > 1
   const userSucursalId =
     typeof user?.idSucursal === "number" && user.idSucursal > 0 ? user.idSucursal : null
 
@@ -227,6 +268,7 @@ export default function NuevoTraspasoPage() {
   const [items, setItems] = useState<TraspasoItem[]>([])
   const [motivo, setMotivo] = useState("")
   const [saving, setSaving] = useState(false)
+  const [scanningBarcode, setScanningBarcode] = useState(false)
 
   const searchAbortRef = useRef<AbortController | null>(null)
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -236,19 +278,34 @@ export default function NuevoTraspasoPage() {
     [sucursales]
   )
 
-  const sucursalOrigen = useMemo(
-    () => sucursalesActivas.find((s) => s.idSucursal === idSucursalOrigen) ?? null,
-    [sucursalesActivas, idSucursalOrigen]
-  )
-
-  const sucursalDestino = useMemo(
-    () => sucursalesActivas.find((s) => s.idSucursal === idSucursalDestino) ?? null,
-    [sucursalesActivas, idSucursalDestino]
+  const sucursalesOrigen = useMemo(
+    () =>
+      isAdmin
+        ? sucursalesActivas
+        : isMultiSucursalNonAdmin
+          ? sucursalesActivas.filter((s) =>
+              (user?.sucursalesPermitidas ?? []).some(
+                (sp) => sp.idSucursal === s.idSucursal
+              )
+            )
+          : sucursalesActivas,
+    [isAdmin, isMultiSucursalNonAdmin, sucursalesActivas, user?.sucursalesPermitidas]
   )
 
   const sucursalesDestino = useMemo(
-    () => sucursalesActivas.filter((s) => s.idSucursal !== idSucursalOrigen),
-    [sucursalesActivas, idSucursalOrigen]
+    () =>
+      sucursalesOrigen.filter((s) => s.idSucursal !== idSucursalOrigen),
+    [sucursalesOrigen, idSucursalOrigen]
+  )
+
+  const sucursalOrigen = useMemo(
+    () => sucursalesOrigen.find((s) => s.idSucursal === idSucursalOrigen) ?? null,
+    [sucursalesOrigen, idSucursalOrigen]
+  )
+
+  const sucursalDestino = useMemo(
+    () => sucursalesDestino.find((s) => s.idSucursal === idSucursalDestino) ?? null,
+    [sucursalesDestino, idSucursalDestino]
   )
 
   const addedVarianteIds = useMemo(
@@ -275,7 +332,9 @@ export default function NuevoTraspasoPage() {
         const res = await authFetch(`/api/variante/listar-resumen?${params.toString()}`, { signal })
         const data = await parseJsonSafe<{ content?: VarianteResumenItem[] }>(res)
         if (!res.ok) { setVariantes([]); return }
-        setVariantes(Array.isArray(data?.content) ? data.content.slice(0, 12) : [])
+        const parsed = parseVarianteResumenPageResponse(data)
+        const imageMap = buildImagenesPorColorMap(parsed.imagenesPorColor)
+        setVariantes(applyImagesToVariantes(parsed.content.slice(0, 12), imageMap))
       } catch (err) {
         if ((err as { name?: string }).name !== "AbortError") setVariantes([])
       } finally {
@@ -310,11 +369,68 @@ export default function NuevoTraspasoPage() {
   useEffect(() => () => { searchAbortRef.current?.abort() }, [])
 
   const addItem = (variante: VarianteResumenItem) => {
-    if (addedVarianteIds.has(variante.idProductoVariante)) return
-    setItems((prev) => [...prev, { variante, cantidad: 1 }])
+    setItems((prev) => {
+      const existingIndex = prev.findIndex(
+        (item) => item.variante.idProductoVariante === variante.idProductoVariante
+      )
+
+      if (existingIndex >= 0) {
+        return prev.map((item, index) =>
+          index === existingIndex
+            ? { ...item, cantidad: item.cantidad + 1 }
+            : item
+        )
+      }
+
+      return [...prev, { variante, cantidad: 1 }]
+    })
     setSearchVariante("")
     setVariantes([])
   }
+
+  const handleBarcodeScan = useCallback(
+    async (barcode: string) => {
+      if (!idSucursalOrigen) {
+        toast.error("Selecciona una sucursal de origen antes de escanear.")
+        return
+      }
+      setScanningBarcode(true)
+      try {
+        const params = new URLSearchParams({
+          page: "0",
+          q: barcode.trim(),
+          idSucursal: String(idSucursalOrigen),
+          soloDisponibles: "true",
+        })
+        const res = await authFetch(`/api/variante/listar-resumen?${params.toString()}`)
+        const data = await parseJsonSafe<{ content?: VarianteResumenItem[] }>(res)
+        if (!res.ok || !Array.isArray(data?.content)) {
+          toast.error("No se encontró ningún producto con ese código de barras.")
+          return
+        }
+        const parsed = parseVarianteResumenPageResponse(data)
+        const imageMap = buildImagenesPorColorMap(parsed.imagenesPorColor)
+        const results = applyImagesToVariantes(parsed.content.slice(0, 12), imageMap)
+        if (results.length === 1) {
+          addItem(results[0])
+        } else if (results.length > 1) {
+          setVariantes(results)
+          setSearchVariante(barcode)
+        } else {
+          toast.error("No se encontró ningún producto con ese código de barras.")
+        }
+      } catch {
+        toast.error("Error al escanear el código de barras.")
+      } finally {
+        setScanningBarcode(false)
+      }
+    },
+    [idSucursalOrigen, addItem]
+  )
+
+  const { active: scannerActive, toggle: toggleScanner } = useGlobalBarcodeScanner({
+    onScan: handleBarcodeScan,
+  })
 
   const removeItem = (idx: number) => {
     setItems((prev) => prev.filter((_, i) => i !== idx))
@@ -407,24 +523,36 @@ export default function NuevoTraspasoPage() {
               done={Boolean(idSucursalOrigen)}
             />
 
-            {loadingSucursales ? (
+            {(isAdmin || isMultiSucursalNonAdmin) ? (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {sucursalesOrigen.map((s) => (
+                  <SucursalCard
+                    key={s.idSucursal}
+                    sucursal={s}
+                    selected={idSucursalOrigen === s.idSucursal}
+                    disabled={false}
+                    onSelect={() => setIdSucursalOrigen(s.idSucursal)}
+                  />
+                ))}
+              </div>
+            ) : !userSucursalId ? (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-400">
+                Tu usuario no tiene sucursal asignada para operar traspasos.
+              </div>
+            ) : loadingSucursales ? (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {Array.from({ length: 4 }, (_, i) => (
                   <div key={i} className="h-20 animate-pulse rounded-xl bg-muted" />
                 ))}
               </div>
-            ) : !isAdmin && !userSucursalId ? (
-              <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-400">
-                Tu usuario no tiene sucursal asignada para operar traspasos.
-              </div>
             ) : (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                {(isAdmin ? sucursalesActivas : sucursalesActivas.filter((s) => s.idSucursal === userSucursalId)).map((s) => (
+                {sucursalesActivas.filter((s) => s.idSucursal === userSucursalId).map((s) => (
                   <SucursalCard
                     key={s.idSucursal}
                     sucursal={s}
                     selected={idSucursalOrigen === s.idSucursal}
-                    disabled={!isAdmin}
+                    disabled
                     onSelect={() => setIdSucursalOrigen(s.idSucursal)}
                   />
                 ))}
@@ -480,20 +608,37 @@ export default function NuevoTraspasoPage() {
               <div className="space-y-4">
                 {/* Buscador */}
                 <div className="space-y-2">
-                  <div className="relative">
-                    <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <input
-                      type="text"
-                      value={searchVariante}
-                      onChange={(e) => setSearchVariante(e.target.value)}
-                      placeholder="Buscar por nombre, SKU o codigo de barras..."
-                      className="w-full rounded-lg border bg-background py-2.5 pl-9 pr-3 text-sm placeholder:text-muted-foreground focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                    />
-                    {loadingVariantes && (
-                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
-                      </div>
-                    )}
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <input
+                        type="text"
+                        value={searchVariante}
+                        onChange={(e) => setSearchVariante(e.target.value)}
+                        placeholder="Buscar por nombre, SKU o codigo de barras..."
+                        className="w-full rounded-lg border bg-background py-2.5 pl-9 pr-3 text-sm placeholder:text-muted-foreground focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                      />
+                      {loadingVariantes && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={toggleScanner}
+                      className={`inline-flex h-10 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/20 ${
+                        scannerActive
+                          ? "border-emerald-500 bg-emerald-50 text-emerald-700 dark:border-emerald-500/70 dark:bg-emerald-500/10 dark:text-emerald-200"
+                          : "border-border bg-background text-muted-foreground hover:bg-muted/50"
+                      }`}
+                      title="Escanear codigo de barras"
+                      aria-pressed={scannerActive}
+                    >
+                      <QrCodeIcon className="h-4 w-4" />
+                      Escaner
+                      {scanningBarcode && <ArrowPathIcon className="h-3.5 w-3.5 animate-spin" />}
+                    </button>
                   </div>
 
                   {!loadingVariantes && variantes.length > 0 && (
@@ -514,9 +659,9 @@ export default function NuevoTraspasoPage() {
                             }`}
                           >
                             <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg border bg-muted">
-                              {v.imagenPrincipal?.urlThumb ? (
+                              {getVariantImageUrl(v) ? (
                                 <Image
-                                  src={v.imagenPrincipal.urlThumb}
+                                  src={getVariantImageUrl(v)!}
                                   alt={v.producto?.nombre ?? ""}
                                   fill sizes="40px" className="object-cover"
                                 />
@@ -583,9 +728,9 @@ export default function NuevoTraspasoPage() {
                             }`}
                           >
                             <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg border bg-muted">
-                              {item.variante.imagenPrincipal?.urlThumb ? (
+                              {getVariantImageUrl(item.variante) ? (
                                 <Image
-                                  src={item.variante.imagenPrincipal.urlThumb}
+                                  src={getVariantImageUrl(item.variante)!}
                                   alt={item.variante.producto?.nombre ?? ""}
                                   fill sizes="40px" className="object-cover"
                                 />
@@ -608,21 +753,35 @@ export default function NuevoTraspasoPage() {
                               </p>
                             </div>
                             <div className="flex shrink-0 items-center gap-2">
-                              <input
-                                type="number"
-                                min={1}
-                                step={1}
-                                value={item.cantidad}
-                                onChange={(e) => {
-                                  const v = Number.parseInt(e.target.value, 10)
-                                  if (Number.isInteger(v) && v > 0) updateItemCantidad(idx, v)
-                                }}
-                                className={`w-16 rounded-md border bg-background px-2 py-1.5 text-center text-sm tabular-nums focus:outline-none focus:ring-2 ${
-                                  insuficiente
-                                    ? "border-red-400 focus:border-red-500 focus:ring-red-500/20"
-                                    : "focus:border-blue-500 focus:ring-blue-500/20"
-                                }`}
-                              />
+                              <div className={`flex h-9 items-stretch overflow-hidden rounded-lg border ${
+                                insuficiente ? "border-red-400" : "border-input"
+                              }`}>
+                                <button
+                                  type="button"
+                                  onClick={() => updateItemCantidad(idx, Math.max(1, item.cantidad - 1))}
+                                  className="flex w-8 shrink-0 items-center justify-center border-r bg-muted/50 text-muted-foreground transition-colors hover:bg-muted active:bg-muted/80"
+                                >
+                                  <MinusIcon className="h-3.5 w-3.5" />
+                                </button>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  step={1}
+                                  value={item.cantidad}
+                                  onChange={(e) => {
+                                    const v = Number.parseInt(e.target.value, 10)
+                                    if (Number.isInteger(v) && v > 0) updateItemCantidad(idx, v)
+                                  }}
+                                  className="w-14 bg-background px-1 text-center text-sm tabular-nums focus:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => updateItemCantidad(idx, item.cantidad + 1)}
+                                  className="flex w-8 shrink-0 items-center justify-center border-l bg-muted/50 text-muted-foreground transition-colors hover:bg-muted active:bg-muted/80"
+                                >
+                                  <PlusIcon className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
                               <button
                                 type="button"
                                 onClick={() => removeItem(idx)}

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { BuildingStorefrontIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline"
+import { BuildingStorefrontIcon, CheckCircleIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline"
 import { toast } from "sonner"
 
 import { ProductosCards } from "@/components/productos/ProductosCards"
@@ -24,20 +24,20 @@ import CategoryFilter from "@/components/ventas/CategoryFilter"
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
 import type { CatalogVariantItem } from "@/lib/catalog-view"
 import { useAuth } from "@/lib/auth/auth-context"
-import { roleCanManageStock } from "@/lib/auth/roles"
+import { isAdministratorRole, roleCanManageStock } from "@/lib/auth/roles"
 import { AgregarStockModal } from "@/components/stock/AgregarStockModal"
 import { authFetch } from "@/lib/auth/auth-fetch"
+import { useCanFilterBySucursal } from "@/lib/hooks/useCanFilterByUsuario"
 import { useCatalogoVariantes } from "@/lib/hooks/useCatalogoVariantes"
 import { useCatalogViewMode } from "@/lib/hooks/useCatalogViewMode"
 import { useProductos } from "@/lib/hooks/useProductos"
 import { useSucursalOptions } from "@/lib/hooks/useSucursalOptions"
 import { generateBarcode } from "@/lib/barcode-generator"
 import { useVarianteReporteExcel } from "@/lib/hooks/useVarianteReporteExcel"
-import { buildSucursalComboboxOption } from "@/lib/sucursal"
 import type { Categoria, PageResponse as CategoriaPageResponse } from "@/lib/types/categoria"
 import type { Color, PageResponse as ColorPageResponse } from "@/lib/types/color"
 import type { ProductoResumen } from "@/lib/types/producto"
-import type { VarianteUpdateRequest } from "@/lib/types/variante"
+import type { VarianteResumenImagen, VarianteUpdateRequest } from "@/lib/types/variante"
 
 function parseJsonSafe(response: Response) {
   return response.json().catch(() => null)
@@ -102,9 +102,12 @@ function hasValidSucursalId(idSucursal?: number | null): idSucursal is number {
 export default function ProductosPage() {
   const router = useRouter()
   const { user } = useAuth()
-  const isAdmin = user?.rol === "ADMINISTRADOR"
+  const isAdmin = isAdministratorRole(user?.rol)
   const canManageStock = roleCanManageStock(user?.rol)
+  const canFilterBySucursal = useCanFilterBySucursal()
   const userHasSucursal = hasValidSucursalId(user?.idSucursal)
+  const isMultiSucursalNonAdmin = !isAdmin && canFilterBySucursal && (user?.sucursalesPermitidas ?? []).length > 1
+  const defaultSucursalId = userHasSucursal ? user!.idSucursal : null
   const [selectedSucursalId, setSelectedSucursalId] = useState<number | null>(null)
   const [stockModalOpen, setStockModalOpen] = useState(false)
   const [stockModalSession, setStockModalSession] = useState(0)
@@ -113,38 +116,41 @@ export default function ProductosPage() {
     codigoBarras?: string | null
     query?: string | null
   }>({})
-  const resolvedSucursalId = isAdmin
-    ? hasValidSucursalId(selectedSucursalId)
-      ? selectedSucursalId
-      : null
-    : userHasSucursal
-      ? user?.idSucursal ?? null
-      : null
-  const isSucursalResolved = isAdmin || userHasSucursal
+  const resolvedSucursalId = (() => {
+    if (isAdmin) return hasValidSucursalId(selectedSucursalId) ? selectedSucursalId : null
+    if (isMultiSucursalNonAdmin) return hasValidSucursalId(selectedSucursalId) ? selectedSucursalId : defaultSucursalId
+    return userHasSucursal ? user?.idSucursal ?? null : null
+  })()
+  const isSucursalResolved = isAdmin || isMultiSucursalNonAdmin || userHasSucursal
 
   const {
-    sucursales,
+    sucursalOptions: adminSucursalOptions,
     loadingSucursales,
     searchSucursal,
     setSearchSucursal,
-  } = useSucursalOptions(isAdmin)
+  } = useSucursalOptions(isAdmin, "VENTA")
+
+  const nonAdminSucursalVentaOptions = useMemo<ComboboxOption[]>(
+    () =>
+      isMultiSucursalNonAdmin
+        ? (user?.sucursalesPermitidas ?? [])
+            .filter((s) => !s.tipoSucursal || s.tipoSucursal === "VENTA")
+            .map((s) => ({ value: String(s.idSucursal), label: s.nombreSucursal }))
+        : [],
+    [isMultiSucursalNonAdmin, user?.sucursalesPermitidas]
+  )
 
   const TODAS_SUCURSALES_OPTION: ComboboxOption = useMemo(
     () => ({ value: "todas", label: "Todas las sucursales" }),
     []
   )
 
-  const sucursalFilterOptions = useMemo<ComboboxOption[]>(
-    () =>
-      sucursales
-        .filter((sucursal) => sucursal.tipo === "VENTA" || sucursal.tipo === "ALMACEN")
-        .map((sucursal) => buildSucursalComboboxOption(sucursal)),
-    [sucursales]
-  )
-
   const sucursalComboboxOptions = useMemo<ComboboxOption[]>(
-    () => [TODAS_SUCURSALES_OPTION, ...sucursalFilterOptions],
-    [TODAS_SUCURSALES_OPTION, sucursalFilterOptions]
+    () => {
+      if (isMultiSucursalNonAdmin) return nonAdminSucursalVentaOptions
+      return [TODAS_SUCURSALES_OPTION, ...adminSucursalOptions]
+    },
+    [TODAS_SUCURSALES_OPTION, adminSucursalOptions, isMultiSucursalNonAdmin, nonAdminSucursalVentaOptions]
   )
 
   const { isExporting, exportReporteExcel } = useVarianteReporteExcel()
@@ -165,13 +171,20 @@ export default function ProductosPage() {
   const [colorTotalPages, setColorTotalPages] = useState(1)
   const isVariantView = catalogViewMode === "variantes"
 
+  // Sincronizar filtro "Solo disponibles" con localStorage (default: true la primera vez)
+  const [initialSoloDisponibles] = useState(
+    () => typeof window !== "undefined" ? localStorage.getItem("pos_solo_disponibles") !== "0" : true
+  )
+
   const {
     search: searchProductos,
     setSearch: setSearchProductos,
     idCategoriaFilter: idCategoriaFilterProductos,
     idColorFilter: idColorFilterProductos,
+    soloDisponiblesFilter: soloDisponiblesFilterProductos,
     setIdCategoriaFilter: setIdCategoriaFilterProductos,
     setIdColorFilter: setIdColorFilterProductos,
+    setSoloDisponiblesFilter: setSoloDisponiblesFilterProductos,
     displayedProductos,
     displayedLoading: displayedLoadingProductos,
     displayedTotalElements: displayedTotalElementsProductos,
@@ -180,14 +193,16 @@ export default function ProductosPage() {
     setDisplayedPage: setDisplayedPageProductos,
     deleteProducto,
     refreshCurrentView: refreshProductosView,
-  } = useProductos(!isVariantView && isSucursalResolved, resolvedSucursalId)
+  } = useProductos(!isVariantView && isSucursalResolved, resolvedSucursalId, initialSoloDisponibles)
   const {
     search: searchVariantes,
     setSearch: setSearchVariantes,
     idCategoriaFilter: idCategoriaFilterVariantes,
     idColorFilter: idColorFilterVariantes,
+    soloDisponiblesFilter: soloDisponiblesFilterVariantes,
     setIdCategoriaFilter: setIdCategoriaFilterVariantes,
     setIdColorFilter: setIdColorFilterVariantes,
+    setSoloDisponiblesFilter: setSoloDisponiblesFilterVariantes,
     displayedCatalogVariants,
     displayedLoading: displayedLoadingVariantes,
     displayedTotalElements: displayedTotalElementsVariantes,
@@ -197,7 +212,8 @@ export default function ProductosPage() {
     updateVariante,
     deleteVariante,
     refreshCurrentView: refreshVariantesView,
-  } = useCatalogoVariantes(isVariantView && isSucursalResolved, resolvedSucursalId)
+    getImagenesForVariant,
+  } = useCatalogoVariantes(isVariantView && isSucursalResolved, resolvedSucursalId, initialSoloDisponibles)
 
   useEffect(() => {
     const fetchCategorias = async () => {
@@ -437,11 +453,28 @@ export default function ProductosPage() {
     [isVariantView, setDisplayedPageProductos, setDisplayedPageVariantes]
   )
 
+  const soloDisponiblesFilter = isVariantView ? soloDisponiblesFilterVariantes : soloDisponiblesFilterProductos
+
+  const handleSoloDisponiblesFilterChange = useCallback(
+    (value: boolean) => {
+      if (typeof window !== "undefined") {
+        localStorage.setItem("pos_solo_disponibles", value ? "1" : "0")
+      }
+      if (isVariantView) {
+        setSoloDisponiblesFilterVariantes(value)
+        return
+      }
+      setSoloDisponiblesFilterProductos(value)
+    },
+    [isVariantView, setSoloDisponiblesFilterProductos, setSoloDisponiblesFilterVariantes]
+  )
+
   return (
     <div className="space-y-5">
       <div className="flex flex-col gap-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div className="relative flex-1">
+        {/* ─── Row 1: search + sucursal (admin) ─── */}
+        <div className="flex items-center gap-2">
+          <div className="relative min-w-0 flex-1">
             <MagnifyingGlassIcon className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
@@ -449,22 +482,32 @@ export default function ProductosPage() {
               value={search}
               onChange={(event) => handleSearchChange(event.target.value)}
               disabled={!isSucursalResolved}
-              className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-sm shadow-sm transition-all placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800"
+              className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm shadow-sm transition-all placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800"
             />
           </div>
+        </div>
 
-          {isAdmin && (
-            <div className="w-72 shrink-0">
+        {/* ─── Row 2: sucursal (admin) + toggles ─── */}
+        <div className="flex flex-wrap items-center gap-2">
+          {(isAdmin || isMultiSucursalNonAdmin) && (
+            <div className="min-w-0 flex-1 sm:w-72 sm:flex-none">
               <Combobox
-                value={selectedSucursalId !== null ? String(selectedSucursalId) : "todas"}
+                value={selectedSucursalId !== null ? String(selectedSucursalId) : isMultiSucursalNonAdmin ? (defaultSucursalId !== null ? String(defaultSucursalId) : "") : "todas"}
                 options={sucursalComboboxOptions}
                 onValueChange={(value) => {
-                  const parsed = parseInt(value, 10)
-                  setSelectedSucursalId(
-                    value !== "todas" && Number.isFinite(parsed) && parsed > 0
-                      ? parsed
-                      : null
-                  )
+                  if (isMultiSucursalNonAdmin) {
+                    const parsed = parseInt(value, 10)
+                    setSelectedSucursalId(
+                      Number.isFinite(parsed) && parsed > 0 ? parsed : defaultSucursalId
+                    )
+                  } else {
+                    const parsed = parseInt(value, 10)
+                    setSelectedSucursalId(
+                      value !== "todas" && Number.isFinite(parsed) && parsed > 0
+                        ? parsed
+                        : null
+                    )
+                  }
                   setCategoryPage(0)
                   setColorPage(0)
                   setIdCategoriaFilterProductos(null)
@@ -472,7 +515,7 @@ export default function ProductosPage() {
                   setIdCategoriaFilterVariantes(null)
                   setIdColorFilterVariantes(null)
                 }}
-                placeholder="Todas las sucursales"
+                placeholder={isMultiSucursalNonAdmin ? "Selecciona sucursal" : "Todas las sucursales"}
                 searchPlaceholder="Buscar sucursal..."
                 emptyMessage="Sin resultados"
                 loading={loadingSucursales}
@@ -483,7 +526,21 @@ export default function ProductosPage() {
             </div>
           )}
 
-          <div className="flex items-center justify-end">
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => handleSoloDisponiblesFilterChange(!soloDisponiblesFilter)}
+              className={`inline-flex h-9 items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/20 ${
+                soloDisponiblesFilter
+                  ? "border-emerald-500 bg-emerald-50 text-emerald-700 dark:border-emerald-500/70 dark:bg-emerald-500/10 dark:text-emerald-200"
+                  : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700/70"
+              }`}
+              title="Mostrar solo productos con stock disponible"
+              aria-pressed={soloDisponiblesFilter}
+            >
+              <CheckCircleIcon className="h-4 w-4" />
+              <span className="hidden sm:inline">{soloDisponiblesFilter ? "Disponibles" : "Disponibles"}</span>
+            </button>
             <CatalogViewToggle
               value={catalogViewMode}
               onChange={setCatalogViewMode}
@@ -493,50 +550,40 @@ export default function ProductosPage() {
         </div>
 
         {shouldShowCatalogFilters ? (
-          <>
-            <div className="rounded-xl border border-slate-100 bg-white px-3.5 py-3 shadow-sm dark:border-slate-700/60 dark:bg-slate-800/60">
-              <CategoryFilter
-                categories={categoriasDisponibles}
-                colors={coloresDisponibles}
-                activeCategoryId={idCategoriaFilter}
-                onCategoryChange={handleCategoriaFilterChange}
-                categoryPage={safeCategoryPage}
-                categoryTotalPages={categoryTotalPages}
-                onCategoryNextPage={handleNextCategoryPage}
-                onCategoryPrevPage={handlePrevCategoryPage}
-                activeColorId={idColorFilter}
-                onColorChange={handleColorFilterChange}
-                colorPage={safeColorPage}
-                colorTotalPages={colorTotalPages}
-                onColorNextPage={handleNextColorPage}
-                onColorPrevPage={handlePrevColorPage}
-              />
-            </div>
-
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Mostrando{" "}
-              {isVariantView ? displayedCatalogVariants.length : displayedProductos.length}{" "}
-              {isVariantView ? "variante(s)" : "producto(s)"} en esta pagina.
-            </p>
-          </>
+          <div className="rounded-xl border border-slate-100 bg-white px-3.5 py-3 shadow-sm dark:border-slate-700/60 dark:bg-slate-800/60">
+            <CategoryFilter
+              categories={categoriasDisponibles}
+              colors={coloresDisponibles}
+              activeCategoryId={idCategoriaFilter}
+              onCategoryChange={handleCategoriaFilterChange}
+              categoryPage={safeCategoryPage}
+              categoryTotalPages={categoryTotalPages}
+              onCategoryNextPage={handleNextCategoryPage}
+              onCategoryPrevPage={handlePrevCategoryPage}
+              activeColorId={idColorFilter}
+              onColorChange={handleColorFilterChange}
+              colorPage={safeColorPage}
+              colorTotalPages={colorTotalPages}
+              onColorNextPage={handleNextColorPage}
+              onColorPrevPage={handlePrevColorPage}
+            />
+          </div>
         ) : null}
 
-        <div className="w-full">
-          <ProductosHeader
-            viewMode={viewMode}
-            onViewModeChange={setViewMode}
-            showViewModeToggle
-            reportLoading={isExporting}
-            onDownloadExcel={() => {
-              void exportReporteExcel()
-            }}
-            onOpenBarcodeList={
-              isSucursalResolved
-                ? () => setShowBarcodeList(true)
-                : undefined
-            }
-          />
-        </div>
+        <ProductosHeader
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+          showViewModeToggle
+          reportLoading={isExporting}
+          onDownloadExcel={() => {
+            void exportReporteExcel()
+          }}
+          onOpenBarcodeList={
+            isSucursalResolved
+              ? () => setShowBarcodeList(true)
+              : undefined
+          }
+        />
       </div>
 
       <section className="space-y-4">
@@ -620,12 +667,31 @@ export default function ProductosPage() {
       <ProductoVarianteEditDialog
         open={editVariantTarget !== null}
         target={editVariantTarget}
+        initialImages={
+          editVariantTarget
+            ? getImagenesForVariant(editVariantTarget.productId, editVariantTarget.colorId)
+                .filter((img): img is VarianteResumenImagen & { idColorImagen: number } =>
+                  typeof img.idColorImagen === "number" && img.idColorImagen > 0
+                )
+                .map((img) => ({
+                  idColorImagen: img.idColorImagen,
+                  url: img.url,
+                  urlThumb: img.urlThumb,
+                  orden: img.orden,
+                  esPrincipal: img.esPrincipal,
+                }))
+            : []
+        }
         onOpenChange={(open) => {
           if (!open) setEditVariantTarget(null)
         }}
         onUpdate={handleVariantUpdateConfirmed}
         onGenerateBarcode={handleGenerateBarcodeForEdit}
         isGeneratingBarcode={isGeneratingBarcode}
+        onStockMovementSuccess={() => {
+          refreshVariantesView()
+          refreshProductosView()
+        }}
       />
 
       <ProductoVarianteDeleteDialog

@@ -12,7 +12,6 @@ import {
 } from "@heroicons/react/24/outline"
 
 import { formatMonedaPen } from "@/components/productos/productos.utils"
-import { PriceSelectorDropdown } from "@/components/ventas/PriceSelectorDropdown"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -27,6 +26,7 @@ import {
   obtenerTextoExpiracionOferta,
   tienePrecioOfertaValido,
 } from "@/lib/oferta-utils"
+import { resolveBackendUrl } from "@/lib/resolve-backend-url"
 import type { CatalogVariantSelection } from "@/lib/catalog-view"
 import type {
   VentaLineaPrecioOption,
@@ -120,6 +120,10 @@ function buildGalleryImages(
   product: ProductoResumen
 ): string[] {
   const urls: string[] = []
+  const pushUrl = (rawUrl: string | null | undefined) => {
+    const resolvedUrl = resolveBackendUrl(rawUrl)?.trim()
+    if (resolvedUrl) urls.push(resolvedUrl)
+  }
 
   if (detalle && selectedColorId !== null) {
     detalle.imagenes
@@ -129,23 +133,20 @@ function buildGalleryImages(
         return a.orden - b.orden
       })
       .forEach((imagen) => {
-        const url = imagen.url || imagen.urlThumb
-        if (url) urls.push(url)
+        pushUrl(imagen.url || imagen.urlThumb)
       })
   }
 
   if (selectedColorId !== null) {
     const summaryColor = product.colores.find((color) => color.colorId === selectedColorId)
-    const url = summaryColor?.imagenPrincipal?.url || summaryColor?.imagenPrincipal?.urlThumb
-    if (url) urls.push(url)
+    pushUrl(summaryColor?.imagenPrincipal?.url || summaryColor?.imagenPrincipal?.urlThumb)
   }
 
   product.colores.forEach((color) => {
-    const url = color.imagenPrincipal?.url || color.imagenPrincipal?.urlThumb
-    if (url) urls.push(url)
+    pushUrl(color.imagenPrincipal?.url || color.imagenPrincipal?.urlThumb)
   })
 
-  return Array.from(new Set(urls.filter((url) => url.trim() !== "")))
+  return Array.from(new Set(urls))
 }
 
 function getStockLevelClass(stock: number): string {
@@ -249,7 +250,6 @@ export default function ProductModal({
 
   const [selectedColorId, setSelectedColorId] = useState<number | null>(null)
   const [selectedTallaId, setSelectedTallaId] = useState<number | null>(null)
-  const [selectedPriceType, setSelectedPriceType] = useState<VentaLineaPrecioTipo>("normal")
   const [cantidad, setCantidad] = useState(1)
   const [currentImgIdx, setCurrentImgIdx] = useState(0)
   const [offerClock, setOfferClock] = useState(() => Date.now())
@@ -274,7 +274,6 @@ export default function ProductModal({
       setDetalleLoading(false)
       setSelectedColorId(null)
       setSelectedTallaId(null)
-      setSelectedPriceType("normal")
       setCantidad(1)
       setCurrentImgIdx(0)
       return
@@ -287,7 +286,6 @@ export default function ProductModal({
     setDetalleLoading(true)
     setSelectedColorId(null)
     setSelectedTallaId(null)
-    setSelectedPriceType("normal")
     setCantidad(1)
     setCurrentImgIdx(0)
 
@@ -439,34 +437,12 @@ export default function ProductModal({
     [availablePriceOptions]
   )
 
-  useEffect(() => {
-    if (!selectedVariante) {
-      setSelectedPriceType("normal")
-      return
-    }
-
-    setSelectedPriceType(defaultPriceType)
-  }, [defaultPriceType, selectedVariante])
-
-  useEffect(() => {
-    if (availablePriceOptions.length === 0) {
-      setSelectedPriceType("normal")
-      return
-    }
-
-    setSelectedPriceType((previous) =>
-      availablePriceOptions.some((option) => option.type === previous)
-        ? previous
-        : defaultPriceType
-    )
-  }, [availablePriceOptions, defaultPriceType])
-
   const selectedPriceOption = useMemo(
     () =>
-      availablePriceOptions.find((option) => option.type === selectedPriceType) ??
+      availablePriceOptions.find((option) => option.type === defaultPriceType) ??
       availablePriceOptions[0] ??
       null,
-    [availablePriceOptions, selectedPriceType]
+    [availablePriceOptions, defaultPriceType]
   )
 
   const galleryImages = useMemo(() => {
@@ -731,13 +707,6 @@ export default function ProductModal({
                   <p className="text-2xl font-extrabold text-blue-600 dark:text-blue-400">
                     {formatMonedaPen(displayPrice)}
                   </p>
-                  <PriceSelectorDropdown
-                    options={availablePriceOptions}
-                    selectedType={selectedPriceType}
-                    onSelect={setSelectedPriceType}
-                    triggerLabel="Seleccionar precio para esta variante"
-                    align="start"
-                  />
                 </div>
                 {selectedPriceOption?.description ? (
                   <p className="text-xs font-medium text-slate-500 dark:text-slate-400">

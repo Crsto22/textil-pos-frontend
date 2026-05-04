@@ -45,8 +45,8 @@ export default function CategoriasPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-        <div className="w-full xl:max-w-md">
+      <div className="flex items-center gap-2">
+        <div className="min-w-0 flex-1">
           <CategoriasSearch search={search} onSearchChange={setSearch} />
         </div>
         <CategoriasHeader onOpenCreate={handleOpenCreate} />

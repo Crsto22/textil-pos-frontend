@@ -4,6 +4,7 @@ import type {
   EmpresaPublica,
   EmpresaUpdateRequest,
 } from "@/lib/types/empresa"
+import { resolveBackendUrl } from "@/lib/resolve-backend-url"
 
 function toTrimmedString(value: unknown): string {
   return typeof value === "string" ? value.trim() : ""
@@ -40,7 +41,7 @@ export function normalizeEmpresa(value: unknown): Empresa | null {
     distrito: toTrimmedString(data.distrito),
     codigoEstablecimientoSunat: toTrimmedString(data.codigoEstablecimientoSunat),
     fechaCreacion: toTrimmedString(data.fechaCreacion),
-    logoUrl: toOptionalTrimmedString(data.logoUrl),
+    logoUrl: resolveBackendUrl(toOptionalTrimmedString(data.logoUrl)) ?? toOptionalTrimmedString(data.logoUrl),
     generaFacturacionElectronica: data.generaFacturacionElectronica === true,
   }
 }
@@ -63,7 +64,7 @@ export function normalizeEmpresaPublica(value: unknown): EmpresaPublica | null {
 
   return {
     nombreComercial,
-    logoUrl: toOptionalTrimmedString(data.logoUrl),
+    logoUrl: resolveBackendUrl(toOptionalTrimmedString(data.logoUrl)) ?? toOptionalTrimmedString(data.logoUrl),
   }
 }
 

@@ -2,6 +2,7 @@ import { parseProductoDetalleVariante } from "@/lib/producto-detalle"
 import type {
   ProductoVarianteOferta,
   ProductoVarianteOfertaPageResponse,
+  TipoOfertaAplicada,
 } from "@/lib/types/oferta"
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -71,6 +72,20 @@ function pickBoolean(source: Record<string, unknown> | null, key: string, fallba
   return source[key] as boolean
 }
 
+const VALID_TIPO_OFERTA: ReadonlySet<string> = new Set(["NINGUNA", "GLOBAL", "SUCURSAL"])
+
+function pickTipoOfertaAplicada(
+  source: Record<string, unknown> | null,
+  key: string
+): TipoOfertaAplicada | null {
+  if (!source) return null
+  const value = source[key]
+  if (typeof value === "string" && VALID_TIPO_OFERTA.has(value)) {
+    return value as TipoOfertaAplicada
+  }
+  return null
+}
+
 export function parseProductoVarianteOferta(value: unknown): ProductoVarianteOferta | null {
   const payload = asRecord(value)
   const variante = parseProductoDetalleVariante(payload)
@@ -88,6 +103,12 @@ export function parseProductoVarianteOferta(value: unknown): ProductoVarianteOfe
     sucursalId: pickNullableNumber(payload, ["sucursalId", "idSucursal"]),
     sucursalNombre: pickNullableString(payload, ["sucursalNombre", "nombreSucursal"]),
     imageUrl: pickNullableString(payload, ["imageUrl", "imagenUrl"]),
+    precioVigente: pickNullableNumber(payload, ["precioVigente"]),
+    tipoOfertaAplicada: pickTipoOfertaAplicada(payload, "tipoOfertaAplicada"),
+    sucursalOfertaId: pickNullableNumber(payload, ["sucursalOfertaId"]),
+    usuarioCreacionId: pickNullableNumber(payload, ["usuarioCreacionId"]),
+    usuarioCreacionNombre: pickNullableString(payload, ["usuarioCreacionNombre"]),
+    usuarioCreacionCorreo: pickNullableString(payload, ["usuarioCreacionCorreo"]),
   }
 }
 

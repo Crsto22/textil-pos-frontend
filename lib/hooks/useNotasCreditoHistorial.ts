@@ -34,6 +34,10 @@ async function parseJsonSafe(response: Response) {
   return response.json().catch(() => null)
 }
 
+function normalizeNullableString(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value : null
+}
+
 function normalizeNotaCredito(value: unknown): NotaCreditoHistorial | null {
   if (!value || typeof value !== "object") return null
   const item = value as Record<string, unknown>
@@ -55,6 +59,16 @@ function normalizeNotaCredito(value: unknown): NotaCreditoHistorial | null {
       typeof item.sunatEstado === "string" && item.sunatEstado.trim()
         ? item.sunatEstado
         : null,
+    sunatBajaEstado: normalizeNullableString(item.sunatBajaEstado),
+    sunatBajaCodigo: normalizeNullableString(item.sunatBajaCodigo),
+    sunatBajaMensaje: normalizeNullableString(item.sunatBajaMensaje),
+    sunatBajaTicket: normalizeNullableString(item.sunatBajaTicket),
+    sunatBajaLoteId: Number.isFinite(Number(item.sunatBajaLoteId))
+      ? Number(item.sunatBajaLoteId)
+      : null,
+    sunatBajaMotivo: normalizeNullableString(item.sunatBajaMotivo),
+    sunatBajaSolicitadaAt: normalizeNullableString(item.sunatBajaSolicitadaAt),
+    sunatBajaRespondidaAt: normalizeNullableString(item.sunatBajaRespondidaAt),
     codigoMotivo:
       typeof item.codigoMotivo === "string" && item.codigoMotivo.trim()
         ? item.codigoMotivo

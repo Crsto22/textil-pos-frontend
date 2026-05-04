@@ -127,6 +127,42 @@ export interface ProductoImportResponse {
   tallasCreadas: number
 }
 
+export interface ProductoImportConfigRequest {
+  idSucursalDestino: number | null
+  nombreSucursalDestino: string | null
+}
+
+export interface ProductoImportVarianteRequest {
+  colorNombre: string
+  colorHex?: string
+  tallaNombre: string
+  sku: string
+  codigoBarras: string
+  precio: string
+  precioMayor: string
+  stock: string
+}
+
+export interface ProductoImportProductoRequest {
+  nombreProducto: string
+  categoriaNombre: string
+  descripcion: string
+  variantes: ProductoImportVarianteRequest[]
+}
+
+export interface ProductoImportValoresNuevosRequest {
+  missingCategorias: string[]
+  missingColores: string[]
+  missingTallas: string[]
+  savedColorHexes: Record<string, string>
+}
+
+export interface ProductoImportRequest {
+  configuracionImportacion: ProductoImportConfigRequest
+  productos: ProductoImportProductoRequest[]
+  valoresNuevosDetectados: ProductoImportValoresNuevosRequest
+}
+
 export interface ProductoImportacionHistorial {
   idImportacion: number
   idUsuario: number | null

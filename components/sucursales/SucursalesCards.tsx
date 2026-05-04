@@ -4,6 +4,7 @@ import {
   ArchiveBoxIcon,
   BuildingStorefrontIcon,
   EnvelopeIcon,
+  IdentificationIcon,
   MapPinIcon,
   PencilSquareIcon,
   PhoneIcon,
@@ -264,6 +265,11 @@ function SucursalesCardsComponent({
                   {sucursal.ciudad && (
                     <span className="text-muted-foreground/70"> — {sucursal.ciudad}</span>
                   )}
+                  {sucursal.ubigeo && (
+                    <span className="ml-1 inline-flex items-center rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-mono font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                      {sucursal.ubigeo}
+                    </span>
+                  )}
                 </span>
               </p>
               {sucursal.telefono && (
@@ -276,6 +282,14 @@ function SucursalesCardsComponent({
                 <p className="flex items-center gap-2.5 text-[13px] text-muted-foreground">
                   <EnvelopeIcon className="h-4 w-4 shrink-0 text-muted-foreground/60" />
                   <span className="truncate">{sucursal.correo}</span>
+                </p>
+              )}
+              {sucursal.codigoEstablecimientoSunat && (
+                <p className="flex items-center gap-2.5 text-[13px] text-muted-foreground">
+                  <IdentificationIcon className="h-4 w-4 shrink-0 text-muted-foreground/60" />
+                  <span className="font-mono text-[12px]">
+                    SUNAT: {sucursal.codigoEstablecimientoSunat}
+                  </span>
                 </p>
               )}
             </div>

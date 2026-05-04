@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { MagnifyingGlassIcon } from "@heroicons/react/24/outline"
+import { LoaderSpinner } from "@/components/ui/loader-spinner"
 import { toast } from "sonner"
 
 import {
@@ -16,6 +17,8 @@ import {
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { authFetch } from "@/lib/auth/auth-fetch"
+import { useAuth } from "@/lib/auth/auth-context"
+import { useComprobanteOptions } from "@/lib/hooks/useComprobanteOptions"
 import { useVentaDetalle } from "@/lib/hooks/useVentaDetalle"
 import { useVentasHistorial } from "@/lib/hooks/useVentasHistorial"
 import {
@@ -50,6 +53,44 @@ const GLOBAL_SEARCH_START_DATE = "2000-01-01"
 const DEFAULT_MOTIVO: NotaCreditoMotivo = "02"
 const ESTADO_EMITIDA = "EMITIDA"
 const MOTIVOS_REQUIEREN_ITEMS = new Set<NotaCreditoMotivo>(["07"])
+const VENTA_NOTA_CREDITO_BLOCKED_ESTADOS = new Set([
+  "ANULADO",
+  "ANULADA",
+  "ANULACION_PENDIENTE",
+  "BAJA_ACEPTADA",
+  "BAJA_ACEPTADO",
+  "CANCELADA",
+  "CANCELADO",
+  "DADA_DE_BAJA",
+  "DADO_DE_BAJA",
+  "NC_EMITIDA",
+])
+const SUNAT_BAJA_ACTIVE_ESTADOS = new Set([
+  "PENDIENTE_ENVIO",
+  "PENDIENTE_CDR",
+  "ACEPTADO",
+  "ACEPTADA",
+  "OBSERVADO",
+])
+
+function normalizeValue(value: string | null | undefined): string {
+  return value?.trim().toUpperCase() ?? ""
+}
+
+function isVentaEmitida(estado: string | null | undefined): boolean {
+  const normalized = normalizeValue(estado)
+  return normalized === ESTADO_EMITIDA || normalized === "EMITIDO"
+}
+
+function isVentaBloqueadaParaNotaCredito(
+  estado: string | null | undefined,
+  sunatBajaEstado: string | null | undefined
+): boolean {
+  return (
+    VENTA_NOTA_CREDITO_BLOCKED_ESTADOS.has(normalizeValue(estado)) ||
+    SUNAT_BAJA_ACTIVE_ESTADOS.has(normalizeValue(sunatBajaEstado))
+  )
+}
 
 function getResponseMessage(payload: unknown, fallback: string): string {
   if (!payload || typeof payload !== "object") return fallback
@@ -87,6 +128,7 @@ const DEFAULT_FILTERS: VentaHistorialFilters = {
   comprobante: "TODOS",
   idUsuario: null,
   idSucursal: null,
+  idCanalVenta: null,
   idCliente: null,
   periodo: "HOY",
   usarRangoFechas: false,
@@ -99,14 +141,21 @@ export function NuevaNotaCreditoPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const initialVentaId = parsePositiveNumber(searchParams.get("idVenta"))
+  const { user } = useAuth()
 
-  const [filters, setFilters] = useState<VentaHistorialFilters>(DEFAULT_FILTERS)
+  const [filters, setFilters] = useState<VentaHistorialFilters>(() => ({
+    ...DEFAULT_FILTERS,
+    idSucursal: user?.idSucursal ?? null,
+  }))
   const [comprobanteFiltro, setComprobanteFiltro] = useState<ComprobanteFiltro>("TODOS")
   const [selectedVentaId, setSelectedVentaId] = useState<number | null>(initialVentaId)
   const [codigoMotivo, setCodigoMotivo] = useState<NotaCreditoMotivo>(DEFAULT_MOTIVO)
   const [descripcionMotivo, setDescripcionMotivo] = useState("")
   const [selectedCantidades, setSelectedCantidades] = useState<Record<number, number>>({})
   const [isSubmittingNotaCredito, setIsSubmittingNotaCredito] = useState(false)
+  const [selectedNcSerieId] = useState("")
+
+  const { comprobantes: allComprobantes } = useComprobanteOptions({ enabled: true })
 
   const motivoDescriptionByCode = useMemo(() => {
     const descriptionMap = {} as Record<NotaCreditoMotivo, string>
@@ -150,6 +199,20 @@ export function NuevaNotaCreditoPage() {
     retryVentaDetalle,
   } = useVentaDetalle()
 
+  const ncSeriesForDetalle = useMemo(() => {
+    if (!detalle) return []
+    const tipoVenta = detalle.tipoComprobante.trim().toUpperCase()
+    const ncTipo = tipoVenta === "BOLETA" ? "NOTA_CREDITO_BOLETA" : tipoVenta === "FACTURA" ? "NOTA_CREDITO_FACTURA" : null
+    if (!ncTipo) return []
+    return allComprobantes.filter((c) => c.tipoComprobante === ncTipo)
+  }, [allComprobantes, detalle])
+
+  const selectedNcSerie = useMemo(() => {
+    if (ncSeriesForDetalle.length === 0) return null
+    const found = ncSeriesForDetalle.find((c) => String(c.idComprobante) === selectedNcSerieId)
+    return found ?? ncSeriesForDetalle[0]
+  }, [ncSeriesForDetalle, selectedNcSerieId])
+
   useEffect(() => {
     if (!initialVentaId) return
 
@@ -171,16 +234,13 @@ export function NuevaNotaCreditoPage() {
     }
   }, [codigoMotivo])
 
-  const isVentaEmitida = (estado: string) => {
-    const normalized = estado.trim().toUpperCase()
-    return normalized === ESTADO_EMITIDA || normalized === "EMITIDO"
-  }
-
   const ventasPermitidas = useMemo(
     () =>
       ventas.filter(
         (venta) =>
-          isNotaCreditoComprobante(venta.tipoComprobante) && isVentaEmitida(venta.estado)
+          isNotaCreditoComprobante(venta.tipoComprobante) &&
+          isVentaEmitida(venta.estado) &&
+          !isVentaBloqueadaParaNotaCredito(venta.estado, venta.sunatBajaEstado)
       ),
     [ventas]
   )
@@ -193,6 +253,9 @@ export function NuevaNotaCreditoPage() {
   }, [comprobanteFiltro, ventasPermitidas])
 
   const detalleEsValido = detalle ? isNotaCreditoComprobante(detalle.tipoComprobante) : true
+  const detalleBloqueadoParaNotaCredito = detalle
+    ? isVentaBloqueadaParaNotaCredito(detalle.estado, detalle.sunatBajaEstado)
+    : false
   const requiereItems = MOTIVOS_REQUIEREN_ITEMS.has(codigoMotivo)
 
   const itemsSeleccionados = useMemo(() => {
@@ -235,6 +298,16 @@ export function NuevaNotaCreditoPage() {
       return { ok: false }
     }
 
+    if (!isVentaEmitida(detalle.estado) || detalleBloqueadoParaNotaCredito) {
+      toast.error("No se puede emitir nota de credito para una venta anulada o con baja SUNAT")
+      return { ok: false }
+    }
+
+    if (!selectedNcSerie) {
+      toast.error("No hay una serie de nota de credito configurada para este tipo de comprobante")
+      return { ok: false }
+    }
+
     const normalizedDescripcion = descripcionMotivo.trim()
 
     if (!normalizedDescripcion) {
@@ -256,6 +329,7 @@ export function NuevaNotaCreditoPage() {
       return {
         ok: true,
         payload: {
+          serie: selectedNcSerie.serie,
           codigoMotivo,
           descripcionMotivo: normalizedDescripcion,
           items: [],
@@ -278,6 +352,7 @@ export function NuevaNotaCreditoPage() {
     return {
       ok: true,
       payload: {
+        serie: selectedNcSerie.serie,
         codigoMotivo,
         descripcionMotivo: normalizedDescripcion,
         items: itemsSeleccionados.map((item) => ({
@@ -432,8 +507,8 @@ export function NuevaNotaCreditoPage() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={7} className="px-3 py-12 text-center text-sm text-muted-foreground">
-                      Cargando ventas...
+                    <td colSpan={7} className="px-3 py-12 text-center">
+                      <LoaderSpinner text="Cargando ventas..." />
                     </td>
                   </tr>
                 ) : ventasFiltradas.length === 0 ? (
@@ -553,7 +628,9 @@ export function NuevaNotaCreditoPage() {
         </div>
 
         {loadingDetalle ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">Cargando detalle...</p>
+          <div className="flex items-center justify-center py-8">
+            <LoaderSpinner size="sm" text="Cargando detalle..." />
+          </div>
         ) : errorDetalle ? (
           <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-4 text-sm text-rose-700 dark:border-rose-900/60 dark:bg-rose-900/20 dark:text-rose-300">
             {errorDetalle}
@@ -561,6 +638,10 @@ export function NuevaNotaCreditoPage() {
         ) : detalle && !detalleEsValido ? (
           <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-4 text-sm text-amber-700 dark:border-amber-900/60 dark:bg-amber-900/20 dark:text-amber-300">
             La venta seleccionada no es boleta ni factura, por lo que no aplica para nota de credito.
+          </p>
+        ) : detalle && (!isVentaEmitida(detalle.estado) || detalleBloqueadoParaNotaCredito) ? (
+          <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-4 text-sm text-amber-700 dark:border-amber-900/60 dark:bg-amber-900/20 dark:text-amber-300">
+            Esta venta esta anulada o ya tiene baja SUNAT, por lo que no se puede emitir una nota de credito.
           </p>
         ) : detalle ? (
           <div className="space-y-4">
@@ -710,7 +791,12 @@ export function NuevaNotaCreditoPage() {
                   onClick={() => {
                     void handleEmitirNotaCredito()
                   }}
-                  disabled={isSubmittingNotaCredito || !detalleEsValido}
+                  disabled={
+                    isSubmittingNotaCredito ||
+                    !detalleEsValido ||
+                    !isVentaEmitida(detalle.estado) ||
+                    detalleBloqueadoParaNotaCredito
+                  }
                   className="inline-flex h-10 items-center justify-center rounded-lg bg-blue-600 px-4 text-xs font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isSubmittingNotaCredito ? "Emitiendo..." : "Emitir nota de credito"}

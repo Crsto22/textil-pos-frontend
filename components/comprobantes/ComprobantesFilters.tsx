@@ -1,6 +1,5 @@
 import { memo } from "react"
 
-import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -9,88 +8,69 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { cn } from "@/lib/utils"
+
+type EstadoFilter = "TODOS" | "ACTIVO" | "INACTIVO"
 
 interface ComprobantesFiltersProps {
-  isAdmin: boolean
-  idSucursal: number | null
-  onIdSucursalChange: (value: number) => void
-  activoFilter: "TODOS" | "ACTIVO" | "INACTIVO"
-  onActivoFilterChange: (value: "TODOS" | "ACTIVO" | "INACTIVO") => void
-  sucursalOptions: ComboboxOption[]
-  loadingSucursales: boolean
-  errorSucursales: string | null
-  searchSucursal: string
-  onSearchSucursalChange: (value: string) => void
-  userSucursalLabel: string
+  activoFilter: EstadoFilter
+  onActivoFilterChange: (value: EstadoFilter) => void
 }
 
-function hasValidSucursalId(idSucursal?: number | null): idSucursal is number {
-  return typeof idSucursal === "number" && idSucursal > 0
-}
+const ESTADO_OPTIONS: { value: EstadoFilter; label: string }[] = [
+  { value: "TODOS", label: "Todos" },
+  { value: "ACTIVO", label: "Activos" },
+  { value: "INACTIVO", label: "Inactivos" },
+]
 
 function ComprobantesFiltersComponent({
-  isAdmin,
-  idSucursal,
-  onIdSucursalChange,
   activoFilter,
   onActivoFilterChange,
-  sucursalOptions,
-  loadingSucursales,
-  errorSucursales,
-  searchSucursal,
-  onSearchSucursalChange,
-  userSucursalLabel,
 }: ComprobantesFiltersProps) {
-  const hasValidSucursal = hasValidSucursalId(idSucursal)
-
   return (
-    <div className="grid gap-4 rounded-xl border bg-card p-4 md:grid-cols-2">
-      <div className="grid gap-2">
-        <Label htmlFor="comprobantes-filter-sucursal">Sucursal</Label>
-        {isAdmin ? (
-          <>
-            <Combobox
-              id="comprobantes-filter-sucursal"
-              value={hasValidSucursal ? String(idSucursal) : ""}
-              options={sucursalOptions}
-              searchValue={searchSucursal}
-              onSearchValueChange={onSearchSucursalChange}
-              onValueChange={(value) => onIdSucursalChange(Number(value))}
-              placeholder="Selecciona sucursal"
-              searchPlaceholder="Buscar sucursal..."
-              emptyMessage="No se encontraron sucursales"
-              loading={loadingSucursales}
-            />
-            {errorSucursales && (
-              <p className="text-xs text-red-500">{errorSucursales}</p>
-            )}
-          </>
-        ) : (
-          <div className="flex h-9 items-center rounded-md border bg-muted/50 px-3">
-            <span className="truncate text-sm font-medium">{userSucursalLabel}</span>
-          </div>
-        )}
+    <>
+      {/* ─── MOBILE: chips horizontales ─── */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-0.5 md:hidden">
+        {ESTADO_OPTIONS.map((opt) => {
+          const active = activoFilter === opt.value
+          return (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => onActivoFilterChange(opt.value)}
+              className={cn(
+                "inline-flex h-9 shrink-0 items-center rounded-xl border px-3.5 text-xs font-semibold transition-all",
+                active
+                  ? "border-blue-500 bg-blue-50 text-blue-700 dark:border-blue-500/70 dark:bg-blue-500/10 dark:text-blue-200"
+                  : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+              )}
+            >
+              {opt.label}
+            </button>
+          )
+        })}
       </div>
 
-      <div className="grid gap-2">
-        <Label htmlFor="comprobantes-filter-activo">Estado</Label>
-        <Select
-          value={activoFilter}
-          onValueChange={(value) =>
-            onActivoFilterChange(value as "TODOS" | "ACTIVO" | "INACTIVO")
-          }
-        >
-          <SelectTrigger id="comprobantes-filter-activo" className="w-full">
-            <SelectValue placeholder="Selecciona estado" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="TODOS">Todos</SelectItem>
-            <SelectItem value="ACTIVO">Activos</SelectItem>
-            <SelectItem value="INACTIVO">Inactivos</SelectItem>
-          </SelectContent>
-        </Select>
+      {/* ─── DESKTOP: card con Select ─── */}
+      <div className="hidden rounded-xl border bg-card p-4 md:grid md:grid-cols-2 md:gap-4">
+        <div className="grid gap-2">
+          <Label htmlFor="comprobantes-filter-activo">Estado</Label>
+          <Select
+            value={activoFilter}
+            onValueChange={(value) => onActivoFilterChange(value as EstadoFilter)}
+          >
+            <SelectTrigger id="comprobantes-filter-activo" className="w-full">
+              <SelectValue placeholder="Selecciona estado" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="TODOS">Todos</SelectItem>
+              <SelectItem value="ACTIVO">Activos</SelectItem>
+              <SelectItem value="INACTIVO">Inactivos</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
-    </div>
+    </>
   )
 }
 

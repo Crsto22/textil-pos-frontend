@@ -2,6 +2,7 @@
 
 import { useMemo, useState, type Dispatch, type SetStateAction } from "react"
 import { Plus } from "lucide-react"
+import { LoaderSpinner } from "@/components/ui/loader-spinner"
 
 import { AttributeSearchInput } from "@/components/producto-nuevo/AttributeSearchInput"
 import { AttributeSelectedChip } from "@/components/producto-nuevo/AttributeSelectedChip"
@@ -108,7 +109,7 @@ export function ProductoTallasCard({
 
       <div className="min-h-0 flex-1 overflow-y-auto pr-1">
         {loadingTallas ? (
-          <p className="text-sm text-muted-foreground">Cargando tallas...</p>
+          <LoaderSpinner size="sm" text="Cargando tallas..." />
         ) : errorTallas ? (
           <p className="text-sm text-red-500">{errorTallas}</p>
         ) : availableTallas.length === 0 ? (

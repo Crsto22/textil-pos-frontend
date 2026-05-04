@@ -6,12 +6,17 @@ export type VentaAnularMotivoCodigo = "01" | (string & {})
 export type VentaNotaCreditoMotivoCodigo = "02" | "03" | "06" | "07" | (string & {})
 export type VentaTipoAnulacion = "NOTA_CREDITO" | "COMUNICACION_BAJA" | (string & {})
 export type SunatEstado =
-  | "PENDIENTE"
+  | "NO_APLICA"
+  | "PENDIENTE_ENVIO"
+  | "ENVIANDO"
+  | "PENDIENTE_CDR"
+  | "ERROR_TRANSITORIO"
+  | "ERROR_DEFINITIVO"
   | "ACEPTADO"
   | "OBSERVADO"
   | "RECHAZADO"
+  | "PENDIENTE"
   | "ERROR"
-  | "NO_APLICA"
   | (string & {})
 
 export interface VentaCreateDetalleRequest {
@@ -35,8 +40,7 @@ export interface VentaCreateRequest {
   idCanalVenta?: number | null
   idCliente: number | null
   tipoComprobante: TipoComprobante
-  serie?: string | null
-  correlativo?: number | null
+  serie: string
   moneda?: MonedaCodigo | null
   formaPago?: FormaPagoVenta | null
   igvPorcentaje?: number | null
@@ -62,8 +66,6 @@ export interface VentaInsertResponse {
   sunatZipNombre: string | null
   sunatCdrNombre: string | null
   pagos?: VentaInsertPagoResponse[]
-  sunatAutoDispatchTriggered?: boolean
-  sunatAutoDispatchError?: string | null
 }
 
 export interface VentaHistorial {
@@ -76,6 +78,7 @@ export interface VentaHistorial {
   total: number
   estado: string
   sunatEstado: SunatEstado | null
+  sunatBajaEstado: string | null
   idCliente: number | null
   nombreCliente: string
   idUsuario: number | null
@@ -87,6 +90,16 @@ export interface VentaHistorial {
   plataformaCanalVenta: string | null
   items: number
   pagos: number
+}
+
+export interface VentaBajaInfo {
+  idVenta: number
+  tipoComprobante: string
+  serie: string
+  correlativo: number
+  nombreCliente: string
+  moneda: string
+  total: number
 }
 
 export interface VentaDetalleItem {
@@ -146,6 +159,14 @@ export interface VentaDetalleResponse {
   sunatCdrNombre: string | null
   sunatEnviadoAt: string | null
   sunatRespondidoAt: string | null
+  sunatBajaEstado: string | null
+  sunatBajaCodigo: string | null
+  sunatBajaMensaje: string | null
+  sunatBajaTicket: string | null
+  sunatBajaTipo: string | null
+  sunatBajaLoteId: number | null
+  sunatBajaSolicitadaAt: string | null
+  sunatBajaRespondidaAt: string | null
   idCliente: number | null
   nombreCliente: string
   idUsuario: number | null
@@ -173,6 +194,7 @@ export interface VentaSunatRetryResponse {
 export interface VentaAnularRequest {
   codigoMotivo: VentaAnularMotivoCodigo
   descripcionMotivo: string
+  serie?: string
 }
 
 export interface VentaAnularResponse {
@@ -190,6 +212,10 @@ export interface VentaAnularResponse {
   sunatEstadoNotaCredito: SunatEstado | null
   sunatCodigoNotaCredito: string | null
   sunatMensajeNotaCredito: string | null
+  sunatBajaEstado: string | null
+  sunatBajaMensaje: string | null
+  sunatBajaTicket: string | null
+  sunatBajaLote: string | null
   message: string | null
 }
 
@@ -205,6 +231,7 @@ export interface VentaNotaCreditoItemRequest {
 }
 
 export interface VentaNotaCreditoRequest {
+  serie: string
   codigoMotivo: VentaNotaCreditoMotivoCodigo
   descripcionMotivo: string
   items?: VentaNotaCreditoItemRequest[]

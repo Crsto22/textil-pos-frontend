@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import type { AuthUser } from "@/lib/auth/types"
 import { safeParseJson, setSessionUserCookie } from "../_helpers"
+import { normalizeAssetUrlField } from "@/lib/server/public-asset-url"
 
 const BACKEND_URL = process.env.BACKEND_URL
 
@@ -64,7 +65,10 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ message }, { status })
     }
 
-    const user = (await backendRes.json()) as AuthUser
+    const user = normalizeAssetUrlField(
+      (await backendRes.json()) as AuthUser,
+      "fotoPerfilUrl"
+    ) as AuthUser
     const response = NextResponse.json(user, { status: 200 })
     setSessionUserCookie(response, user)
 
@@ -116,7 +120,10 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ message }, { status })
     }
 
-    const user = (await backendRes.json()) as AuthUser
+    const user = normalizeAssetUrlField(
+      (await backendRes.json()) as AuthUser,
+      "fotoPerfilUrl"
+    ) as AuthUser
     const response = NextResponse.json(user, { status: 200 })
     setSessionUserCookie(response, user)
 

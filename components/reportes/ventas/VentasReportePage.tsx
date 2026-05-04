@@ -27,7 +27,7 @@ const FILTER_OPTIONS: { key: VentaResumenReporteFiltro; label: string }[] = [
   { key: "ULT_7_DIAS", label: "Ultimos 7 dias" },
   { key: "ULT_14_DIAS", label: "Ultimos 14 dias" },
   { key: "ULT_30_DIAS", label: "Ultimos 30 dias" },
-  { key: "ULT_12_MESES", label: "Ultimos 12 meses" },
+  
 ]
 
 const NUMBER_FORMATTER = new Intl.NumberFormat("es-PE")
@@ -109,7 +109,7 @@ export function VentasReportePage() {
     errorSucursales,
     searchSucursal,
     setSearchSucursal,
-  } = useSucursalOptions(isAdmin)
+  } = useSucursalOptions(isAdmin, "VENTA")
 
   const resolvedSucursalId = isAdmin
     ? selectedSucursalId

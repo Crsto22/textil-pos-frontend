@@ -6,21 +6,22 @@ type EstadoMetodoPago = "ACTIVO" | "INACTIVO"
 
 function normalizeEstado(value: unknown): EstadoMetodoPago | null {
     if (typeof value !== "string") return null
-    const normalized = value.trim().toUpperCase()
-    if (normalized === "ACTIVO" || normalized === "INACTIVO") {
-        return normalized
-    }
-    return null
+    const v = value.trim().toUpperCase()
+    return v === "ACTIVO" || v === "INACTIVO" ? v : null
+}
+
+async function parseResponseBody(res: Response): Promise<unknown> {
+    const text = await res.text()
+    try { return JSON.parse(text) } catch { return { message: text || "Error" } }
 }
 
 /**
- * PATCH/PUT /api/config/metodos-pago/[id]/estado
+ * PATCH /api/config/metodos-pago/[id]/estado
  * Body: { estado: "ACTIVO" | "INACTIVO" }
  */
-async function handleToggle(
+export async function PATCH(
     request: NextRequest,
-    { params }: { params: Promise<{ id: string }> },
-    method: "PATCH" | "PUT"
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
         if (!BACKEND_URL) {
@@ -28,17 +29,12 @@ async function handleToggle(
         }
 
         const { id } = await params
-        const parsedBody = await request.json().catch(() => null)
-        const rawEstado = parsedBody?.estado ?? parsedBody?.activo
+        const body = await request.json().catch(() => null)
+        const estado = normalizeEstado(body?.estado)
 
-        if (typeof rawEstado !== "string" || rawEstado.trim().length === 0) {
-            return NextResponse.json({ message: "Ingrese estado" }, { status: 400 })
-        }
-
-        const estado = normalizeEstado(rawEstado)
         if (!estado) {
             return NextResponse.json(
-                { message: "Estado permitido: ACTIVO o INACTIVO" },
+                { message: "estado permitido: ACTIVO o INACTIVO" },
                 { status: 400 }
             )
         }
@@ -50,42 +46,18 @@ async function handleToggle(
         let res: Response
         try {
             res = await fetch(`${BACKEND_URL}/api/config/metodos-pago/${id}/estado`, {
-                method,
+                method: "PATCH",
                 headers,
                 body: JSON.stringify({ estado }),
             })
         } catch {
-            return NextResponse.json(
-                { message: "No se pudo conectar al backend." },
-                { status: 503 }
-            )
+            return NextResponse.json({ message: "No se pudo conectar al backend." }, { status: 503 })
         }
 
-        const text = await res.text()
-        let data: unknown
-        try {
-            data = JSON.parse(text)
-        } catch {
-            data = { message: text || (res.ok ? "OK" : "Error") }
-        }
-
+        const data = await parseResponseBody(res)
         return NextResponse.json(data, { status: res.status })
     } catch (error) {
-        console.error("[CONFIG/METODOS-PAGO/ESTADO]", error)
+        console.error("[METODOS-PAGO PATCH/:id/estado]", error)
         return NextResponse.json({ message: "Error interno del servidor" }, { status: 500 })
     }
-}
-
-export async function PATCH(
-    request: NextRequest,
-    context: { params: Promise<{ id: string }> }
-) {
-    return handleToggle(request, context, "PATCH")
-}
-
-export async function PUT(
-    request: NextRequest,
-    context: { params: Promise<{ id: string }> }
-) {
-    return handleToggle(request, context, "PUT")
 }

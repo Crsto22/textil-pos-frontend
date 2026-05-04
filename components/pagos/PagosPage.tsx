@@ -4,13 +4,18 @@ import { useState } from "react"
 
 import { PagosFilters } from "@/components/pagos/PagosFilters"
 import { PagosTable } from "@/components/pagos/PagosTable"
+import { useAuth } from "@/lib/auth/auth-context"
 import { usePagoReportePdf } from "@/lib/hooks/usePagoReportePdf"
 import { usePagos } from "@/lib/hooks/usePagos"
 import { createDefaultPagoFilters } from "@/lib/pago-filters"
 import type { PagoFilters } from "@/lib/types/pago"
 
 export function PagosPage() {
-  const [filters, setFilters] = useState<PagoFilters>(createDefaultPagoFilters)
+  const { user } = useAuth()
+  const [filters, setFilters] = useState<PagoFilters>(() => ({
+    ...createDefaultPagoFilters(),
+    idSucursal: user?.idSucursal ?? null,
+  }))
   const { isExporting, exportReportePdf } = usePagoReportePdf()
   const {
     pagos,
@@ -35,7 +40,7 @@ export function PagosPage() {
         onDownloadReport={() => {
           void exportReportePdf(filters)
         }}
-        onClear={() => setFilters(createDefaultPagoFilters())}
+        onClear={() => setFilters({ ...createDefaultPagoFilters(), idSucursal: user?.idSucursal ?? null })}
       />
 
       <PagosTable

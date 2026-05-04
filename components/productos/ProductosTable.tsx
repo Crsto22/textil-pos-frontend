@@ -1,5 +1,6 @@
 import { memo, useEffect, useState } from "react"
 import { PencilSquareIcon, PhotoIcon, TrashIcon } from "@heroicons/react/24/outline"
+import { LoaderSpinner } from "@/components/ui/loader-spinner"
 
 import { formatMonedaPen, formatRangoPrecioPen } from "@/components/productos/productos.utils"
 import type { ProductoResumen, ProductoResumenColor } from "@/lib/types/producto"
@@ -251,7 +252,7 @@ function ProductoRow({
             )}
           </div>
         ) : (
-          <span className="text-xs text-muted-foreground">Sin stock registrado</span>
+          <span className="text-xs text-muted-foreground">No disponible en esta sucursal</span>
         )}
       </td>
 
@@ -343,8 +344,8 @@ function ProductosTableComponent({
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">
-                  Cargando productos...
+                <td colSpan={7} className="px-4 py-12 text-center">
+                  <LoaderSpinner text="Cargando productos..." />
                 </td>
               </tr>
             ) : productos.length === 0 ? (

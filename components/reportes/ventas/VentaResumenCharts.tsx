@@ -11,7 +11,7 @@ import {
 } from "recharts"
 
 import { formatMonedaPen } from "@/components/productos/productos.utils"
-import type { VentaResumenMontoPorDiaItem } from "@/lib/types/venta-resumen-reporte"
+import type { DashboardSalePoint } from "@/lib/types/dashboard"
 
 export {
   ProductDonutChart as VentaDonutChart,
@@ -20,7 +20,7 @@ export {
 } from "@/components/reportes/productos/ProductoReporteCharts"
 
 interface VentaTendenciaChartProps {
-  data: VentaResumenMontoPorDiaItem[]
+  data: DashboardSalePoint[]
   emptyMessage?: string
 }
 
@@ -45,13 +45,26 @@ function formatIsoShortDate(value: string): string {
   return SHORT_DATE_FORMATTER.format(new Date(Date.UTC(year, month - 1, day)))
 }
 
+function formatTooltipLabel(item: DashboardSalePoint | undefined): string {
+  if (!item) return ""
+  if (item.granularidad === "HORA") {
+    return `${formatIsoShortDate(item.fecha)} ${item.etiqueta}`
+  }
+  if (item.granularidad === "MES") {
+    return item.etiqueta || item.fecha
+  }
+  return item.etiqueta || formatIsoShortDate(item.fecha)
+}
+
 export function VentaTendenciaChart({
   data,
   emptyMessage = "No hay suficiente informacion para construir la tendencia.",
 }: VentaTendenciaChartProps) {
   const chartData = data.map((item) => ({
     ...item,
-    label: formatIsoShortDate(item.fecha),
+    label:
+      item.etiqueta ||
+      (item.granularidad === "HORA" ? item.fecha : formatIsoShortDate(item.fecha)),
   }))
 
   if (chartData.length === 0) {
@@ -88,9 +101,7 @@ export function VentaTendenciaChart({
               boxShadow: "0 12px 32px rgba(15, 23, 42, 0.12)",
             }}
             labelFormatter={(_, payload) =>
-              payload?.[0]?.payload?.fecha
-                ? formatIsoShortDate(String(payload[0].payload.fecha))
-                : ""
+              formatTooltipLabel(payload?.[0]?.payload as DashboardSalePoint | undefined)
             }
             formatter={(value: number | string) => [
               formatMonedaPen(Number(value)),

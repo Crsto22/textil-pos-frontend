@@ -3,7 +3,7 @@ export type UsuarioReporteFiltro =
   | "ULT_7_DIAS"
   | "ULT_14_DIAS"
   | "ULT_30_DIAS"
-  | "ULT_12_MESES"
+  
 
 export interface UsuarioReporteFilters {
   filtro: UsuarioReporteFiltro

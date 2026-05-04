@@ -11,7 +11,9 @@ import { toast } from "sonner"
 
 import type { ComboboxOption } from "@/components/ui/combobox"
 import { useAuth } from "@/lib/auth/auth-context"
+import { isAdministratorRole } from "@/lib/auth/roles"
 import { authFetch } from "@/lib/auth/auth-fetch"
+import { useCanFilterBySucursal } from "@/lib/hooks/useCanFilterByUsuario"
 import { useCategoriaOptions } from "@/lib/hooks/useCategoriaOptions"
 import { useColores } from "@/lib/hooks/useColores"
 import { useSucursalOptions } from "@/lib/hooks/useSucursalOptions"
@@ -43,6 +45,11 @@ import type {
 import type { Talla } from "@/lib/types/talla"
 import type { TallaCreateRequest } from "@/lib/types/talla"
 import { generateBarcode } from "@/lib/barcode-generator"
+import {
+  buildAutoSkuByVariantKey as buildAutoSkuByVariantKeyShared,
+  getNextSkuSequenceFromPayload,
+} from "@/lib/producto-auto-identifiers"
+import { resolveBackendUrl } from "@/lib/resolve-backend-url"
 
 function hasValidId(value: number | null | undefined): value is number {
   return typeof value === "number" && value > 0
@@ -135,9 +142,12 @@ function isRemoteMedia(item: MediaItem): item is MediaItem & {
 }
 
 function toMediaItemFromDetalleImagen(image: ProductoDetalleImagen): MediaItem {
+  const resolvedUrl = resolveBackendUrl(image.url) ?? image.url
+  const resolvedThumbUrl = resolveBackendUrl(image.urlThumb) ?? image.urlThumb
+
   const fallbackFileName = (() => {
     try {
-      const url = new URL(image.url)
+      const url = new URL(resolvedUrl)
       return url.pathname.split("/").pop() || `imagen-${image.idColorImagen}.webp`
     } catch {
       return `imagen-${image.idColorImagen}.webp`
@@ -148,9 +158,9 @@ function toMediaItemFromDetalleImagen(image: ProductoDetalleImagen): MediaItem {
     id: `persisted-${image.idColorImagen}`,
     file: null,
     fileName: fallbackFileName,
-    previewUrl: image.urlThumb || image.url,
-    url: image.url,
-    urlThumb: image.urlThumb,
+    previewUrl: resolvedUrl || resolvedThumbUrl,
+    url: resolvedUrl,
+    urlThumb: resolvedThumbUrl,
     idColorImagen: image.idColorImagen,
   }
 }
@@ -180,87 +190,6 @@ function parseStock(value: string): number | null {
   const parsed = Number(value)
   if (!Number.isInteger(parsed) || parsed < 0) return null
   return parsed
-}
-
-const SKU_SEGMENT_LENGTH = 3
-const SKU_SEQUENCE_LENGTH = 3
-
-function normalizeSkuCharacters(value: string): string {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, "")
-}
-
-function buildSkuFixedSegment(value: string, fallback: string): string {
-  const token = normalizeSkuCharacters(value).slice(0, SKU_SEGMENT_LENGTH)
-  return token !== "" ? token : fallback
-}
-
-function buildSkuTallaSegment(value: string): string {
-  const token = normalizeSkuCharacters(value)
-  return token !== "" ? token : "TAL"
-}
-
-function formatSkuSequence(sequence: number): string {
-  const safeSequence = Number.isFinite(sequence) ? Math.max(1, Math.trunc(sequence)) : 1
-  return String(safeSequence).padStart(SKU_SEQUENCE_LENGTH, "0")
-}
-
-function extractSkuSequence(value: string): number | null {
-  const match = value.trim().toUpperCase().match(/-(\d{3})$/)
-  if (!match) return null
-
-  const parsed = Number(match[1])
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : null
-}
-
-function collectSkuStrings(value: unknown): string[] {
-  const collected = new Set<string>()
-
-  const visit = (current: unknown) => {
-    if (Array.isArray(current)) {
-      current.forEach(visit)
-      return
-    }
-
-    if (!current || typeof current !== "object") return
-
-    Object.entries(current).forEach(([key, nestedValue]) => {
-      if (key === "sku" && typeof nestedValue === "string" && nestedValue.trim() !== "") {
-        collected.add(nestedValue.trim())
-      }
-
-      visit(nestedValue)
-    })
-  }
-
-  visit(value)
-
-  return Array.from(collected)
-}
-
-function getNextSkuSequenceFromPayload(payload: unknown): number {
-  return (
-    collectSkuStrings(payload).reduce((maxSequence, sku) => {
-      const sequence = extractSkuSequence(sku)
-      if (sequence === null) return maxSequence
-      return Math.max(maxSequence, sequence)
-    }, 0) + 1
-  )
-}
-
-function buildAutoSkuBase(
-  productName: string,
-  colorName: string,
-  tallaName: string
-): string {
-  return [
-    buildSkuFixedSegment(productName, "PRO"),
-    buildSkuFixedSegment(colorName, "COL"),
-    buildSkuTallaSegment(tallaName),
-  ].join("-")
 }
 
 interface VariantDraftState {
@@ -446,27 +375,25 @@ function buildAutoSkuByVariantKey(
   variantValues: Record<string, VariantValues>,
   startingSequence: number
 ): Record<string, string> {
-  const skuByVariantKey: Record<string, string> = {}
-  let nextSequence = Math.max(1, Math.trunc(startingSequence))
+  return buildAutoSkuByVariantKeyShared(
+    productName,
+    selectedColors.flatMap((color) =>
+      selectedTallas.map((talla) => {
+        const variantKey = buildVariantKey(color.idColor, talla.idTalla)
+        const currentValues = normalizeVariantValues(variantValues[variantKey])
 
-  selectedColors.forEach((color) => {
-    selectedTallas.forEach((talla) => {
-      const variantKey = buildVariantKey(color.idColor, talla.idTalla)
-
-      const currentValues = normalizeVariantValues(variantValues[variantKey])
-      const shouldPreserveExistingSku =
-        hasValidId(currentValues.idProductoVariante) && currentValues.sku.trim() !== ""
-
-      if (shouldPreserveExistingSku) return
-
-      const baseSku = buildAutoSkuBase(productName, color.nombre, talla.nombre)
-
-      skuByVariantKey[variantKey] = `${baseSku}-${formatSkuSequence(nextSequence)}`
-      nextSequence += 1
-    })
-  })
-
-  return skuByVariantKey
+        return {
+          key: variantKey,
+          colorName: color.nombre,
+          tallaName: talla.nombre,
+          currentSku: currentValues.sku,
+          preserveExisting:
+            hasValidId(currentValues.idProductoVariante) && currentValues.sku.trim() !== "",
+        }
+      })
+    ),
+    startingSequence
+  )
 }
 
 function hasBlockingAttributeData(
@@ -494,7 +421,8 @@ interface UseProductoCreateOptions {
 
 export function useProductoCreate({ productoId = null }: UseProductoCreateOptions = {}) {
   const { user } = useAuth()
-  const isAdmin = user?.rol === "ADMINISTRADOR"
+  const isAdmin = isAdministratorRole(user?.rol)
+  const canFilterBySucursal = useCanFilterBySucursal()
   const isEditing = hasValidId(productoId)
 
   const [form, setForm] = useState<ProductoCreateFormState>({
@@ -505,11 +433,19 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
   const [loadingDetalle, setLoadingDetalle] = useState(isEditing)
   const [errorDetalle, setErrorDetalle] = useState<string | null>(null)
 
+  const isMultiSucursalNonAdmin = !isAdmin && canFilterBySucursal && (user?.sucursalesPermitidas ?? []).length > 1
+  const nonAdminPermittedIds = useMemo(() => {
+    if (isAdmin || !canFilterBySucursal) return new Set<number>()
+    return new Set(
+      (user?.sucursalesPermitidas ?? []).map((s) => s.idSucursal)
+    )
+  }, [isAdmin, canFilterBySucursal, user?.sucursalesPermitidas])
+
   const {
     sucursales,
     loadingSucursales,
     errorSucursales,
-  } = useSucursalOptions(true)
+  } = useSucursalOptions(isAdmin || isMultiSucursalNonAdmin)
 
   const {
     categorias,
@@ -561,26 +497,61 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
 
   const hasValidCategoria = hasValidId(form.idCategoria)
 
-  const activeStockSucursales = useMemo<VariantSucursalStockInput[]>(
-    () =>
-      sucursales
+const activeStockSucursales = useMemo<VariantSucursalStockInput[]>(
+    () => {
+      const filtered = sucursales
         .filter(
           (sucursal) =>
             isActiveEntity(sucursal.estado) &&
             (sucursal.tipo === "VENTA" || sucursal.tipo === "ALMACEN")
         )
-        .sort((a, b) => {
-          if (a.tipo !== b.tipo) {
-            return a.tipo === "ALMACEN" ? -1 : 1
-          }
-          return a.nombre.localeCompare(b.nombre)
-        })
-        .map((sucursal) => ({
-          idSucursal: sucursal.idSucursal,
-          nombreSucursal: sucursal.nombre,
-          tipoSucursal: sucursal.tipo,
-        })),
-    [sucursales]
+
+      if (isAdmin) {
+        return filtered
+          .sort((a, b) => {
+            if (a.tipo !== b.tipo) {
+              return a.tipo === "ALMACEN" ? -1 : 1
+            }
+            return a.nombre.localeCompare(b.nombre)
+          })
+          .map((sucursal) => ({
+            idSucursal: sucursal.idSucursal,
+            nombreSucursal: sucursal.nombre,
+            tipoSucursal: sucursal.tipo,
+          }))
+      }
+
+      if (isMultiSucursalNonAdmin) {
+        return filtered
+          .filter((sucursal) => nonAdminPermittedIds.has(sucursal.idSucursal))
+          .sort((a, b) => {
+            if (a.tipo !== b.tipo) {
+              return a.tipo === "ALMACEN" ? -1 : 1
+            }
+            return a.nombre.localeCompare(b.nombre)
+          })
+          .map((sucursal) => ({
+            idSucursal: sucursal.idSucursal,
+            nombreSucursal: sucursal.nombre,
+            tipoSucursal: sucursal.tipo,
+          }))
+      }
+
+      const userSucursalId = user?.idSucursal
+      if (typeof userSucursalId === "number" && userSucursalId > 0) {
+        const match = filtered.find((s) => s.idSucursal === userSucursalId)
+        if (match) {
+          return [{
+            idSucursal: match.idSucursal,
+            nombreSucursal: match.nombre,
+            tipoSucursal: match.tipo,
+          }]
+        }
+      }
+
+      return []
+    },
+    [sucursales, isAdmin, isMultiSucursalNonAdmin, nonAdminPermittedIds, user?.idSucursal]
   )
 
   const categoriaMap = useMemo(

@@ -9,7 +9,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
+import { useIsMobile } from "@/lib/hooks/useIsMobile"
 import type { Talla } from "@/lib/types/talla"
 
 interface TallaDeleteDialogProps {
@@ -19,12 +26,8 @@ interface TallaDeleteDialogProps {
   onDelete: (id: number) => Promise<boolean>
 }
 
-export function TallaDeleteDialog({
-  open,
-  target,
-  onOpenChange,
-  onDelete,
-}: TallaDeleteDialogProps) {
+export function TallaDeleteDialog({ open, target, onOpenChange, onDelete }: TallaDeleteDialogProps) {
+  const isMobile = useIsMobile()
   const [isDeleting, setIsDeleting] = useState(false)
 
   const handleOpenChange = (nextOpen: boolean) => {
@@ -34,16 +37,34 @@ export function TallaDeleteDialog({
 
   const handleDelete = async () => {
     if (!target) return
-
     setIsDeleting(true)
     try {
       const success = await onDelete(target.idTalla)
-      if (success) {
-        onOpenChange(false)
-      }
+      if (success) onOpenChange(false)
     } finally {
       setIsDeleting(false)
     }
+  }
+
+  const description = `Estas seguro de eliminar la talla "${target?.nombre ?? ""}"?`
+
+  if (isMobile) {
+    return (
+      <Sheet open={open} onOpenChange={handleOpenChange}>
+        <SheetContent side="bottom" className="flex flex-col gap-0 p-0">
+          <SheetHeader className="shrink-0 border-b border-slate-100 px-4 pb-3 pt-4 dark:border-slate-700/60">
+            <SheetTitle className="text-sm">Eliminar Talla</SheetTitle>
+          </SheetHeader>
+          <div className="px-4 py-4"><p className="text-sm text-muted-foreground">{description}</p></div>
+          <div className="shrink-0 border-t border-slate-100 p-4 dark:border-slate-700/60">
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" className="flex-1" disabled={isDeleting} onClick={() => handleOpenChange(false)}>Cancelar</Button>
+              <Button type="button" variant="destructive" className="flex-1" onClick={handleDelete} disabled={isDeleting}>{isDeleting ? "Eliminando..." : "Eliminar"}</Button>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+    )
   }
 
   return (
@@ -51,25 +72,11 @@ export function TallaDeleteDialog({
       <DialogContent className="sm:max-w-[440px]" showCloseButton={!isDeleting}>
         <DialogHeader>
           <DialogTitle>Eliminar Talla</DialogTitle>
-          <DialogDescription>
-            {`Estas seguro de eliminar la talla "${target?.nombre ?? ""}"?`}
-          </DialogDescription>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
-
         <DialogFooter>
-          <DialogClose asChild>
-            <Button type="button" variant="outline" disabled={isDeleting}>
-              Cancelar
-            </Button>
-          </DialogClose>
-          <Button
-            type="button"
-            variant="destructive"
-            onClick={handleDelete}
-            disabled={isDeleting}
-          >
-            {isDeleting ? "Eliminando..." : "Eliminar"}
-          </Button>
+          <DialogClose asChild><Button type="button" variant="outline" disabled={isDeleting}>Cancelar</Button></DialogClose>
+          <Button type="button" variant="destructive" onClick={handleDelete} disabled={isDeleting}>{isDeleting ? "Eliminando..." : "Eliminar"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

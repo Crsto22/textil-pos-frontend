@@ -1,5 +1,7 @@
 import { memo, useEffect, useState } from "react"
 import {
+  ExclamationTriangleIcon,
+  NoSymbolIcon,
   PencilSquareIcon,
   PhotoIcon,
   TrashIcon,
@@ -115,6 +117,16 @@ function ProductoCard({
   const stocksSucursal = tallaActiva?.stocksSucursalesVenta ?? []
   const totalStock = stocksSucursal.reduce((sum, s) => sum + s.stock, 0)
 
+  const allTallas = producto.colores.flatMap((c) => c.tallas)
+  const varianteStocks = allTallas.map((t) =>
+    (t.stocksSucursalesVenta ?? []).reduce((sum, s) => sum + s.stock, 0)
+  )
+  const hasAnyStock = varianteStocks.some((s) => s > 0)
+  const hasAnyNoStock = varianteStocks.some((s) => s <= 0)
+  const noStock = allTallas.length > 0 && !hasAnyStock
+  const noStockRegistered = allTallas.length > 0 && allTallas.every((t) => (t.stocksSucursalesVenta ?? []).length === 0)
+  const hasPartialStock = hasAnyStock && hasAnyNoStock
+
   function handleColorClick(idx: number) {
     setColorActivoIdx(idx)
     setTallaActivaIdx(0)
@@ -122,16 +134,21 @@ function ProductoCard({
   }
 
   return (
-    <article className="flex flex-col overflow-hidden rounded-2xl border bg-card shadow-sm transition-colors hover:bg-muted/20">
+    <article className={cn(
+      "flex flex-col overflow-hidden rounded-2xl border shadow-sm transition-colors hover:bg-muted/20",
+      noStock || noStockRegistered
+        ? "border-rose-300 bg-rose-50/40 dark:border-rose-800/60 dark:bg-rose-950/20"
+        : "bg-card"
+    )}>
       {/* ── Imagen con badges ─────────────────────── */}
-      <div className="relative flex h-56 w-full items-center justify-center overflow-hidden border-b bg-slate-50 dark:bg-slate-900/40">
+      <div className="relative flex h-40 w-full items-center justify-center overflow-hidden border-b bg-slate-50 sm:h-56 dark:bg-slate-900/40">
         {imagenSrc && !imgError ? (
           <img
             src={imagenSrc}
             alt={`${producto.nombre} - ${colorActivo?.nombre ?? "Color"}`}
             loading="lazy"
             decoding="async"
-            className="h-full w-full object-contain p-4"
+            className={cn("h-full w-full object-contain p-4", (noStock || noStockRegistered) && "opacity-50")}
             onError={(e) => {
               e.currentTarget.style.display = "none"
               setImgError(true)
@@ -155,39 +172,56 @@ function ProductoCard({
           {estadoActivo ? "Activo" : "Inactivo"}
         </span>
 
+        {/* Banda inferior — estado de stock */}
+        {(noStock || noStockRegistered) && (
+          <div className="absolute bottom-0 left-0 right-0 flex items-center justify-center gap-1.5 bg-rose-600/90 py-1.5 backdrop-blur-sm">
+            <NoSymbolIcon className="h-3.5 w-3.5 text-white" />
+            <span className="text-xs font-semibold uppercase tracking-wide text-white">
+              {noStockRegistered ? "No disponible en esta sucursal" : "Sin stock"}
+            </span>
+          </div>
+        )}
         {/* Badge SKUs - top right */}
-        <span className="absolute right-2 top-2 inline-flex rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
-          {totalSkus} SKU{totalSkus !== 1 ? "s" : ""}
-        </span>
+        <div className="absolute right-2 top-2 flex flex-col items-end gap-1">
+          <span className="inline-flex rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+            {totalSkus} SKU{totalSkus !== 1 ? "s" : ""}
+          </span>
+          {hasPartialStock && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+              <ExclamationTriangleIcon className="h-3 w-3" />
+              Stock parcial
+            </span>
+          )}
+        </div>
       </div>
 
       {/* ── Cuerpo ─────────────────────────────────── */}
-      <div className="flex flex-1 flex-col space-y-3 p-4">
+      <div className="flex flex-1 flex-col space-y-2 p-3 sm:space-y-3 sm:p-4">
         {/* Categoria */}
         <p className="inline-flex self-start rounded-md bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
           {producto.nombreCategoria || "Sin categoria"}
         </p>
 
         {/* Nombre */}
-        <h3 className="line-clamp-2 text-base font-semibold text-foreground">
+        <h3 className="line-clamp-2 text-sm font-semibold text-foreground sm:text-base">
           {producto.nombre}
         </h3>
 
         {/* Precio */}
         <div>
           {tallaActiva ? (
-            <div className="flex flex-wrap items-baseline gap-2">
+            <div className="flex flex-wrap items-baseline gap-1.5">
               {precioOferta !== null ? (
                 <>
-                  <span className="text-lg font-semibold text-red-600 dark:text-red-400">
+                  <span className="text-sm font-semibold text-red-600 sm:text-lg dark:text-red-400">
                     {formatMonedaPen(precioOferta)}
                   </span>
-                  <span className="text-sm text-muted-foreground line-through">
+                  <span className="text-xs text-muted-foreground line-through sm:text-sm">
                     {formatMonedaPen(precioVariante)}
                   </span>
                 </>
               ) : (
-                <span className="text-lg font-semibold text-blue-600 dark:text-blue-400">
+                <span className="text-sm font-semibold text-blue-600 sm:text-lg dark:text-blue-400">
                   {formatMonedaPen(precioVariante)}
                 </span>
               )}
@@ -198,7 +232,7 @@ function ProductoCard({
               )}
             </div>
           ) : (
-            <p className="text-lg font-semibold text-blue-600 dark:text-blue-400">
+            <p className="text-sm font-semibold text-blue-600 sm:text-lg dark:text-blue-400">
               {formatRangoPrecioPen(producto.precioMin, producto.precioMax)}
             </p>
           )}
@@ -252,30 +286,56 @@ function ProductoCard({
         )}
 
         {/* Stock por sucursal */}
-        <div className="space-y-1.5">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            Stock por sucursal
+        <div className="space-y-1">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Stock
           </p>
           {stocksSucursal.length > 0 ? (
-            <div className="rounded-lg border bg-muted/10 p-2 text-xs">
+            <div className="overflow-hidden rounded-lg border text-[11px] sm:text-xs">
               {stocksSucursal.map((s) => (
                 <div
                   key={s.idSucursal}
-                  className="flex items-center justify-between py-0.5"
+                  className={cn(
+                    "flex items-center justify-between px-2 py-0.5",
+                    s.stock <= 0 ? "bg-rose-50 dark:bg-rose-900/10" : ""
+                  )}
                 >
-                  <span className="text-muted-foreground">{s.nombreSucursal}</span>
-                  <span className="font-medium text-foreground">{s.stock} und.</span>
+                  <span className="truncate text-muted-foreground">{s.nombreSucursal}</span>
+                  <span className={cn(
+                    "ml-1 shrink-0 font-medium",
+                    s.stock <= 0
+                      ? "text-rose-600 dark:text-rose-400"
+                      : s.stock <= 5
+                        ? "text-amber-600 dark:text-amber-400"
+                        : "text-emerald-600 dark:text-emerald-400"
+                  )}>
+                    {s.stock} und.
+                  </span>
                 </div>
               ))}
               {stocksSucursal.length > 1 && (
-                <div className="mt-1 flex items-center justify-between border-t pt-1">
+                <div className={cn(
+                  "flex items-center justify-between border-t px-2 py-0.5",
+                  totalStock <= 0 ? "bg-rose-50 dark:bg-rose-900/10" : "bg-muted/20"
+                )}>
                   <span className="font-semibold text-muted-foreground">Total</span>
-                  <span className="font-semibold text-foreground">{totalStock} und.</span>
+                  <span className={cn(
+                    "font-semibold",
+                    totalStock <= 0
+                      ? "text-rose-600 dark:text-rose-400"
+                      : totalStock <= 5
+                        ? "text-amber-600 dark:text-amber-400"
+                        : "text-emerald-600 dark:text-emerald-400"
+                  )}>
+                    {totalStock} und.
+                  </span>
                 </div>
               )}
             </div>
+          ) : tallaActiva !== null ? (
+            <p className="text-[11px] text-rose-500 dark:text-rose-400">No disponible en esta sucursal</p>
           ) : (
-            <span className="text-xs text-muted-foreground">Sin stock registrado</span>
+            <span className="text-[11px] text-muted-foreground">Selecciona una talla</span>
           )}
         </div>
 
@@ -283,24 +343,24 @@ function ProductoCard({
         <div className="flex-1" />
 
         {/* Botones de accion */}
-        <div className="flex items-center justify-end gap-1 border-t pt-3">
+        <div className="flex items-center justify-end gap-1 border-t pt-2 sm:pt-3">
           <button
             type="button"
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-medium text-muted-foreground transition-colors hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-500/10 dark:hover:text-blue-400"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-blue-50 hover:text-blue-600 sm:w-auto sm:gap-1.5 sm:px-3 dark:hover:bg-blue-500/10 dark:hover:text-blue-400"
             title="Editar producto"
             onClick={() => onEditProducto(producto)}
           >
             <PencilSquareIcon className="h-4 w-4" />
-            Editar
+            <span className="hidden text-xs font-medium sm:inline">Editar</span>
           </button>
           <button
             type="button"
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-medium text-muted-foreground transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-red-50 hover:text-red-600 sm:w-auto sm:gap-1.5 sm:px-3 dark:hover:bg-red-900/30 dark:hover:text-red-400"
             title="Eliminar producto"
             onClick={() => onDeleteProducto(producto)}
           >
             <TrashIcon className="h-4 w-4" />
-            Eliminar
+            <span className="hidden text-xs font-medium sm:inline">Eliminar</span>
           </button>
         </div>
       </div>
@@ -336,7 +396,7 @@ function ProductosCardsComponent({
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-5">
+    <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
       {productos.map((producto) => (
         <ProductoCard
           key={producto.idProducto}

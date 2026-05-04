@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { normalizeAssetUrlField } from "@/lib/server/public-asset-url"
 
 const BACKEND_URL = process.env.BACKEND_URL
 
@@ -62,7 +63,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message }, { status: backendRes.status })
     }
 
-    return NextResponse.json(data, { status: backendRes.status || 201 })
+    return NextResponse.json(normalizeAssetUrlField(data, "logoUrl"), {
+      status: backendRes.status || 201,
+    })
   } catch (error) {
     console.error("[EMPRESA/INSERTAR]", error)
     return NextResponse.json(

@@ -14,6 +14,7 @@ import { toast } from "sonner"
 import { useAuth } from "@/lib/auth/auth-context"
 import { authFetch } from "@/lib/auth/auth-fetch"
 import { parseStocksSucursalesVenta } from "@/lib/stock-sucursal-venta"
+import { resolveBackendUrl } from "@/lib/resolve-backend-url"
 import {
   SEARCH_DEBOUNCE_MS,
   useDebouncedValue,
@@ -91,7 +92,11 @@ function normalizeProductoResumen(producto: Producto | ProductoResumen): Product
           typeof color === "object" &&
           color.imagenPrincipal &&
           typeof color.imagenPrincipal === "object"
-            ? color.imagenPrincipal
+            ? {
+                ...color.imagenPrincipal,
+                url: resolveBackendUrl(color.imagenPrincipal.url) ?? color.imagenPrincipal.url,
+                urlThumb: resolveBackendUrl(color.imagenPrincipal.urlThumb || color.imagenPrincipal.url) ?? color.imagenPrincipal.urlThumb,
+              }
             : null,
         tallas: Array.isArray(color.tallas)
           ? color.tallas.map((talla) => ({
@@ -139,7 +144,12 @@ function normalizeProductoResumen(producto: Producto | ProductoResumen): Product
   }
 }
 
-export function useProductos(enabled = true, idSucursal?: number | null) {
+export function useProductos(
+  enabled = true,
+  idSucursal?: number | null,
+  initialSoloDisponibles?: boolean,
+  stockPrimero?: boolean
+) {
   const { isLoading: isAuthLoading, user } = useAuth()
 
   const [productos, setProductos] = useState<ProductoResumen[]>([])
@@ -153,7 +163,7 @@ export function useProductos(enabled = true, idSucursal?: number | null) {
   const [idCategoriaFilter, setIdCategoriaFilter] = useState<number | null>(null)
   const [idColorFilter, setIdColorFilter] = useState<number | null>(null)
   const [conOfertaFilter, setConOfertaFilter] = useState(false)
-  const [soloDisponiblesFilter, setSoloDisponiblesFilter] = useState(false)
+  const [soloDisponiblesFilter, setSoloDisponiblesFilter] = useState(initialSoloDisponibles ?? false)
   const [searchPage, setSearchPage] = useState(0)
   const resetSearchPage = useCallback(() => {
     setSearchPage(0)
@@ -197,7 +207,9 @@ export function useProductos(enabled = true, idSucursal?: number | null) {
       if (soloDisponiblesFilter) {
         params.set("soloDisponibles", "true")
       }
-
+      if (stockPrimero) {
+        params.set("stockPrimero", "true")
+      }
       const response = await authFetch(`/api/producto/listar-resumen?${params.toString()}`, {
         signal: controller.signal,
       })
@@ -238,7 +250,14 @@ export function useProductos(enabled = true, idSucursal?: number | null) {
         setLoading(false)
       }
     }
-  }, [conOfertaFilter, idCategoriaFilter, idColorFilter, idSucursal, soloDisponiblesFilter])
+  }, [
+    conOfertaFilter,
+    idCategoriaFilter,
+    idColorFilter,
+    idSucursal,
+    soloDisponiblesFilter,
+    stockPrimero,
+  ])
 
   const fetchBuscar = useCallback(async (query: string, pageNumber: number) => {
     searchAbortRef.current?.abort()
@@ -262,7 +281,9 @@ export function useProductos(enabled = true, idSucursal?: number | null) {
       if (soloDisponiblesFilter) {
         params.set("soloDisponibles", "true")
       }
-
+      if (stockPrimero) {
+        params.set("stockPrimero", "true")
+      }
       const response = await authFetch(`/api/producto/buscar?${params.toString()}`, {
         signal: controller.signal,
       })
@@ -303,12 +324,25 @@ export function useProductos(enabled = true, idSucursal?: number | null) {
         setSearching(false)
       }
     }
-  }, [conOfertaFilter, idCategoriaFilter, idColorFilter, idSucursal, soloDisponiblesFilter])
+  }, [
+    conOfertaFilter,
+    idCategoriaFilter,
+    idColorFilter,
+    idSucursal,
+    soloDisponiblesFilter,
+    stockPrimero,
+  ])
 
   useEffect(() => {
     setPage(0)
     setSearchPage(0)
-  }, [conOfertaFilter, idCategoriaFilter, idColorFilter, idSucursal, soloDisponiblesFilter])
+  }, [
+    conOfertaFilter,
+    idCategoriaFilter,
+    idColorFilter,
+    idSucursal,
+    soloDisponiblesFilter,
+  ])
 
   useEffect(() => {
     if (!enabled || isAuthLoading || isSearchMode) return

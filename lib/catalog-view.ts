@@ -235,7 +235,7 @@ export function buildCatalogVariantItems(
             ? talla.stocksSucursalesVenta
             : [],
           estado: normalizeLabel(talla.estado, "ACTIVO"),
-          imageUrl: color.imagenPrincipal?.urlThumb || color.imagenPrincipal?.url || null,
+          imageUrl: color.imagenPrincipal?.url || color.imagenPrincipal?.urlThumb || null,
           regularPrice: typeof talla.precio === "number" ? talla.precio : 0,
           wholesalePrice:
             typeof talla.precioMayor === "number" && Number.isFinite(talla.precioMayor)

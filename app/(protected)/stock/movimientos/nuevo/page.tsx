@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -8,17 +8,25 @@ import {
   ArrowLeftIcon,
   ArrowDownTrayIcon,
   ArrowUpTrayIcon,
+  ArrowPathIcon,
   BuildingStorefrontIcon,
   CheckCircleIcon,
   CubeIcon,
   MagnifyingGlassIcon,
+  MinusIcon,
+  PlusIcon,
+  QrCodeIcon,
   TagIcon,
 } from "@heroicons/react/24/outline"
 import { toast } from "sonner"
 
 import { useAuth } from "@/lib/auth/auth-context"
+import { isAdministratorRole } from "@/lib/auth/roles"
+import { useCanFilterBySucursal } from "@/lib/hooks/useCanFilterByUsuario"
 import { authFetch } from "@/lib/auth/auth-fetch"
 import { useSucursalOptions } from "@/lib/hooks/useSucursalOptions"
+import { useGlobalBarcodeScanner } from "@/lib/hooks/useGlobalBarcodeScanner"
+import { resolveBackendUrl } from "@/lib/resolve-backend-url"
 import type { Sucursal } from "@/lib/types/sucursal"
 
 interface VarianteSearchItem {
@@ -30,6 +38,7 @@ interface VarianteSearchItem {
   producto: { idProducto: number; nombre: string; descripcion: string } | null
   color: { idColor: number; nombre: string; hex: string | null } | null
   talla: { idTalla: number; nombre: string } | null
+  grupoImagen: { key: string; idProducto: number; idColor: number } | null
   imagenPrincipal: { url: string; urlThumb: string } | null
 }
 
@@ -37,6 +46,41 @@ type TipoMovimiento = "ENTRADA" | "SALIDA"
 
 async function parseJsonSafe(response: Response) {
   return response.json().catch(() => null)
+}
+
+function buildImageMap(imagenesPorColor: unknown): Map<string, { url: string; urlThumb: string }> {
+  const map = new Map<string, { url: string; urlThumb: string }>()
+  if (!Array.isArray(imagenesPorColor)) return map
+  for (const group of imagenesPorColor) {
+    if (!group || typeof group !== "object") continue
+    const g = group as Record<string, unknown>
+    const key = typeof g.key === "string" ? g.key : null
+    if (!key) continue
+    const img = g.imagenPrincipal as Record<string, unknown> | null
+    const rawUrl = typeof img?.url === "string" ? img.url : ""
+    const rawUrlThumb = typeof img?.urlThumb === "string" ? img.urlThumb : rawUrl
+    const url = resolveBackendUrl(rawUrl) ?? rawUrl
+    const urlThumb = resolveBackendUrl(rawUrlThumb) ?? rawUrlThumb
+    if (url || urlThumb) map.set(key, { url, urlThumb })
+  }
+  return map
+}
+
+function applyImages(
+  items: VarianteSearchItem[],
+  imageMap: Map<string, { url: string; urlThumb: string }>
+): VarianteSearchItem[] {
+  return items.map((item) => {
+    const key = item.grupoImagen?.key
+    if (!key) return item
+    const img = imageMap.get(key)
+    if (!img) return item
+    return { ...item, imagenPrincipal: img }
+  })
+}
+
+function getVariantImageUrl(item: Pick<VarianteSearchItem, "imagenPrincipal">): string | null {
+  return item.imagenPrincipal?.url || item.imagenPrincipal?.urlThumb || null
 }
 
 function TipoSelector({
@@ -168,9 +212,9 @@ function StockPreviewCard({
       <div className="rounded-xl border bg-card p-4">
         <div className="mb-3 flex items-center gap-3">
           <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border bg-muted">
-            {variante.imagenPrincipal?.urlThumb ? (
+            {getVariantImageUrl(variante) ? (
               <Image
-                src={variante.imagenPrincipal.urlThumb}
+                src={getVariantImageUrl(variante)!}
                 alt={variante.producto?.nombre ?? "Producto"}
                 fill
                 className="object-cover"
@@ -295,7 +339,9 @@ export default function NuevoMovimientoPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user } = useAuth()
-  const isAdmin = user?.rol === "ADMINISTRADOR"
+  const isAdmin = isAdministratorRole(user?.rol)
+  const canFilterBySucursal = useCanFilterBySucursal()
+  const isMultiSucursalNonAdmin = !isAdmin && canFilterBySucursal && (user?.sucursalesPermitidas ?? []).length > 1
 
   const userSucursalId =
     typeof user?.idSucursal === "number" && user.idSucursal > 0
@@ -303,6 +349,20 @@ export default function NuevoMovimientoPage() {
       : null
 
   const { sucursales, loadingSucursales } = useSucursalOptions(true)
+
+  const sucursalesOrigen = useMemo(
+    () =>
+      isAdmin
+        ? sucursales
+        : isMultiSucursalNonAdmin
+          ? sucursales.filter((s) =>
+              (user?.sucursalesPermitidas ?? []).some(
+                (sp) => sp.idSucursal === s.idSucursal
+              )
+            )
+          : sucursales,
+    [isAdmin, isMultiSucursalNonAdmin, sucursales, user?.sucursalesPermitidas]
+  )
 
   const paramSucursalId = Number(searchParams.get("idSucursal") ?? "") || null
   const paramCodigoBarras = searchParams.get("codigoBarras") ?? ""
@@ -315,7 +375,7 @@ export default function NuevoMovimientoPage() {
     } else if (!isAdmin && userSucursalId) {
       setSelectedSucursalId(userSucursalId)
     }
-  }, [isAdmin, userSucursalId, paramSucursalId])
+  }, [isAdmin, isMultiSucursalNonAdmin, userSucursalId, paramSucursalId])
 
   // --- Variante search ---
   const [varianteQuery, setVarianteQuery] = useState(() => paramCodigoBarras || (searchParams.get("q") ?? ""))
@@ -342,7 +402,8 @@ export default function NuevoMovimientoPage() {
       if (controller.signal.aborted) return
 
       if (response.ok && data?.content) {
-        setVarianteResults((data.content as VarianteSearchItem[]).slice(0, 10))
+        const imageMap = buildImageMap(data.imagenesPorColor)
+        setVarianteResults(applyImages((data.content as VarianteSearchItem[]).slice(0, 10), imageMap))
       } else {
         setVarianteResults([])
       }
@@ -385,7 +446,8 @@ export default function NuevoMovimientoPage() {
         if (controller.signal.aborted) return
 
         if (response.ok && data?.content) {
-          const results = (data.content as VarianteSearchItem[]).slice(0, 10)
+          const imageMap = buildImageMap(data.imagenesPorColor)
+          const results = applyImages((data.content as VarianteSearchItem[]).slice(0, 10), imageMap)
           if (results.length === 1) {
             setSelectedVariante(results[0])
             setVarianteQuery("")
@@ -439,6 +501,46 @@ export default function NuevoMovimientoPage() {
     void run()
     return () => controller.abort()
   }, [selectedSucursalId])
+
+  // --- Barcode scanner ---
+  const [scanningBarcode, setScanningBarcode] = useState(false)
+
+  const handleBarcodeScan = useCallback(
+    async (barcode: string) => {
+      setScanningBarcode(true)
+      try {
+        const params = new URLSearchParams({ q: barcode.trim(), page: "0" })
+        if (selectedSucursalId) params.set("idSucursal", String(selectedSucursalId))
+        const response = await authFetch(`/api/variante/listar-resumen?${params.toString()}`)
+        const data = await parseJsonSafe(response)
+        if (response.ok && data?.content) {
+          const imageMap = buildImageMap(data.imagenesPorColor)
+          const results = applyImages((data.content as VarianteSearchItem[]).slice(0, 10), imageMap)
+          if (results.length === 1) {
+            setSelectedVariante(results[0])
+            setVarianteQuery("")
+            setVarianteResults([])
+          } else if (results.length > 1) {
+            setVarianteQuery(barcode)
+            setVarianteResults(results)
+          } else {
+            toast.error("No se encontró ningún producto con ese código de barras.")
+          }
+        } else {
+          toast.error("Error al escanear el código de barras.")
+        }
+      } catch {
+        toast.error("Error al escanear el código de barras.")
+      } finally {
+        setScanningBarcode(false)
+      }
+    },
+    [selectedSucursalId]
+  )
+
+  const { active: scannerActive, toggle: toggleScanner } = useGlobalBarcodeScanner({
+    onScan: handleBarcodeScan,
+  })
 
   // --- Form ---
   const [tipoMovimiento, setTipoMovimiento] = useState<TipoMovimiento>("ENTRADA")
@@ -533,7 +635,7 @@ export default function NuevoMovimientoPage() {
               Selecciona la sucursal donde se registrará el movimiento.
             </p>
 
-            {!isAdmin ? (
+            {!isAdmin && !isMultiSucursalNonAdmin ? (
               <div className="flex items-center gap-3 rounded-xl border-2 border-blue-500 bg-blue-50 p-3.5 dark:bg-blue-900/15">
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/40">
                   <BuildingStorefrontIcon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
@@ -546,17 +648,17 @@ export default function NuevoMovimientoPage() {
                 </div>
                 <CheckCircleIcon className="ml-auto h-5 w-5 shrink-0 text-blue-500" />
               </div>
-            ) : loadingSucursales ? (
+            ) : loadingSucursales && !isMultiSucursalNonAdmin ? (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {Array.from({ length: 4 }, (_, i) => (
                   <div key={i} className="h-20 animate-pulse rounded-xl bg-muted" />
                 ))}
               </div>
-            ) : sucursales.length === 0 ? (
+            ) : sucursalesOrigen.length === 0 ? (
               <p className="text-sm text-muted-foreground">No hay sucursales disponibles.</p>
             ) : (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                {sucursales.map((s) => (
+                {sucursalesOrigen.map((s) => (
                   <SucursalCard
                     key={s.idSucursal}
                     sucursal={s}
@@ -579,9 +681,9 @@ export default function NuevoMovimientoPage() {
               <div className="flex items-center justify-between gap-3 rounded-xl border-2 border-blue-500 bg-blue-50 px-4 py-3 dark:bg-blue-900/15">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-blue-200 dark:border-blue-800">
-                    {selectedVariante.imagenPrincipal?.urlThumb ? (
+                    {getVariantImageUrl(selectedVariante) ? (
                       <Image
-                        src={selectedVariante.imagenPrincipal.urlThumb}
+                        src={getVariantImageUrl(selectedVariante)!}
                         alt={selectedVariante.producto?.nombre ?? "Producto"}
                         fill
                         className="object-cover"
@@ -613,20 +715,37 @@ export default function NuevoMovimientoPage() {
               </div>
             ) : (
               <div className="space-y-2">
-                <div className="relative">
-                  <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <input
-                    type="text"
-                    value={varianteQuery}
-                    onChange={(e) => setVarianteQuery(e.target.value)}
-                    placeholder="Buscar por nombre, SKU o codigo de barras..."
-                    className="w-full rounded-lg border bg-background py-2.5 pl-9 pr-3 text-sm placeholder:text-muted-foreground focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                  />
-                  {loadingVariantes && (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
-                    </div>
-                  )}
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <input
+                      type="text"
+                      value={varianteQuery}
+                      onChange={(e) => setVarianteQuery(e.target.value)}
+                      placeholder="Buscar por nombre, SKU o codigo de barras..."
+                      className="w-full rounded-lg border bg-background py-2.5 pl-9 pr-3 text-sm placeholder:text-muted-foreground focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    />
+                    {loadingVariantes && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={toggleScanner}
+                    className={`inline-flex h-10 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/20 ${
+                      scannerActive
+                        ? "border-emerald-500 bg-emerald-50 text-emerald-700 dark:border-emerald-500/70 dark:bg-emerald-500/10 dark:text-emerald-200"
+                        : "border-border bg-background text-muted-foreground hover:bg-muted/50"
+                    }`}
+                    title="Escanear codigo de barras"
+                    aria-pressed={scannerActive}
+                  >
+                    <QrCodeIcon className="h-4 w-4" />
+                    Escaner
+                    {scanningBarcode && <ArrowPathIcon className="h-3.5 w-3.5 animate-spin" />}
+                  </button>
                 </div>
 
                 {!loadingVariantes && varianteResults.length > 0 && (
@@ -639,9 +758,9 @@ export default function NuevoMovimientoPage() {
                         className="flex w-full items-center gap-3 border-b px-4 py-3 text-left transition-colors last:border-0 hover:bg-muted/50"
                       >
                         <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg border bg-muted">
-                          {v.imagenPrincipal?.urlThumb ? (
+                          {getVariantImageUrl(v) ? (
                             <Image
-                              src={v.imagenPrincipal.urlThumb}
+                              src={getVariantImageUrl(v)!}
                               alt={v.producto?.nombre ?? "Producto"}
                               fill
                               className="object-cover"
@@ -690,18 +809,32 @@ export default function NuevoMovimientoPage() {
                 <label className="text-sm font-medium">
                   Cantidad <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="number"
-                  min={1}
-                  value={cantidad}
-                  onChange={(e) => setCantidad(e.target.value)}
-                  placeholder="Ej. 10"
-                  className={`w-full rounded-lg border bg-background px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 ${
-                    isInsuficiente
-                      ? "border-red-400 focus:border-red-500 focus:ring-red-500/20"
-                      : "focus:border-blue-500 focus:ring-blue-500/20"
-                  }`}
-                />
+                <div className={`flex h-10 items-stretch overflow-hidden rounded-lg border ${
+                  isInsuficiente ? "border-red-400" : "border-input"
+                }`}>
+                  <button
+                    type="button"
+                    onClick={() => setCantidad(String(Math.max(1, (Number.isFinite(cantidadNum) ? cantidadNum : 1) - 1)))}
+                    className="flex w-10 shrink-0 items-center justify-center border-r bg-muted/50 text-muted-foreground transition-colors hover:bg-muted active:bg-muted/80"
+                  >
+                    <MinusIcon className="h-3.5 w-3.5" />
+                  </button>
+                  <input
+                    type="number"
+                    min={1}
+                    value={cantidad}
+                    onChange={(e) => setCantidad(e.target.value)}
+                    placeholder="0"
+                    className="w-full bg-background px-2 text-center text-sm tabular-nums placeholder:text-muted-foreground focus:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setCantidad(String((Number.isFinite(cantidadNum) && cantidadNum > 0 ? cantidadNum : 0) + 1))}
+                    className="flex w-10 shrink-0 items-center justify-center border-l bg-muted/50 text-muted-foreground transition-colors hover:bg-muted active:bg-muted/80"
+                  >
+                    <PlusIcon className="h-3.5 w-3.5" />
+                  </button>
+                </div>
                 {isInsuficiente && (
                   <p className="text-xs text-red-500">
                     Stock insuficiente. Disponible: {stockActual}

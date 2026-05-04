@@ -2,6 +2,8 @@
 
 import { VentasHistorialPage } from "@/components/ventas/historial/VentasHistorialPage"
 
-export default function HistorialVentasRoute() {
-  return <VentasHistorialPage />
+const COMPROBANTES_TIPOS = ["BOLETA", "FACTURA"]
+
+export default function ComprobantesRoute() {
+  return <VentasHistorialPage lockedTipos={COMPROBANTES_TIPOS} />
 }

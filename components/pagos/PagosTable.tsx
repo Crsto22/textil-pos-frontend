@@ -1,5 +1,6 @@
 import { memo } from "react"
 import Image from "next/image"
+import { LoaderSpinner } from "@/components/ui/loader-spinner"
 
 import type { PagoListado } from "@/lib/types/pago"
 import {
@@ -37,7 +38,7 @@ function PagosTableComponent({
   const canGoNext = page + 1 < totalPages
 
   return (
-    <section className="space-y-3 rounded-2xl border bg-card p-4 shadow-sm">
+    <section className="space-y-3 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-700/60 dark:bg-slate-800/80">
       {error && (
         <div className="flex items-center justify-between rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-900/60 dark:bg-rose-900/20 dark:text-rose-300">
           <span>{error}</span>
@@ -88,8 +89,8 @@ function PagosTableComponent({
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={9} className="px-4 py-14 text-center text-muted-foreground">
-                  Cargando pagos...
+                <td colSpan={9} className="px-4 py-14 text-center">
+                  <LoaderSpinner text="Cargando pagos..." />
                 </td>
               </tr>
             ) : pagos.length === 0 ? (
@@ -108,9 +109,7 @@ function PagosTableComponent({
                     key={pago.idPago}
                     className="border-b align-top transition-colors last:border-0 hover:bg-muted/25"
                   >
-                    <td className="px-4 py-3.5 font-medium">
-                      {formatPagoFecha(pago.fecha)}
-                    </td>
+                    <td className="px-4 py-3.5 font-medium">{formatPagoFecha(pago.fecha)}</td>
 
                     <td className="px-4 py-3.5">
                       <div className="flex min-w-0 items-start gap-3">
@@ -197,13 +196,13 @@ function PagosTableComponent({
         </table>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 lg:hidden">
+      <div className="space-y-3 lg:hidden">
         {loading ? (
-          <article className="rounded-xl border p-6 text-center text-sm text-muted-foreground">
-            Cargando pagos...
+          <article className="rounded-2xl border border-slate-100 bg-slate-50/80 p-6 dark:border-slate-700 dark:bg-slate-900/40">
+            <LoaderSpinner text="Cargando pagos..." />
           </article>
         ) : pagos.length === 0 ? (
-          <article className="rounded-xl border p-6 text-center text-sm text-muted-foreground">
+          <article className="rounded-2xl border border-slate-100 bg-slate-50/80 p-6 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
             No se encontraron pagos con los filtros seleccionados
           </article>
         ) : (
@@ -212,62 +211,109 @@ function PagosTableComponent({
             const metodoLogo = getMetodoPagoLogo(pago.metodoPago)
 
             return (
-              <article key={pago.idPago} className="rounded-xl border bg-background p-3">
-                <div className="mb-3 flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                      Pago #{pago.idPago}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatPagoFecha(pago.fecha)}
-                    </p>
-                  </div>
-                  <span
-                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${getMetodoPagoBadgeClasses(
-                      pago.metodoPago
-                    )}`}
-                  >
+              <article key={pago.idPago} className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-900/40">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-300">
                     {metodoLogo ? (
                       <Image
                         src={metodoLogo.src}
                         alt={metodoLogo.alt}
-                        width={14}
-                        height={14}
-                        className="h-3.5 w-3.5 object-contain"
+                        width={22}
+                        height={22}
+                        className="h-[22px] w-[22px] object-contain"
                       />
                     ) : (
-                      <MetodoIcon className="h-3.5 w-3.5" />
+                      <MetodoIcon className="h-5 w-5" />
                     )}
-                    {getMetodoPagoLabel(pago.metodoPago)}
-                  </span>
-                </div>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">
+                          Pago #{pago.idPago}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                          {formatPagoFecha(pago.fecha)}
+                        </p>
+                      </div>
+                      <span
+                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${getMetodoPagoBadgeClasses(
+                          pago.metodoPago
+                        )}`}
+                      >
+                        {metodoLogo ? (
+                          <Image
+                            src={metodoLogo.src}
+                            alt={metodoLogo.alt}
+                            width={14}
+                            height={14}
+                            className="h-3.5 w-3.5 object-contain"
+                          />
+                        ) : (
+                          <MetodoIcon className="h-3.5 w-3.5" />
+                        )}
+                        {getMetodoPagoLabel(pago.metodoPago)}
+                      </span>
+                    </div>
 
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="rounded-lg bg-muted/40 p-2">
-                    <p className="text-muted-foreground">Venta</p>
-                    <p className="font-semibold">
-                      {pago.tipoComprobante} {formatPagoComprobante(pago)}
-                    </p>
-                  </div>
-                  <div className="rounded-lg bg-muted/40 p-2">
-                    <p className="text-muted-foreground">Monto</p>
-                    <p className="font-semibold">{formatPagoMonto(pago.monto)}</p>
-                  </div>
-                  <div className="rounded-lg bg-muted/40 p-2">
-                    <p className="text-muted-foreground">Cliente</p>
-                    <p className="font-semibold">{pago.nombreCliente}</p>
-                  </div>
-                  <div className="rounded-lg bg-muted/40 p-2">
-                    <p className="text-muted-foreground">Operacion</p>
-                    <p className="font-semibold">{pago.codigoOperacion ?? "Sin codigo"}</p>
-                  </div>
-                  <div className="rounded-lg bg-muted/40 p-2">
-                    <p className="text-muted-foreground">Usuario</p>
-                    <p className="font-semibold">{pago.nombreUsuario}</p>
-                  </div>
-                  <div className="rounded-lg bg-muted/40 p-2">
-                    <p className="text-muted-foreground">Sucursal</p>
-                    <p className="font-semibold">{pago.nombreSucursal}</p>
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <div className="rounded-xl border border-slate-200/70 bg-white px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/80">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                          Venta
+                        </p>
+                        <p className="mt-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                          {pago.tipoComprobante} {formatPagoComprobante(pago)}
+                        </p>
+                        <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                          Venta #{pago.idVenta ?? "-"}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-200/70 bg-white px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/80">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                          Monto
+                        </p>
+                        <p className="mt-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                          {formatPagoMonto(pago.monto)}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-200/70 bg-white px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/80">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                          Cliente
+                        </p>
+                        <p className="mt-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                          {pago.nombreCliente}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-200/70 bg-white px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/80">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                          Operacion
+                        </p>
+                        <p className="mt-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                          {pago.codigoOperacion ?? "Sin codigo"}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-200/70 bg-white px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/80">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                          Usuario
+                        </p>
+                        <p className="mt-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                          {pago.nombreUsuario}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-200/70 bg-white px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/80">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                          Sucursal
+                        </p>
+                        <p className="mt-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                          {pago.nombreSucursal}
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </article>
@@ -276,7 +322,7 @@ function PagosTableComponent({
         )}
       </div>
 
-      <div className="flex items-center justify-between border-t pt-3">
+      <div className="flex items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-700/60">
         <p className="text-xs text-muted-foreground">
           {totalElements} pagos
           {totalPages > 0 && ` - Pagina ${page + 1} de ${totalPages}`}
@@ -286,7 +332,7 @@ function PagosTableComponent({
             type="button"
             disabled={!canGoPrev}
             onClick={() => onPageChange(page - 1)}
-            className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
           >
             Anterior
           </button>
@@ -294,7 +340,7 @@ function PagosTableComponent({
             type="button"
             disabled={!canGoNext}
             onClick={() => onPageChange(page + 1)}
-            className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
           >
             Siguiente
           </button>

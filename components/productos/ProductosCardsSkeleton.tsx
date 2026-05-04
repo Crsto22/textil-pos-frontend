@@ -8,27 +8,22 @@ function ProductosCardsSkeletonComponent({ cards = 10 }: ProductosCardsSkeletonP
   const indexes = useMemo(() => Array.from({ length: cards }, (_, index) => index), [cards])
 
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-5">
+    <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
       {indexes.map((index) => (
         <article key={index} className="overflow-hidden rounded-2xl border bg-card">
-          <div className="aspect-[16/10] w-full animate-pulse bg-muted" />
+          <div className="h-40 w-full animate-pulse bg-muted sm:h-56" />
 
-          <div className="space-y-3 p-4">
-            <div className="h-5 w-2/3 animate-pulse rounded bg-muted" />
-            <div className="h-4 w-1/3 animate-pulse rounded bg-muted" />
-            <div className="h-4 w-1/2 animate-pulse rounded bg-muted" />
-            <div className="h-4 w-2/5 animate-pulse rounded bg-muted" />
-            <div className="h-4 w-1/3 animate-pulse rounded bg-muted" />
+          <div className="space-y-2 p-3 sm:space-y-3 sm:p-4">
+            <div className="h-4 w-2/3 animate-pulse rounded bg-muted" />
+            <div className="h-3 w-1/3 animate-pulse rounded bg-muted" />
+            <div className="h-3 w-1/2 animate-pulse rounded bg-muted" />
+            <div className="h-3 w-2/5 animate-pulse rounded bg-muted" />
 
-            <div className="grid grid-cols-2 gap-2 pt-1">
-              <div className="h-12 animate-pulse rounded-lg bg-muted" />
-              <div className="h-12 animate-pulse rounded-lg bg-muted" />
-            </div>
+            <div className="h-10 animate-pulse rounded-lg bg-muted" />
 
-            <div className="flex gap-2">
-              <div className="h-6 w-10 animate-pulse rounded-md bg-muted" />
-              <div className="h-6 w-10 animate-pulse rounded-md bg-muted" />
-              <div className="h-6 w-10 animate-pulse rounded-md bg-muted" />
+            <div className="flex gap-1.5">
+              <div className="h-5 w-8 animate-pulse rounded-md bg-muted" />
+              <div className="h-5 w-8 animate-pulse rounded-md bg-muted" />
             </div>
           </div>
         </article>

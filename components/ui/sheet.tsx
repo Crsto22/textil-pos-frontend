@@ -70,15 +70,27 @@ function SheetContent({
   side = "right",
   className,
   children,
+  onOpenAutoFocus,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> &
   VariantProps<typeof sheetVariants>) {
+  const handleOpenAutoFocus = React.useCallback(
+    (e: Event) => {
+      if (typeof window !== "undefined" && window.innerWidth < 640) {
+        e.preventDefault()
+      }
+      onOpenAutoFocus?.(e)
+    },
+    [onOpenAutoFocus]
+  )
+
   return (
     <SheetPortal>
       <SheetOverlay />
       <DialogPrimitive.Content
         data-slot="sheet-content"
         className={cn(sheetVariants({ side }), className)}
+        onOpenAutoFocus={handleOpenAutoFocus}
         {...props}
       >
         {children}

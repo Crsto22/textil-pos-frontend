@@ -39,6 +39,9 @@ interface ComboboxProps {
   loading?: boolean
   loadingMessage?: string
   disabled?: boolean
+  triggerClassName?: string
+  contentClassName?: string
+  searchInputClassName?: string
   onCreateAction?: (query: string) => void
   createActionLabel?: string
   createActionDisabled?: boolean
@@ -103,6 +106,9 @@ export function Combobox({
   loading = false,
   loadingMessage = "Buscando...",
   disabled = false,
+  triggerClassName,
+  contentClassName,
+  searchInputClassName,
   onCreateAction,
   createActionLabel = "Nueva opcion",
   createActionDisabled = false,
@@ -126,7 +132,8 @@ export function Combobox({
           aria-expanded={open}
           className={cn(
             "w-full justify-between font-normal",
-            selectedTriggerDescription && "h-auto min-h-9 whitespace-normal py-2"
+            selectedTriggerDescription && "h-auto min-h-9 whitespace-normal py-2",
+            triggerClassName
           )}
           disabled={disabled}
         >
@@ -163,13 +170,16 @@ export function Combobox({
         </Button>
       </PopoverTrigger>
 
-      <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] p-0">
+      <PopoverContent
+        align="start"
+        className={cn("w-[var(--radix-popover-trigger-width)] p-0", contentClassName)}
+      >
         <div className="border-b p-2">
           <Input
             value={searchValue}
             onChange={(event) => onSearchValueChange(event.target.value)}
             placeholder={searchPlaceholder}
-            className="h-8"
+            className={cn("h-8", searchInputClassName)}
             autoFocus
           />
         </div>

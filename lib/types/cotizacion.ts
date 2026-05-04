@@ -18,6 +18,7 @@ export interface CotizacionDetalleRequest {
 export interface CotizacionCreateRequest {
   idSucursal: number
   idCliente: number
+  serie: string
   igvPorcentaje?: number | null
   descuentoTotal?: number | null
   tipoDescuento?: TipoDescuentoCotizacion | null
@@ -100,6 +101,7 @@ export interface CotizacionConvertirPagoRequest {
 
 export interface CotizacionConvertirVentaRequest {
   tipoComprobante?: TipoComprobante | null
+  serie: string
   idCanalVenta?: number | null
   pagos: CotizacionConvertirPagoRequest[]
 }

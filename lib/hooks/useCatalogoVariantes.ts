@@ -14,10 +14,12 @@ import {
 } from "@/lib/hooks/useDebouncedValue"
 import type { ProductoResumen } from "@/lib/types/producto"
 import type {
+  ImagenesPorColorGroup,
   VarianteDeleteResponse,
   VarianteUpdateRequest,
 } from "@/lib/types/variante"
 import {
+  buildImagenesPorColorMap,
   mapVarianteResumenToProductoResumen,
   parseVarianteResumenPageResponse,
 } from "@/lib/variante-resumen"
@@ -63,10 +65,16 @@ function normalizeVariantePayload(payload: VarianteUpdateRequest): VarianteUpdat
   }
 }
 
-export function useCatalogoVariantes(enabled = true, idSucursal?: number | null) {
+export function useCatalogoVariantes(
+  enabled = true,
+  idSucursal?: number | null,
+  initialSoloDisponibles?: boolean,
+  stockPrimero?: boolean
+) {
   const { isLoading: isAuthLoading } = useAuth()
 
   const [productos, setProductos] = useState<ProductoResumen[]>([])
+  const [imagenesPorColorGroups, setImagenesPorColorGroups] = useState<ImagenesPorColorGroup[]>([])
   const [page, setPage] = useState(0)
   const [totalPages, setTotalPages] = useState(0)
   const [totalElements, setTotalElements] = useState(0)
@@ -76,7 +84,7 @@ export function useCatalogoVariantes(enabled = true, idSucursal?: number | null)
   const [idCategoriaFilter, setIdCategoriaFilter] = useState<number | null>(null)
   const [idColorFilter, setIdColorFilter] = useState<number | null>(null)
   const [conOfertaFilter, setConOfertaFilter] = useState(false)
-  const [soloDisponiblesFilter, setSoloDisponiblesFilter] = useState(false)
+  const [soloDisponiblesFilter, setSoloDisponiblesFilter] = useState(initialSoloDisponibles ?? false)
 
   const debouncedSearch = useDebouncedValue(search, SEARCH_DEBOUNCE_MS)
   const abortRef = useRef<AbortController | null>(null)
@@ -105,7 +113,9 @@ export function useCatalogoVariantes(enabled = true, idSucursal?: number | null)
       if (soloDisponiblesFilter) {
         params.set("soloDisponibles", "true")
       }
-
+      if (stockPrimero) {
+        params.set("stockPrimero", "true")
+      }
       const response = await authFetch(`/api/variante/listar-resumen?${params.toString()}`, {
         signal: controller.signal,
         cache: "no-store",
@@ -124,7 +134,9 @@ export function useCatalogoVariantes(enabled = true, idSucursal?: number | null)
       }
 
       const pageData = parseVarianteResumenPageResponse(data)
-      setProductos(pageData.content.map(mapVarianteResumenToProductoResumen))
+      const imgMap = buildImagenesPorColorMap(pageData.imagenesPorColor)
+      setImagenesPorColorGroups(pageData.imagenesPorColor)
+      setProductos(pageData.content.map((item) => mapVarianteResumenToProductoResumen(item, imgMap)))
       setTotalPages(pageData.totalPages)
       setTotalElements(pageData.totalElements)
     } catch (requestError) {
@@ -141,11 +153,26 @@ export function useCatalogoVariantes(enabled = true, idSucursal?: number | null)
         setLoading(false)
       }
     }
-  }, [conOfertaFilter, idCategoriaFilter, idColorFilter, idSucursal, debouncedSearch, soloDisponiblesFilter])
+  }, [
+    conOfertaFilter,
+    idCategoriaFilter,
+    idColorFilter,
+    idSucursal,
+    debouncedSearch,
+    soloDisponiblesFilter,
+    stockPrimero,
+  ])
 
   useEffect(() => {
     setPage(0)
-  }, [conOfertaFilter, idCategoriaFilter, idColorFilter, idSucursal, debouncedSearch, soloDisponiblesFilter])
+  }, [
+    conOfertaFilter,
+    idCategoriaFilter,
+    idColorFilter,
+    idSucursal,
+    debouncedSearch,
+    soloDisponiblesFilter,
+  ])
 
   useEffect(() => {
     if (!enabled || isAuthLoading) return
@@ -242,6 +269,14 @@ export function useCatalogoVariantes(enabled = true, idSucursal?: number | null)
     []
   )
 
+  const getImagenesForVariant = useCallback(
+    (productId: number, colorId: number): ImagenesPorColorGroup["imagenes"] => {
+      const key = `${productId}-${colorId}`
+      return imagenesPorColorGroups.find((g) => g.key === key)?.imagenes ?? []
+    },
+    [imagenesPorColorGroups]
+  )
+
   return {
     search,
     setSearch,
@@ -263,5 +298,6 @@ export function useCatalogoVariantes(enabled = true, idSucursal?: number | null)
     refreshCurrentView,
     updateVariante,
     deleteVariante,
+    getImagenesForVariant,
   }
 }

@@ -119,6 +119,9 @@ export function normalizeSucursal(value: unknown): Sucursal | null {
   const usuarios = normalizeUsuarios(data.usuarios)
   const usuariosDetalle = normalizeUsuariosDetalle(data.usuariosDetalle)
 
+  const ubigeo = toTrimmedString(data.ubigeo)
+  const codigoEstablecimientoSunat = toTrimmedString(data.codigoEstablecimientoSunat)
+
   return {
     idSucursal,
     nombre: toTrimmedString(data.nombre),
@@ -127,6 +130,8 @@ export function normalizeSucursal(value: unknown): Sucursal | null {
     telefono: toTrimmedString(data.telefono),
     correo: toTrimmedString(data.correo),
     tipo: (toTrimmedString(data.tipo) || "VENTA") as "VENTA" | "ALMACEN",
+    ubigeo: ubigeo.length > 0 ? ubigeo : null,
+    codigoEstablecimientoSunat: codigoEstablecimientoSunat.length > 0 ? codigoEstablecimientoSunat : null,
     estado: toTrimmedString(data.estado) || "ACTIVO",
     fechaCreacion: toTrimmedString(data.fechaCreacion),
     idEmpresa: toNumber(data.idEmpresa),
@@ -181,7 +186,7 @@ export function normalizeSucursalPageResponse(
 export function sanitizeSucursalRequestBody(value: unknown): Record<string, unknown> {
   if (!isRecord(value)) return {}
 
-  const { telefono, correo, ...rest } = value
+  const { telefono, correo, ubigeo, codigoEstablecimientoSunat, ...rest } = value
   const sanitizedPayload: Record<string, unknown> = {
     ...rest,
     nombre: toTrimmedString(value.nombre),
@@ -191,6 +196,8 @@ export function sanitizeSucursalRequestBody(value: unknown): Record<string, unkn
 
   const sanitizedTelefono = toOptionalTrimmedString(telefono)
   const sanitizedCorreo = toOptionalTrimmedString(correo)
+  const sanitizedUbigeo = toOptionalTrimmedString(ubigeo)
+  const sanitizedCodigo = toOptionalTrimmedString(codigoEstablecimientoSunat)
 
   if (sanitizedTelefono) {
     sanitizedPayload.telefono = sanitizedTelefono
@@ -198,6 +205,14 @@ export function sanitizeSucursalRequestBody(value: unknown): Record<string, unkn
 
   if (sanitizedCorreo) {
     sanitizedPayload.correo = sanitizedCorreo
+  }
+
+  if (sanitizedUbigeo) {
+    sanitizedPayload.ubigeo = sanitizedUbigeo
+  }
+
+  if (sanitizedCodigo) {
+    sanitizedPayload.codigoEstablecimientoSunat = sanitizedCodigo
   }
 
   return sanitizedPayload

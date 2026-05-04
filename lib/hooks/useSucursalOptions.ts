@@ -22,7 +22,7 @@ async function parseJsonSafe(response: Response) {
   return response.json().catch(() => null)
 }
 
-export function useSucursalOptions(enabled: boolean) {
+export function useSucursalOptions(enabled: boolean, tipoFilter?: "VENTA" | "ALMACEN") {
   const [sucursales, setSucursales] = useState<Sucursal[]>([])
   const [loadingSucursales, setLoadingSucursales] = useState(false)
   const [errorSucursales, setErrorSucursales] = useState<string | null>(null)
@@ -172,10 +172,10 @@ export function useSucursalOptions(enabled: boolean) {
 
   const sucursalOptions = useMemo<ComboboxOption[]>(
     () =>
-      (Array.isArray(sucursales) ? sucursales : []).map((sucursal) =>
-        buildSucursalComboboxOption(sucursal)
-      ),
-    [sucursales]
+      (Array.isArray(sucursales) ? sucursales : [])
+        .filter((sucursal) => !tipoFilter || sucursal.tipo === tipoFilter)
+        .map((sucursal) => buildSucursalComboboxOption(sucursal)),
+    [sucursales, tipoFilter]
   )
 
   return {

@@ -15,241 +15,216 @@ import { UsuarioDeleteDialog } from "@/components/usuarios/modals/UsuarioDeleteD
 import { UsuarioEditDialog } from "@/components/usuarios/modals/UsuarioEditDialog"
 import { useUsuarios } from "@/lib/hooks/useUsuarios"
 import type {
-  Usuario,
-  UsuarioCreateRequest,
-  UsuarioResetPasswordRequest,
-  UsuarioUpdateRequest,
+    Usuario,
+    UsuarioCreateRequest,
+    UsuarioResetPasswordRequest,
+    UsuarioUpdateRequest,
 } from "@/lib/types/usuario"
 
 export default function UsuariosPage() {
-  const [selectedUser, setSelectedUser] = useState<Usuario | null>(null)
-  const [mobileDetail, setMobileDetail] = useState(false)
+    const [selectedUser, setSelectedUser] = useState<Usuario | null>(null)
+    const [mobileDetail, setMobileDetail] = useState(false)
 
-  const [openCreate, setOpenCreate] = useState(false)
-  const [openEdit, setOpenEdit] = useState(false)
-  const [editTarget, setEditTarget] = useState<Usuario | null>(null)
+    const [showCreate, setShowCreate] = useState(false)
+    const [editTarget, setEditTarget] = useState<Usuario | null>(null)
+    const [deleteTarget, setDeleteTarget] = useState<Usuario | null>(null)
+    const [resetPasswordTarget, setResetPasswordTarget] = useState<Usuario | null>(null)
 
-  const [openDelete, setOpenDelete] = useState(false)
-  const [deleteTarget, setDeleteTarget] = useState<Usuario | null>(null)
+    const {
+        search,
+        setSearch,
+        roleFilter,
+        setRoleFilter,
+        branchFilter,
+        setBranchFilter,
+        isSearchMode,
+        displayedUsers,
+        displayedLoading,
+        displayedTotalElements,
+        displayedTotalPages,
+        displayedPage,
+        setDisplayedPage,
+        createUsuario,
+        updateUsuario,
+        deleteUsuario,
+        resetUsuarioPassword,
+        isResettingPassword,
+    } = useUsuarios()
 
-  const [openResetPassword, setOpenResetPassword] = useState(false)
-  const [resetPasswordTarget, setResetPasswordTarget] = useState<Usuario | null>(
-    null
-  )
+    const handleSelectUser = useCallback(
+        (usuario: Usuario) => {
+            const isAlreadySelected = selectedUser?.idUsuario === usuario.idUsuario
 
-  const {
-    search,
-    setSearch,
-    roleFilter,
-    setRoleFilter,
-    branchFilter,
-    setBranchFilter,
-    isSearchMode,
-    displayedUsers,
-    displayedLoading,
-    displayedTotalElements,
-    displayedTotalPages,
-    displayedPage,
-    setDisplayedPage,
-    createUsuario,
-    updateUsuario,
-    deleteUsuario,
-    resetUsuarioPassword,
-    isResettingPassword,
-  } = useUsuarios()
+            if (isAlreadySelected) {
+                setSelectedUser(null)
+                return
+            }
 
-  const handleSelectUser = useCallback((usuario: Usuario) => {
-    setSelectedUser((previous) => {
-      const isAlreadySelected = previous?.idUsuario === usuario.idUsuario
+            setSelectedUser(usuario)
 
-      if (!isAlreadySelected && window.innerWidth < 1280) {
-        setMobileDetail(true)
-      }
+            if (window.innerWidth < 1280) {
+                setMobileDetail(true)
+            }
+        },
+        [selectedUser?.idUsuario]
+    )
 
-      return isAlreadySelected ? null : usuario
-    })
-  }, [])
+    const handleMobileOpenChange = useCallback((open: boolean) => {
+        setMobileDetail(open)
+        if (!open) {
+            setSelectedUser(null)
+        }
+    }, [])
 
-  const openEditModal = useCallback((usuario: Usuario) => {
-    setEditTarget(usuario)
-    setOpenEdit(true)
-  }, [])
+    const handleCloseSelectedUser = useCallback(() => {
+        setSelectedUser(null)
+    }, [])
 
-  const handleCreate = useCallback(
-    async (payload: UsuarioCreateRequest) => createUsuario(payload),
-    [createUsuario]
-  )
+    const handleOpenCreate = useCallback(() => {
+        setShowCreate(true)
+    }, [])
 
-  const handleUpdate = useCallback(
-    async (id: number, payload: UsuarioUpdateRequest) => {
-      const updatedUser = await updateUsuario(id, payload)
+    const handleEditUsuario = useCallback((usuario: Usuario) => {
+        setEditTarget(usuario)
+    }, [])
 
-      if (updatedUser) {
-        setSelectedUser((previous) =>
-          previous?.idUsuario === id
-            ? updatedUser
-            : previous
-        )
-        return true
-      }
+    const handleDeleteUsuario = useCallback((usuario: Usuario) => {
+        setDeleteTarget(usuario)
+    }, [])
 
-      return false
-    },
-    [updateUsuario]
-  )
+    const handleResetPasswordUsuario = useCallback((usuario: Usuario) => {
+        setResetPasswordTarget(usuario)
+    }, [])
 
-  const handleDelete = useCallback(
-    async (id: number) => {
-      const success = await deleteUsuario(id)
+    const handleResetPasswordFromMobile = useCallback((usuario: Usuario) => {
+        setMobileDetail(false)
+        setResetPasswordTarget(usuario)
+    }, [])
 
-      if (success) {
-        setSelectedUser((previous) =>
-          previous?.idUsuario === id ? null : previous
-        )
-        setDeleteTarget(null)
-      }
+    const handleCreate = useCallback(
+        async (payload: UsuarioCreateRequest) => createUsuario(payload),
+        [createUsuario]
+    )
 
-      return success
-    },
-    [deleteUsuario]
-  )
+    const handleUpdate = useCallback(
+        async (id: number, payload: UsuarioUpdateRequest) => {
+            const updatedUser = await updateUsuario(id, payload)
 
-  const handleResetPassword = useCallback(
-    async (id: number, payload: UsuarioResetPasswordRequest) =>
-      resetUsuarioPassword(id, payload),
-    [resetUsuarioPassword]
-  )
+            if (updatedUser) {
+                setSelectedUser((previous) =>
+                    previous?.idUsuario === id ? updatedUser : previous
+                )
+                return true
+            }
 
-  const handleMobileOpenChange = useCallback((open: boolean) => {
-    setMobileDetail(open)
-    if (!open) {
-      setSelectedUser(null)
-    }
-  }, [])
+            return false
+        },
+        [updateUsuario]
+    )
 
-  const handleEditOpenChange = useCallback((open: boolean) => {
-    setOpenEdit(open)
-    if (!open) {
-      setEditTarget(null)
-    }
-  }, [])
+    const handleDelete = useCallback(
+        async (id: number) => {
+            const success = await deleteUsuario(id)
 
-  const handleDeleteOpenChange = useCallback((open: boolean) => {
-    setOpenDelete(open)
-    if (!open) {
-      setDeleteTarget(null)
-    }
-  }, [])
+            if (success && selectedUser?.idUsuario === id) {
+                setSelectedUser(null)
+            }
 
-  const handleResetPasswordOpenChange = useCallback((open: boolean) => {
-    setOpenResetPassword(open)
-    if (!open) {
-      setResetPasswordTarget(null)
-    }
-  }, [])
+            return success
+        },
+        [deleteUsuario, selectedUser?.idUsuario]
+    )
 
-  const handleRequestDelete = useCallback((usuario: Usuario) => {
-    setDeleteTarget(usuario)
-    setOpenDelete(true)
-  }, [])
+    const handleResetPassword = useCallback(
+        async (id: number, payload: UsuarioResetPasswordRequest) =>
+            resetUsuarioPassword(id, payload),
+        [resetUsuarioPassword]
+    )
 
-  const handleOpenCreate = useCallback(() => {
-    setOpenCreate(true)
-  }, [])
+    return (
+        <div className="space-y-4 sm:space-y-6">
+            <div className="flex gap-4 xl:gap-6">
+                <div className="min-w-0 flex-1">
+                    <div className="mb-4 flex flex-col gap-3 sm:mb-6 xl:flex-row xl:items-center xl:justify-between">
+                        <div className="flex w-full flex-col gap-3 lg:flex-row lg:items-center">
+                            <div className="w-full lg:max-w-md">
+                                <UsuariosSearch search={search} onSearchChange={setSearch} />
+                            </div>
+                            <UsuariosFilters
+                                roleFilter={roleFilter}
+                                branchFilter={branchFilter}
+                                onRoleFilterChange={setRoleFilter}
+                                onBranchFilterChange={setBranchFilter}
+                            />
+                        </div>
+                        <UsuariosHeader onOpenCreate={handleOpenCreate} />
+                    </div>
 
-  const handleCloseSelectedUser = useCallback(() => {
-    setSelectedUser(null)
-  }, [])
+                    <UsuariosTable
+                        users={displayedUsers}
+                        loading={displayedLoading}
+                        isSearchMode={isSearchMode}
+                        selectedUserId={selectedUser?.idUsuario ?? null}
+                        onSelectUser={handleSelectUser}
+                        onEditUser={handleEditUsuario}
+                        onDeleteUser={handleDeleteUsuario}
+                    />
 
-  const handleRequestResetPassword = useCallback((usuario: Usuario) => {
-    setResetPasswordTarget(usuario)
-    setOpenResetPassword(true)
-  }, [])
+                    <UsuariosPagination
+                        totalElements={displayedTotalElements}
+                        totalPages={displayedTotalPages}
+                        page={displayedPage}
+                        onPageChange={setDisplayedPage}
+                    />
+                </div>
 
-  const handleRequestResetPasswordFromMobile = useCallback((usuario: Usuario) => {
-    setMobileDetail(false)
-    setResetPasswordTarget(usuario)
-    setOpenResetPassword(true)
-  }, [])
-
-  return (
-    <div className="space-y-6">
-      <div className="flex gap-6">
-        <div className="min-w-0 flex-1">
-          <div className="mb-6 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-            <div className="flex w-full flex-col gap-3 lg:flex-row lg:items-center">
-              <div className="w-full lg:max-w-md">
-                <UsuariosSearch search={search} onSearchChange={setSearch} />
-              </div>
-              <UsuariosFilters
-                roleFilter={roleFilter}
-                branchFilter={branchFilter}
-                onRoleFilterChange={setRoleFilter}
-                onBranchFilterChange={setBranchFilter}
-              />
+                <UsuarioDetailPanel
+                    selectedUser={selectedUser}
+                    onClose={handleCloseSelectedUser}
+                    onResetPassword={handleResetPasswordUsuario}
+                />
             </div>
-            <UsuariosHeader onOpenCreate={handleOpenCreate} />
-          </div>
 
-          <UsuariosTable
-            users={displayedUsers}
-            loading={displayedLoading}
-            isSearchMode={isSearchMode}
-            selectedUserId={selectedUser?.idUsuario ?? null}
-            onSelectUser={handleSelectUser}
-            onEditUser={openEditModal}
-            onDeleteUser={handleRequestDelete}
-          />
+            <UsuarioCreateDialog
+                open={showCreate}
+                onOpenChange={setShowCreate}
+                onCreate={handleCreate}
+            />
 
-          <UsuariosPagination
-            totalElements={displayedTotalElements}
-            totalPages={displayedTotalPages}
-            page={displayedPage}
-            onPageChange={setDisplayedPage}
-          />
+            <UsuarioEditDialog
+                open={editTarget !== null}
+                user={editTarget}
+                onOpenChange={(open) => {
+                    if (!open) setEditTarget(null)
+                }}
+                onUpdate={handleUpdate}
+            />
+
+            <UsuarioDeleteDialog
+                open={deleteTarget !== null}
+                target={deleteTarget}
+                onOpenChange={(open) => {
+                    if (!open) setDeleteTarget(null)
+                }}
+                onDelete={handleDelete}
+            />
+
+            <UsuarioResetPasswordDialog
+                open={resetPasswordTarget !== null}
+                target={resetPasswordTarget}
+                isSubmitting={isResettingPassword}
+                onOpenChange={(open) => {
+                    if (!open) setResetPasswordTarget(null)
+                }}
+                onSubmit={handleResetPassword}
+            />
+
+            <UsuarioMobileDetailDialog
+                open={mobileDetail}
+                selectedUser={selectedUser}
+                onOpenChange={handleMobileOpenChange}
+                onResetPassword={handleResetPasswordFromMobile}
+            />
         </div>
-
-        <UsuarioDetailPanel
-          selectedUser={selectedUser}
-          onClose={handleCloseSelectedUser}
-          onResetPassword={handleRequestResetPassword}
-        />
-      </div>
-
-      <UsuarioMobileDetailDialog
-        open={mobileDetail}
-        selectedUser={selectedUser}
-        onOpenChange={handleMobileOpenChange}
-        onResetPassword={handleRequestResetPasswordFromMobile}
-      />
-
-      <UsuarioCreateDialog
-        open={openCreate}
-        onOpenChange={setOpenCreate}
-        onCreate={handleCreate}
-      />
-
-      <UsuarioEditDialog
-        open={openEdit}
-        user={editTarget}
-        onOpenChange={handleEditOpenChange}
-        onUpdate={handleUpdate}
-      />
-
-      <UsuarioDeleteDialog
-        open={openDelete}
-        target={deleteTarget}
-        onOpenChange={handleDeleteOpenChange}
-        onDelete={handleDelete}
-      />
-
-      <UsuarioResetPasswordDialog
-        open={openResetPassword}
-        target={resetPasswordTarget}
-        isSubmitting={isResettingPassword}
-        onOpenChange={handleResetPasswordOpenChange}
-        onSubmit={handleResetPassword}
-      />
-    </div>
-  )
+    )
 }

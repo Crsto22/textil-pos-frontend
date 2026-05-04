@@ -13,7 +13,7 @@ import type { ComprobanteConfig } from "@/lib/types/comprobante"
 
 interface UseComprobanteOptionsParams {
   enabled: boolean
-  idSucursal: number | null
+  habilitadoVenta?: boolean
 }
 
 function isAbortError(error: unknown) {
@@ -26,7 +26,7 @@ async function parseJsonSafe(response: Response) {
 
 export function useComprobanteOptions({
   enabled,
-  idSucursal,
+  habilitadoVenta,
 }: UseComprobanteOptionsParams) {
   const [comprobantes, setComprobantes] = useState<ComprobanteConfig[]>([])
   const [loadingComprobantes, setLoadingComprobantes] = useState(false)
@@ -35,7 +35,7 @@ export function useComprobanteOptions({
 
   const abortRef = useRef<AbortController | null>(null)
 
-  const fetchComprobantes = useCallback(async (sucursalId: number) => {
+  const fetchComprobantes = useCallback(async () => {
     abortRef.current?.abort()
     const controller = new AbortController()
     abortRef.current = controller
@@ -45,14 +45,11 @@ export function useComprobanteOptions({
 
     try {
       const params = new URLSearchParams({
-        page: "0",
         activo: "ACTIVO",
-        idSucursal: String(sucursalId),
-        habilitadoVenta: "true",
       })
 
       const response = await authFetch(
-        `/api/config/comprobantes/listar?${params.toString()}`,
+        `/api/config/comprobantes?${params.toString()}`,
         {
           signal: controller.signal,
         }
@@ -66,7 +63,8 @@ export function useComprobanteOptions({
         return
       }
 
-      setComprobantes(normalizeComprobantePageResponse(data).content)
+      const normalized = normalizeComprobantePageResponse(data)
+      setComprobantes(normalized.content)
     } catch (requestError) {
       if (isAbortError(requestError)) return
       const message =
@@ -81,7 +79,7 @@ export function useComprobanteOptions({
   }, [])
 
   useEffect(() => {
-    if (!enabled || typeof idSucursal !== "number" || idSucursal <= 0) {
+    if (!enabled) {
       abortRef.current?.abort()
       setComprobantes([])
       setErrorComprobantes(null)
@@ -90,8 +88,8 @@ export function useComprobanteOptions({
       return
     }
 
-    void fetchComprobantes(idSucursal)
-  }, [enabled, fetchComprobantes, idSucursal])
+    void fetchComprobantes()
+  }, [enabled, fetchComprobantes])
 
   useEffect(() => {
     return () => {
@@ -104,6 +102,10 @@ export function useComprobanteOptions({
   const filteredComprobantes = useMemo(
     () =>
       comprobantes.filter((item) => {
+        if (habilitadoVenta !== undefined && item.habilitadoVenta !== habilitadoVenta) {
+          return false
+        }
+
         if (!normalizedSearch) return true
 
         const label = buildComprobanteLabel(item).toLowerCase()
@@ -113,7 +115,7 @@ export function useComprobanteOptions({
           item.serie.toLowerCase().includes(normalizedSearch)
         )
       }),
-    [comprobantes, normalizedSearch]
+    [comprobantes, habilitadoVenta, normalizedSearch]
   )
 
   const comprobanteOptions = useMemo<ComboboxOption[]>(

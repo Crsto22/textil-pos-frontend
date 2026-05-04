@@ -4,6 +4,7 @@ import type {
   ProductoDetalleResponse,
   ProductoDetalleVariante,
 } from "@/lib/types/producto"
+import { resolveBackendUrl } from "@/lib/resolve-backend-url"
 import { parseProductoVarianteStocksSucursales } from "@/lib/stock-sucursal"
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -264,7 +265,11 @@ export function getPrimaryImageUrlForColor(
         return a.orden - b.orden
       })[0] ?? null
 
-  const imageUrl = stringOr(selectedImage?.urlThumb).trim() || stringOr(selectedImage?.url).trim()
+  const imageUrl =
+    resolveBackendUrl(stringOr(selectedImage?.url).trim()) ||
+    resolveBackendUrl(stringOr(selectedImage?.urlThumb).trim()) ||
+    stringOr(selectedImage?.url).trim() ||
+    stringOr(selectedImage?.urlThumb).trim()
   return imageUrl || null
 }
 
@@ -285,8 +290,10 @@ export function getPrimaryImageUrlFromResumen(
 
   const selectedColor = product.colores.find((color) => color.colorId === colorId)
   const imageUrl =
-    nullableString(selectedColor?.imagenPrincipal?.urlThumb)?.trim() ||
+    resolveBackendUrl(nullableString(selectedColor?.imagenPrincipal?.url)?.trim()) ||
+    resolveBackendUrl(nullableString(selectedColor?.imagenPrincipal?.urlThumb)?.trim()) ||
     nullableString(selectedColor?.imagenPrincipal?.url)?.trim() ||
+    nullableString(selectedColor?.imagenPrincipal?.urlThumb)?.trim() ||
     ""
 
   return imageUrl || null

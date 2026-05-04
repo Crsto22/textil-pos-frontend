@@ -22,6 +22,7 @@ import type {
   ComprobanteConfig,
   ComprobanteCreateRequest,
   ComprobanteUpdateRequest,
+  EstadoComprobante,
 } from "@/lib/types/comprobante"
 
 type ComprobanteActivoFilter = "TODOS" | "ACTIVO" | "INACTIVO"
@@ -39,10 +40,6 @@ function getErrorMessage(status: number, backendMsg?: string): string {
   return "Error inesperado"
 }
 
-function hasValidSucursalId(idSucursal?: number | null): idSucursal is number {
-  return typeof idSucursal === "number" && idSucursal > 0
-}
-
 function isAbortError(error: unknown) {
   return error instanceof DOMException && error.name === "AbortError"
 }
@@ -55,9 +52,6 @@ export function useComprobantes() {
   const { isLoading: isAuthLoading, user } = useAuth()
 
   const isAdmin = user?.rol === "ADMINISTRADOR"
-  const userSucursalId = hasValidSucursalId(user?.idSucursal)
-    ? user.idSucursal
-    : null
 
   const [comprobantes, setComprobantes] = useState<ComprobanteConfig[]>([])
   const [page, setPage] = useState(0)
@@ -85,30 +79,15 @@ export function useComprobantes() {
 
   const [activoFilter, setActivoFilter] =
     useState<ComprobanteActivoFilter>("TODOS")
-  const [idSucursalFilter, setIdSucursalFilter] = useState<number | null>(null)
 
   const listAbortRef = useRef<AbortController | null>(null)
   const searchAbortRef = useRef<AbortController | null>(null)
 
-  const hasSucursalFilter = hasValidSucursalId(idSucursalFilter)
-  const canListWithoutSucursalFilter = isAdmin
-  const canLoadComprobantes =
-    hasSucursalFilter || canListWithoutSucursalFilter
-  const needsSucursalSelection = !isAdmin && !hasSucursalFilter
   const isSearchMode = debouncedSearch.trim().length > 0
-
-  useEffect(() => {
-    if (isAdmin) {
-      return
-    }
-
-    setIdSucursalFilter(userSucursalId)
-  }, [isAdmin, userSucursalId])
 
   const fetchComprobantes = useCallback(
     async (
       pageNumber: number,
-      sucursalId: number | null,
       activo: ComprobanteActivoFilter
     ) => {
       listAbortRef.current?.abort()
@@ -125,10 +104,6 @@ export function useComprobantes() {
 
         if (activo !== "TODOS") {
           params.set("activo", activo)
-        }
-
-        if (hasValidSucursalId(sucursalId)) {
-          params.set("idSucursal", String(sucursalId))
         }
 
         const response = await authFetch(
@@ -176,7 +151,6 @@ export function useComprobantes() {
     async (
       query: string,
       pageNumber: number,
-      sucursalId: number | null,
       activo: ComprobanteActivoFilter
     ) => {
       searchAbortRef.current?.abort()
@@ -194,10 +168,6 @@ export function useComprobantes() {
 
         if (activo !== "TODOS") {
           params.set("activo", activo)
-        }
-
-        if (hasValidSucursalId(sucursalId)) {
-          params.set("idSucursal", String(sucursalId))
         }
 
         const response = await authFetch(
@@ -244,29 +214,11 @@ export function useComprobantes() {
   useEffect(() => {
     if (isAuthLoading) return
 
-    if (!canLoadComprobantes) {
-      listAbortRef.current?.abort()
-      setComprobantes([])
-      setTotalPages(0)
-      setTotalElements(0)
-      setLoading(false)
-
-      if (!isAdmin) {
-        setError("Tu usuario no tiene una sucursal asignada.")
-      } else {
-        setError(null)
-      }
-      return
-    }
-
     if (isSearchMode) return
-    void fetchComprobantes(page, idSucursalFilter, activoFilter)
+    void fetchComprobantes(page, activoFilter)
   }, [
     activoFilter,
-    canLoadComprobantes,
     fetchComprobantes,
-    idSucursalFilter,
-    isAdmin,
     isAuthLoading,
     isSearchMode,
     page,
@@ -275,14 +227,6 @@ export function useComprobantes() {
   useEffect(() => {
     if (isAuthLoading) return
 
-    if (!canLoadComprobantes) {
-      searchAbortRef.current?.abort()
-      setSearchResults([])
-      setSearchTotals({ totalPages: 0, totalElements: 0 })
-      setSearching(false)
-      return
-    }
-
     if (!isSearchMode) {
       setSearchResults([])
       setSearchTotals({ totalPages: 0, totalElements: 0 })
@@ -290,13 +234,11 @@ export function useComprobantes() {
       return
     }
 
-    void fetchBuscar(debouncedSearch, searchPage, idSucursalFilter, activoFilter)
+    void fetchBuscar(debouncedSearch, searchPage, activoFilter)
   }, [
     activoFilter,
-    canLoadComprobantes,
     debouncedSearch,
     fetchBuscar,
-    idSucursalFilter,
     isAuthLoading,
     isSearchMode,
     searchPage,
@@ -305,7 +247,7 @@ export function useComprobantes() {
   useEffect(() => {
     setPage(0)
     setSearchPage(0)
-  }, [activoFilter, idSucursalFilter])
+  }, [activoFilter])
 
   useEffect(() => {
     return () => {
@@ -315,21 +257,17 @@ export function useComprobantes() {
   }, [])
 
   const refreshCurrentView = useCallback(async () => {
-    if (!canLoadComprobantes) return
-
     if (isSearchMode) {
-      await fetchBuscar(debouncedSearch, searchPage, idSucursalFilter, activoFilter)
+      await fetchBuscar(debouncedSearch, searchPage, activoFilter)
       return
     }
 
-    await fetchComprobantes(page, idSucursalFilter, activoFilter)
+    await fetchComprobantes(page, activoFilter)
   }, [
     activoFilter,
-    canLoadComprobantes,
     debouncedSearch,
     fetchBuscar,
     fetchComprobantes,
-    idSucursalFilter,
     isSearchMode,
     page,
     searchPage,
@@ -423,6 +361,52 @@ export function useComprobantes() {
     [refreshCurrentView]
   )
 
+  const toggleActivo = useCallback(
+    async (comprobante: ComprobanteConfig) => {
+      const nuevoEstado: EstadoComprobante =
+        comprobante.activo === "ACTIVO" ? "INACTIVO" : "ACTIVO"
+
+      try {
+        const response = await authFetch(
+          `/api/config/comprobantes/${comprobante.idComprobante}`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              serie: comprobante.serie,
+              ultimoCorrelativo: comprobante.ultimoCorrelativo,
+              activo: nuevoEstado,
+            }),
+          }
+        )
+
+        const data = await parseJsonSafe(response)
+
+        if (!response.ok) {
+          const message = getErrorMessage(response.status, data?.message)
+          setError(message)
+          toast.error(message)
+          return false
+        }
+
+        toast.success(
+          nuevoEstado === "ACTIVO"
+            ? "Comprobante activado exitosamente"
+            : "Comprobante desactivado exitosamente"
+        )
+        await refreshCurrentView()
+        return true
+      } catch (requestError) {
+        const message =
+          requestError instanceof Error ? requestError.message : "Error inesperado"
+        setError(message)
+        toast.error(message)
+        return false
+      }
+    },
+    [refreshCurrentView]
+  )
+
   const displayedComprobantes = useMemo(
     () => (isSearchMode ? searchResults : comprobantes),
     [comprobantes, isSearchMode, searchResults]
@@ -455,9 +439,6 @@ export function useComprobantes() {
     debouncedSearch,
     activoFilter,
     setActivoFilter,
-    idSucursalFilter,
-    setIdSucursalFilter,
-    needsSucursalSelection,
     displayedComprobantes,
     displayedTotalPages,
     displayedTotalElements,
@@ -468,5 +449,6 @@ export function useComprobantes() {
     fetchComprobanteDetalle,
     createComprobante,
     updateComprobante,
+    toggleActivo,
   }
 }

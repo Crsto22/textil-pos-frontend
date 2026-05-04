@@ -4,7 +4,7 @@ const BACKEND_URL = process.env.BACKEND_URL
 
 /**
  * GET /api/config/metodos-pago/activos
- * Backwards-compatible alias for GET /api/config/metodos-pago.
+ * Alias: proxies to GET /api/config/metodos-pago?estado=ACTIVO
  */
 export async function GET(request: NextRequest) {
     try {
@@ -18,33 +18,21 @@ export async function GET(request: NextRequest) {
 
         let res: Response
         try {
-            res = await fetch(`${BACKEND_URL}/api/config/metodos-pago`, {
+            res = await fetch(`${BACKEND_URL}/api/config/metodos-pago?estado=ACTIVO`, {
                 headers,
                 cache: "no-store",
             })
         } catch {
-            return NextResponse.json(
-                { message: "No se pudo conectar al backend." },
-                { status: 503 }
-            )
+            return NextResponse.json({ message: "No se pudo conectar al backend." }, { status: 503 })
         }
 
-        if (!res.ok) {
-            const text = await res.text()
-            let message = "Error al listar metodos de pago"
-            try {
-                const j = JSON.parse(text)
-                message = j.message ?? message
-            } catch {
-                if (text) message = text
-            }
-            return NextResponse.json({ message }, { status: res.status })
-        }
+        const text = await res.text()
+        let data: unknown
+        try { data = JSON.parse(text) } catch { data = { message: text || "Error" } }
 
-        const data = await res.json()
-        return NextResponse.json(data, { status: 200 })
+        return NextResponse.json(data, { status: res.status })
     } catch (error) {
-        console.error("[CONFIG/METODOS-PAGO/ACTIVOS]", error)
+        console.error("[METODOS-PAGO/ACTIVOS GET]", error)
         return NextResponse.json({ message: "Error interno del servidor" }, { status: 500 })
     }
 }

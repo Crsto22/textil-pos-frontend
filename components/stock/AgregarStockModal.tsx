@@ -52,6 +52,10 @@ async function parseJsonSafe(response: Response) {
   return response.json().catch(() => null)
 }
 
+function getVariantImageUrl(item: Pick<VarianteSearchItem, "imagenPrincipal">): string | null {
+  return item.imagenPrincipal?.url || item.imagenPrincipal?.urlThumb || null
+}
+
 function SucursalMiniCard({
   sucursal,
   selected,
@@ -368,9 +372,9 @@ export function AgregarStockModal({
               <div className="flex items-center justify-between gap-3 rounded-xl border-2 border-blue-500 bg-blue-50 px-3 py-2.5 dark:bg-blue-900/15">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-lg border border-blue-200 dark:border-blue-800">
-                    {selectedVariante.imagenPrincipal?.urlThumb ? (
+                    {getVariantImageUrl(selectedVariante) ? (
                       <Image
-                        src={selectedVariante.imagenPrincipal.urlThumb}
+                        src={getVariantImageUrl(selectedVariante)!}
                         alt={selectedVariante.producto?.nombre ?? "Producto"}
                         fill
                         className="object-cover"
@@ -428,9 +432,9 @@ export function AgregarStockModal({
                         className="flex w-full items-center gap-2.5 border-b px-3 py-2 text-left transition-colors last:border-0 hover:bg-muted/50"
                       >
                         <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-lg border bg-muted">
-                          {v.imagenPrincipal?.urlThumb ? (
+                          {getVariantImageUrl(v) ? (
                             <Image
-                              src={v.imagenPrincipal.urlThumb}
+                              src={getVariantImageUrl(v)!}
                               alt={v.producto?.nombre ?? "Producto"}
                               fill
                               className="object-cover"

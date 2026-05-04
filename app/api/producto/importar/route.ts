@@ -1,12 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 
 const BACKEND_URL = process.env.BACKEND_URL
-const ALLOWED_FILE_EXTENSIONS = [".xlsx", ".xls"]
-
-function hasAllowedExtension(fileName: string): boolean {
-  const lowerName = fileName.trim().toLowerCase()
-  return ALLOWED_FILE_EXTENSIONS.some((extension) => lowerName.endsWith(extension))
-}
 
 function getPayloadMessage(payload: unknown, fallback: string): string {
   if (
@@ -32,43 +26,20 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    let formData: FormData
+    let body: string
     try {
-      formData = await request.formData()
+      body = JSON.stringify(await request.json())
     } catch {
       return NextResponse.json(
-        { message: "FormData invalido o vacio" },
+        { message: "Body invalido o vacio" },
         { status: 400 }
       )
     }
-
-    const file = formData.get("file")
-    if (!(file instanceof File)) {
-      return NextResponse.json(
-        { message: "El campo file es obligatorio" },
-        { status: 400 }
-      )
-    }
-
-    if (file.size <= 0) {
-      return NextResponse.json(
-        { message: "El archivo no puede estar vacio" },
-        { status: 400 }
-      )
-    }
-
-    if (!hasAllowedExtension(file.name)) {
-      return NextResponse.json(
-        { message: "Solo se permiten archivos .xlsx o .xls" },
-        { status: 400 }
-      )
-    }
-
-    const backendFormData = new FormData()
-    backendFormData.append("file", file, file.name)
 
     const authHeader = request.headers.get("authorization")
-    const headers: HeadersInit = {}
+    const headers: HeadersInit = {
+      "Content-Type": "application/json",
+    }
     if (authHeader) {
       headers["Authorization"] = authHeader
     }
@@ -78,7 +49,7 @@ export async function POST(request: NextRequest) {
       backendRes = await fetch(`${BACKEND_URL}/api/producto/importar`, {
         method: "POST",
         headers,
-        body: backendFormData,
+        body,
       })
     } catch {
       return NextResponse.json(

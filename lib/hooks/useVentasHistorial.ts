@@ -55,12 +55,19 @@ function normalizeVenta(value: unknown): VentaHistorial | null {
       typeof item.sunatEstado === "string" && item.sunatEstado.trim()
         ? item.sunatEstado
         : null,
+    sunatBajaEstado:
+      typeof item.sunatBajaEstado === "string" && item.sunatBajaEstado.trim()
+        ? item.sunatBajaEstado
+        : null,
     idCliente: Number.isFinite(Number(item.idCliente)) ? Number(item.idCliente) : null,
     nombreCliente: typeof item.nombreCliente === "string" ? item.nombreCliente : "Sin cliente",
     idUsuario: Number.isFinite(Number(item.idUsuario)) ? Number(item.idUsuario) : null,
     nombreUsuario: typeof item.nombreUsuario === "string" ? item.nombreUsuario : "Sin usuario",
     idSucursal: Number.isFinite(Number(item.idSucursal)) ? Number(item.idSucursal) : null,
     nombreSucursal: typeof item.nombreSucursal === "string" ? item.nombreSucursal : "Sin sucursal",
+    idCanalVenta: Number.isFinite(Number(item.idCanalVenta)) ? Number(item.idCanalVenta) : null,
+    nombreCanalVenta: typeof item.nombreCanalVenta === "string" ? item.nombreCanalVenta : null,
+    plataformaCanalVenta: typeof item.plataformaCanalVenta === "string" ? item.plataformaCanalVenta : null,
     items: Number(item.items) || 0,
     pagos: Number(item.pagos) || 0,
   }
@@ -92,7 +99,8 @@ function validateFilters(filters: VentaHistorialFilters): string | null {
 function buildQueryParams(
   pageNumber: number,
   filters: VentaHistorialFilters,
-  debouncedSearch: string
+  debouncedSearch: string,
+  lockedTipos?: string[]
 ): URLSearchParams {
   const params = new URLSearchParams({
     page: String(pageNumber),
@@ -108,7 +116,11 @@ function buildQueryParams(
     params.set("estado", filters.estado)
   }
 
-  if (filters.comprobante !== "TODOS") {
+  if (lockedTipos && lockedTipos.length > 0) {
+    // Comprobantes forzados: si el usuario eligió uno específico, solo ese; si "TODOS", todos los locked
+    const tipos = filters.comprobante !== "TODOS" ? [filters.comprobante] : lockedTipos
+    tipos.forEach((tipo) => params.append("tipoComprobante", tipo))
+  } else if (filters.comprobante !== "TODOS") {
     params.set("tipoComprobante", filters.comprobante)
   }
 
@@ -136,7 +148,7 @@ function buildQueryParams(
   return params
 }
 
-export function useVentasHistorial(filters: VentaHistorialFilters) {
+export function useVentasHistorial(filters: VentaHistorialFilters, lockedTipos?: string[]) {
   const { isLoading: isAuthLoading } = useAuth()
 
   const [ventas, setVentas] = useState<VentaHistorial[]>([])
@@ -195,7 +207,7 @@ export function useVentasHistorial(filters: VentaHistorialFilters) {
     }
 
     try {
-      const queryParams = buildQueryParams(pageNumber, filters, debouncedSearch)
+      const queryParams = buildQueryParams(pageNumber, filters, debouncedSearch, lockedTipos)
       const response = await authFetch(`/api/venta/listar?${queryParams.toString()}`, {
         signal: controller.signal,
       })

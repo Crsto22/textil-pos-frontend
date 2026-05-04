@@ -3,7 +3,7 @@ export type VentaResumenReporteFiltro =
   | "ULT_7_DIAS"
   | "ULT_14_DIAS"
   | "ULT_30_DIAS"
-  | "ULT_12_MESES"
+  
 
 export interface VentaResumenReporteFilters {
   filtro: VentaResumenReporteFiltro

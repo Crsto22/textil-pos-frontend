@@ -38,7 +38,7 @@ function ClientesFiltersComponent({
                     }
                 }}
             >
-                <SelectTrigger className="h-10 w-full sm:min-w-52">
+                <SelectTrigger className="h-11 w-full rounded-xl border-slate-200 bg-white text-sm sm:min-w-52 dark:border-slate-700 dark:bg-slate-800">
                     <SelectValue placeholder="Filtrar por documento" />
                 </SelectTrigger>
                 <SelectContent>

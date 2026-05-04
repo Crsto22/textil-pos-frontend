@@ -17,8 +17,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
 import { authFetch } from "@/lib/auth/auth-fetch"
 import { useComprobanteOptions } from "@/lib/hooks/useComprobanteOptions"
+import { useIsMobile } from "@/lib/hooks/useIsMobile"
 import { useMetodosPagoActivos } from "@/lib/hooks/useMetodosPagoActivos"
 import type {
   CotizacionConvertirVentaRequest,
@@ -45,6 +55,7 @@ export function CotizacionConvertirVentaDialog({
   onConverted,
 }: CotizacionConvertirVentaDialogProps) {
   const router = useRouter()
+  const isMobile = useIsMobile()
   const [selectedPayment, setSelectedPayment] = useState<PaymentKey | null>(null)
   const [selectedComprobanteId, setSelectedComprobanteId] = useState("")
   const [operationCode, setOperationCode] = useState("")
@@ -61,22 +72,29 @@ export function CotizacionConvertirVentaDialog({
     setSearchComprobante,
   } = useComprobanteOptions({
     enabled: open,
-    idSucursal: target?.idSucursal ?? null,
+    habilitadoVenta: true,
   })
 
   useEffect(() => {
     if (!open) return
     setSelectedPayment(null)
-    setSelectedComprobanteId("")
     setOperationCode("")
     setRequestError(null)
   }, [open, target?.idCotizacion])
 
+  useEffect(() => {
+    if (!open) return
+    if (selectedComprobanteId) return
+    if (comprobanteOptions.length === 0) return
+    setSelectedComprobanteId(comprobanteOptions[0].value)
+  }, [open, comprobanteOptions, selectedComprobanteId])
+
   const effectiveSelectedComprobanteId = useMemo(() => {
     if (!selectedComprobanteId) return ""
+    if (comprobanteOptions.length === 0) return ""
     return comprobanteOptions.some((option) => option.value === selectedComprobanteId)
       ? selectedComprobanteId
-      : ""
+      : comprobanteOptions[0].value
   }, [comprobanteOptions, selectedComprobanteId])
 
   const selectedComprobante = useMemo(
@@ -123,7 +141,17 @@ export function CotizacionConvertirVentaDialog({
     setSubmitting(true)
     setRequestError(null)
 
+    if (!selectedComprobante) {
+      const message = "Selecciona un tipo de comprobante."
+      setRequestError(message)
+      toast.error(message)
+      setSubmitting(false)
+      return
+    }
+
     const payload: CotizacionConvertirVentaRequest = {
+      tipoComprobante: selectedComprobante.tipoComprobante,
+      serie: selectedComprobante.serie,
       pagos: [
         {
           idMetodoPago: selectedMetodoPago.idMetodoPago,
@@ -131,10 +159,6 @@ export function CotizacionConvertirVentaDialog({
           codigoOperacion: operationCode.trim(),
         },
       ],
-    }
-
-    if (selectedComprobante?.tipoComprobante) {
-      payload.tipoComprobante = selectedComprobante.tipoComprobante
     }
 
     try {
@@ -169,13 +193,14 @@ export function CotizacionConvertirVentaDialog({
             ? `Cotizacion convertida a venta - SUNAT ${sunatEstado}`
             : payloadResponse.message || "Cotizacion convertida a venta.",
         {
-        action: {
-          label: "Ver venta",
-          onClick: () => {
-            router.push(`/ventas/historial/${payloadResponse.idVenta}`)
+          action: {
+            label: "Ver venta",
+            onClick: () => {
+              router.push(`/ventas/historial/${payloadResponse.idVenta}`)
+            },
           },
-        },
-      })
+        }
+      )
 
       if (sunatAutoDispatchError) {
         toast.error(sunatAutoDispatchError)
@@ -195,9 +220,141 @@ export function CotizacionConvertirVentaDialog({
     }
   }
 
+  const formBody = (
+    <div className="space-y-4">
+      <div className="grid gap-4 rounded-xl border bg-slate-50/60 p-4 md:grid-cols-3 dark:bg-slate-900/20">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Cliente
+          </p>
+          <p className="mt-1 text-sm font-medium">{target?.nombreCliente || "Sin cliente"}</p>
+        </div>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Total
+          </p>
+          <p className="mt-1 text-sm font-medium">
+            {target ? formatMonto(target.total) : formatMonto(0)}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Sucursal
+          </p>
+          <p className="mt-1 text-sm font-medium">{target?.nombreSucursal || "Sin sucursal"}</p>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <label className="text-sm font-medium text-foreground">Comprobante</label>
+        <Combobox
+          id="convertir-venta-comprobante"
+          value={effectiveSelectedComprobanteId}
+          options={comprobanteOptions}
+          searchValue={searchComprobante}
+          onSearchValueChange={setSearchComprobante}
+          onValueChange={setSelectedComprobanteId}
+          placeholder="Selecciona comprobante"
+          searchPlaceholder="Buscar comprobante..."
+          emptyMessage="No hay comprobantes activos para esta sucursal"
+          loading={loadingComprobantes}
+        />
+        {errorComprobantes && (
+          <p className="text-xs text-rose-600 dark:text-rose-400">{errorComprobantes}</p>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <label className="text-sm font-medium text-foreground">Metodo de pago</label>
+        <PaymentMethod
+          selected={selectedPayment}
+          onSelect={setSelectedPayment}
+          methods={loading ? undefined : methods}
+        />
+        {methodsError && (
+          <p className="text-xs text-rose-600 dark:text-rose-400">{methodsError}</p>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <label
+          htmlFor="convertir-venta-codigo-operacion"
+          className="text-sm font-medium text-foreground"
+        >
+          Codigo de operacion
+        </label>
+        <input
+          id="convertir-venta-codigo-operacion"
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          value={operationCode}
+          onChange={(event) => setOperationCode(sanitizeNumericInput(event.target.value))}
+          placeholder="Obligatorio. Solo numeros"
+          className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15"
+        />
+      </div>
+
+      {requestError && (
+        <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-900/60 dark:bg-rose-900/20 dark:text-rose-300">
+          {requestError}
+        </div>
+      )}
+    </div>
+)
+
+  if (isMobile) {
+    return (
+      <Sheet open={open} onOpenChange={handleOpenChange}>
+        <SheetContent side="bottom" className="flex h-[92dvh] flex-col gap-0 p-0">
+          <SheetHeader className="shrink-0 border-b border-slate-100 px-4 pb-3 pt-4 dark:border-slate-700/60">
+            <SheetTitle className="text-sm">Convertir a venta</SheetTitle>
+            <SheetDescription className="text-xs sm:text-sm">
+              Registra una venta real a partir de la cotizacion{" "}
+              <span className="font-semibold text-foreground">
+                {target ? `#${target.idCotizacion}` : ""}
+              </span>
+              .
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+            {formBody}
+          </div>
+
+          <SheetFooter className="shrink-0 border-t border-slate-100 px-4 py-4 dark:border-slate-700/60">
+            <SheetClose asChild>
+              <Button type="button" variant="outline" disabled={submitting} className="h-11">
+                Cancelar
+              </Button>
+            </SheetClose>
+            <Button
+              type="button"
+              onClick={handleConvert}
+              disabled={submitting || !selectedMetodoPago || !hasValidOperationCode}
+              className="h-11"
+            >
+              {submitting ? (
+                <>
+                  <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                  Convirtiendo...
+                </>
+              ) : (
+                <>
+                  <CheckCircleIcon className="h-4 w-4" />
+                  Convertir a venta
+                </>
+              )}
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
+    )
+  }
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-2xl" showCloseButton={!submitting}>
+      <DialogContent className="sm:max-w-[560px]" showCloseButton={!submitting}>
         <DialogHeader>
           <DialogTitle>Convertir a venta</DialogTitle>
           <DialogDescription>
@@ -208,88 +365,7 @@ export function CotizacionConvertirVentaDialog({
             .
           </DialogDescription>
         </DialogHeader>
-
-        <div className="space-y-4">
-          <div className="grid gap-4 rounded-xl border bg-slate-50/60 p-4 md:grid-cols-3 dark:bg-slate-900/20">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Cliente
-              </p>
-              <p className="mt-1 text-sm font-medium">{target?.nombreCliente || "Sin cliente"}</p>
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Total
-              </p>
-              <p className="mt-1 text-sm font-medium">
-                {target ? formatMonto(target.total) : formatMonto(0)}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Sucursal
-              </p>
-              <p className="mt-1 text-sm font-medium">{target?.nombreSucursal || "Sin sucursal"}</p>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">Comprobante</label>
-            <Combobox
-              id="convertir-venta-comprobante"
-              value={effectiveSelectedComprobanteId}
-              options={comprobanteOptions}
-              searchValue={searchComprobante}
-              onSearchValueChange={setSearchComprobante}
-              onValueChange={setSelectedComprobanteId}
-              placeholder="Usar por defecto del backend"
-              searchPlaceholder="Buscar comprobante..."
-              emptyMessage="No hay comprobantes activos para esta sucursal"
-              loading={loadingComprobantes}
-            />
-            {errorComprobantes && (
-              <p className="text-xs text-rose-600 dark:text-rose-400">{errorComprobantes}</p>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">Metodo de pago</label>
-            <PaymentMethod
-              selected={selectedPayment}
-              onSelect={setSelectedPayment}
-              methods={loading ? undefined : methods}
-            />
-            {methodsError && (
-              <p className="text-xs text-rose-600 dark:text-rose-400">{methodsError}</p>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <label
-              htmlFor="convertir-venta-codigo-operacion"
-              className="text-sm font-medium text-foreground"
-            >
-              Codigo de operacion
-            </label>
-            <input
-              id="convertir-venta-codigo-operacion"
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              value={operationCode}
-              onChange={(event) => setOperationCode(sanitizeNumericInput(event.target.value))}
-              placeholder="Obligatorio. Solo numeros"
-              className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15"
-            />
-          </div>
-
-          {requestError && (
-            <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-900/60 dark:bg-rose-900/20 dark:text-rose-300">
-              {requestError}
-            </div>
-          )}
-        </div>
-
+        {formBody}
         <DialogFooter>
           <DialogClose asChild>
             <Button type="button" variant="outline" disabled={submitting}>

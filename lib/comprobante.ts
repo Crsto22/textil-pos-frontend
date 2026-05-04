@@ -64,7 +64,6 @@ export function normalizeComprobante(value: unknown): ComprobanteConfig | null {
 
   if (idComprobante <= 0) return null
 
-  const idSucursal = toNumber(data.idSucursal ?? data.id_sucursal)
   const ultimoCorrelativo = toNumber(data.ultimoCorrelativo)
   const siguienteCorrelativo = toNumber(
     data.siguienteCorrelativo,
@@ -73,10 +72,6 @@ export function normalizeComprobante(value: unknown): ComprobanteConfig | null {
 
   return {
     idComprobante,
-    idSucursal: idSucursal > 0 ? idSucursal : null,
-    nombreSucursal: toTrimmedString(
-      data.nombreSucursal ?? data.sucursalNombre ?? data.nombre_sucursal
-    ),
     tipoComprobante: toTrimmedString(
       data.tipoComprobante ?? data.tipo_comprobante
     ),

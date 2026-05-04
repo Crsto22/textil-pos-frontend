@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
   const q = searchParams.get("q")?.trim() ?? ""
   const page = searchParams.get("page")?.trim() || "0"
   const rawActivo = searchParams.get("activo")
-  const idSucursal = searchParams.get("idSucursal")?.trim()
+  const habilitadoVenta = searchParams.get("habilitadoVenta")?.trim()
 
   backendParams.set("q", q)
   backendParams.set("page", page)
@@ -26,8 +26,8 @@ export async function GET(request: NextRequest) {
     backendParams.set("activo", activo)
   }
 
-  if (idSucursal) {
-    backendParams.set("idSucursal", idSucursal)
+  if (habilitadoVenta) {
+    backendParams.set("habilitadoVenta", habilitadoVenta)
   }
 
   return proxyToBackend({

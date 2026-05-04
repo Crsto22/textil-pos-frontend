@@ -1,11 +1,19 @@
 import type { PageResponse, ProductoDetalleVariante } from "@/lib/types/producto"
 
+export type TipoOfertaAplicada = "NINGUNA" | "GLOBAL" | "SUCURSAL"
+
 export interface ProductoVarianteOferta extends ProductoDetalleVariante {
   productoId: number
   productoNombre: string
   sucursalId: number | null
   sucursalNombre: string | null
   imageUrl: string | null
+  precioVigente: number | null
+  tipoOfertaAplicada: TipoOfertaAplicada | null
+  sucursalOfertaId: number | null
+  usuarioCreacionId: number | null
+  usuarioCreacionNombre: string | null
+  usuarioCreacionCorreo: string | null
 }
 
 export type ProductoVarianteOfertaPageResponse = PageResponse<ProductoVarianteOferta>
@@ -19,6 +27,18 @@ export interface ProductoVarianteOfertaLoteItemRequest {
 
 export interface ProductoVarianteOfertaLoteRequest {
   items: ProductoVarianteOfertaLoteItemRequest[]
+}
+
+export interface ProductoVarianteOfertaSucursalItemRequest {
+  idProductoVariante: number
+  idSucursal: number
+  precioOferta: number | null
+  ofertaInicio: string | null
+  ofertaFin: string | null
+}
+
+export interface ProductoVarianteOfertaSucursalLoteRequest {
+  items: ProductoVarianteOfertaSucursalItemRequest[]
 }
 
 export type OfertaBatchPriceMode =

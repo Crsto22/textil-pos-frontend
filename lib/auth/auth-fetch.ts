@@ -1,14 +1,14 @@
 import { getAccessToken, setAccessToken } from "./token-store"
 
-/**
- * Flag para evitar múltiples refreshes simultáneos.
- * Si ya hay un refresh en curso, las demás peticiones esperan
- * a que termine para reutilizar el nuevo token.
- */
 let refreshPromise: Promise<string | null> | null = null
 
+function dispatchSessionExpired() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("auth:session-expired"))
+  }
+}
+
 async function refreshAccessToken(): Promise<string | null> {
-  // Si ya hay un refresh en curso, reutilizar la misma promesa
   if (refreshPromise) return refreshPromise
 
   refreshPromise = (async () => {
@@ -17,6 +17,7 @@ async function refreshAccessToken(): Promise<string | null> {
 
       if (!res.ok) {
         setAccessToken(null)
+        dispatchSessionExpired()
         return null
       }
 
@@ -25,6 +26,7 @@ async function refreshAccessToken(): Promise<string | null> {
       return data.access_token
     } catch {
       setAccessToken(null)
+      dispatchSessionExpired()
       return null
     } finally {
       refreshPromise = null
@@ -37,6 +39,7 @@ async function refreshAccessToken(): Promise<string | null> {
 /**
  * Fetch helper que inyecta el Authorization header y
  * reintenta UNA sola vez si recibe 401 (refresh + retry).
+ * Si el refresh también falla, despacha "auth:session-expired".
  */
 export async function authFetch(
   url: string,
@@ -51,7 +54,6 @@ export async function authFetch(
 
   let response = await fetch(url, { ...options, headers })
 
-  // Si 401 → intentar refresh y reintentar UNA vez
   if (response.status === 401) {
     const newToken = await refreshAccessToken()
 

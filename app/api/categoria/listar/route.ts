@@ -28,7 +28,6 @@ export async function GET(request: NextRequest) {
       if (idSucursal?.trim()) {
         backendParams.set("idSucursal", idSucursal)
       }
-
       backendRes = await fetch(
         `${BACKEND_URL}/api/categoria/listar?${backendParams.toString()}`,
         { headers }

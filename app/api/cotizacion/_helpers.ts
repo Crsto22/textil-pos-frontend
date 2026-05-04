@@ -20,6 +20,7 @@ interface CotizacionDetallePayload {
 interface CotizacionWritePayload {
   idSucursal: number
   idCliente: number
+  serie: string
   igvPorcentaje?: number
   descuentoTotal?: number | null
   tipoDescuento?: string | null
@@ -164,6 +165,11 @@ export function normalizeCotizacionWritePayload(
     return { ok: false, message: "idCliente invalido" }
   }
 
+  const serie = getTrimmedString(payload.serie)
+  if (!serie) {
+    return { ok: false, message: "serie es obligatoria" }
+  }
+
   const rawDetalles = Array.isArray(payload.detalles) ? payload.detalles : null
   if (!rawDetalles || rawDetalles.length === 0) {
     return { ok: false, message: "La cotizacion debe incluir al menos un detalle" }
@@ -210,6 +216,7 @@ export function normalizeCotizacionWritePayload(
     data: {
       idSucursal,
       idCliente,
+      serie,
       ...(typeof igvPorcentaje === "number" ? { igvPorcentaje } : {}),
       ...(descuentoTotal !== undefined ? { descuentoTotal } : {}),
       tipoDescuento: getTrimmedString(payload.tipoDescuento)?.toUpperCase() ?? null,

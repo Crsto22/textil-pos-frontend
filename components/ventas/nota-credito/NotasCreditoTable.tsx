@@ -1,17 +1,32 @@
 import Image from "next/image"
 import {
-  ArrowPathIcon,
   ArrowDownTrayIcon,
+  ArrowPathIcon,
   CodeBracketIcon,
   DocumentArrowDownIcon,
+  DocumentTextIcon,
+  EllipsisVerticalIcon,
+  EyeIcon,
+  NoSymbolIcon,
 } from "@heroicons/react/24/outline"
 
+import { LoaderSpinner } from "@/components/ui/loader-spinner"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import {
   formatComprobante,
   formatFechaHora,
   formatMonto,
   getEstadoBadgeClass,
   getSunatBadgeClass,
+  getSunatEstadoLabel,
+  isSunatNotApplicable,
 } from "@/components/ventas/historial/historial.utils"
 import { getNotaCreditoMotivoLabel } from "@/lib/nota-credito"
 import type { NotaCreditoDocumentKind } from "@/lib/nota-credito-documents"
@@ -26,30 +41,64 @@ interface NotasCreditoTableProps {
   totalElements: number
   onRetry: () => void
   onPageChange: (nextPage: number) => void
+  onViewDetail: (notaCredito: NotaCreditoHistorial) => void
   onDownloadDocument: (
     notaCredito: NotaCreditoHistorial,
     kind: NotaCreditoDocumentKind
   ) => void
+  onSolicitarBaja: (notaCredito: NotaCreditoHistorial) => void
+  onConsultarBajaTicket: (notaCredito: NotaCreditoHistorial) => void
   downloadingDocument:
     | { idNotaCredito: number; kind: NotaCreditoDocumentKind }
+    | null
+  bajaAction:
+    | { idNotaCredito: number; kind: "solicitar-baja" | "consultar-ticket" }
     | null
 }
 
 function SunatStatusBadge({ estado }: { estado: NotaCreditoHistorial["sunatEstado"] }) {
+  const showSunatLogo = !isSunatNotApplicable(estado)
+
   return (
     <span
-      className={`inline-flex items-center gap-2 rounded-full px-3 text-xs font-semibold ${getSunatBadgeClass(estado)}`}
+      className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${getSunatBadgeClass(estado)}`}
     >
-      <Image
-        src="/img/Sunat.png"
-        alt="SUNAT"
-        width={48}
-        height={48}
-        className="h-[48px] w-[48px] shrink-0 object-contain"
-      />
-      {estado || "N/A"}
+      {showSunatLogo ? (
+        <Image
+          src="/img/Sunat.png"
+          alt="SUNAT"
+          width={48}
+          height={48}
+          className="h-[48px] w-[48px] shrink-0 object-contain"
+        />
+      ) : null}
+      {getSunatEstadoLabel(estado)}
     </span>
   )
+}
+
+const NOTA_CREDITO_ACTION_BLOCKED_ESTADOS = new Set([
+  "ANULADA",
+  "ANULADO",
+  "ANULACION_PENDIENTE",
+  "BAJA_ACEPTADA",
+  "BAJA_ACEPTADO",
+  "CANCELADA",
+  "CANCELADO",
+  "DADA_DE_BAJA",
+  "DADO_DE_BAJA",
+])
+
+const SUNAT_BAJA_ACTIVE_ESTADOS = new Set([
+  "PENDIENTE_ENVIO",
+  "PENDIENTE_CDR",
+  "ACEPTADO",
+  "ACEPTADA",
+  "OBSERVADO",
+])
+
+function normalizeValue(value: string | null | undefined): string {
+  return value?.trim().toUpperCase() ?? ""
 }
 
 export function NotasCreditoTable({
@@ -61,21 +110,23 @@ export function NotasCreditoTable({
   totalElements,
   onRetry,
   onPageChange,
+  onViewDetail,
   onDownloadDocument,
+  onSolicitarBaja,
+  onConsultarBajaTicket,
   downloadingDocument,
+  bajaAction,
 }: NotasCreditoTableProps) {
   const canGoPrev = page > 0
   const canGoNext = page + 1 < totalPages
 
-  const isDownloading = (
-    notaCreditoId: number,
-    kind: NotaCreditoDocumentKind
-  ) =>
-    downloadingDocument?.idNotaCredito === notaCreditoId &&
-    downloadingDocument.kind === kind
+  const isDownloading = (notaCreditoId: number, kind: NotaCreditoDocumentKind) =>
+    downloadingDocument?.idNotaCredito === notaCreditoId && downloadingDocument.kind === kind
+
+  const isAnyDownloadActive = downloadingDocument !== null
 
   return (
-    <section className="space-y-3 rounded-2xl border bg-card p-4 shadow-sm">
+    <section className="space-y-3 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-700/60 dark:bg-slate-800/80">
       {error && (
         <div className="flex items-center justify-between rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-900/60 dark:bg-rose-900/20 dark:text-rose-300">
           <span>{error}</span>
@@ -109,8 +160,8 @@ export function NotasCreditoTable({
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={11} className="px-3 py-14 text-center text-sm text-muted-foreground">
-                  Cargando notas de credito...
+                <td colSpan={11} className="px-3 py-14 text-center">
+                  <LoaderSpinner text="Cargando notas de credito..." />
                 </td>
               </tr>
             ) : notasCredito.length === 0 ? (
@@ -125,9 +176,7 @@ export function NotasCreditoTable({
                   key={notaCredito.idNotaCredito}
                   className="border-b last:border-0 hover:bg-muted/20"
                 >
-                  <td className="px-3 py-3 font-medium">
-                    {formatFechaHora(notaCredito.fecha)}
-                  </td>
+                  <td className="px-3 py-3 font-medium">{formatFechaHora(notaCredito.fecha)}</td>
                   <td className="px-3 py-3">
                     <div className="flex flex-col">
                       <span className="font-semibold">{notaCredito.tipoComprobante}</span>
@@ -179,7 +228,14 @@ export function NotasCreditoTable({
                     </div>
                   </td>
                   <td className="px-3 py-3 text-center">
-                    <SunatStatusBadge estado={notaCredito.sunatEstado} />
+                    <div className="flex flex-col items-center gap-1">
+                      <SunatStatusBadge estado={notaCredito.sunatEstado} />
+                      {notaCredito.sunatBajaEstado ? (
+                        <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${getSunatBadgeClass(notaCredito.sunatBajaEstado)}`}>
+                          Baja: {getSunatEstadoLabel(notaCredito.sunatBajaEstado)}
+                        </span>
+                      ) : null}
+                    </div>
                   </td>
                   <td className="px-3 py-3 text-center font-semibold">{notaCredito.items}</td>
                   <td className="px-3 py-3 text-right font-semibold">
@@ -193,64 +249,17 @@ export function NotasCreditoTable({
                     </span>
                   </td>
                   <td className="px-3 py-3 text-center">
-                    <div className="flex items-center justify-center gap-2">
-                      <button
-                        type="button"
-                        title="Descargar PDF"
-                        aria-label={`Descargar PDF de la nota ${formatComprobante(notaCredito)}`}
-                        onClick={() => onDownloadDocument(notaCredito, "pdf")}
-                        disabled={downloadingDocument !== null}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-300 bg-red-50 text-red-700 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-700/50 dark:bg-red-900/20 dark:text-red-300 dark:hover:bg-red-900/35"
-                      >
-                        {isDownloading(notaCredito.idNotaCredito, "pdf") ? (
-                          <ArrowPathIcon className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <DocumentArrowDownIcon className="h-4 w-4" />
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        title="Descargar XML"
-                        aria-label={`Descargar XML de la nota ${formatComprobante(notaCredito)}`}
-                        onClick={() => onDownloadDocument(notaCredito, "xml")}
-                        disabled={downloadingDocument !== null}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-700 transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-700/50 dark:bg-emerald-900/20 dark:text-emerald-300 dark:hover:bg-emerald-900/35"
-                      >
-                        {isDownloading(notaCredito.idNotaCredito, "xml") ? (
-                          <ArrowPathIcon className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <CodeBracketIcon className="h-4 w-4" />
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        title="Ver CDR (XML)"
-                        aria-label={`Ver CDR XML de la nota ${formatComprobante(notaCredito)}`}
-                        onClick={() => onDownloadDocument(notaCredito, "cdr-xml")}
-                        disabled={downloadingDocument !== null}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-blue-300 bg-blue-50 text-blue-700 transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-blue-700/50 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/35"
-                      >
-                        {isDownloading(notaCredito.idNotaCredito, "cdr-xml") ? (
-                          <ArrowPathIcon className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <DocumentArrowDownIcon className="h-4 w-4" />
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        title="Descargar CDR (ZIP)"
-                        aria-label={`Descargar CDR ZIP de la nota ${formatComprobante(notaCredito)}`}
-                        onClick={() => onDownloadDocument(notaCredito, "cdr-zip")}
-                        disabled={downloadingDocument !== null}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-indigo-300 bg-indigo-50 text-indigo-700 transition-colors hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-indigo-700/50 dark:bg-indigo-900/20 dark:text-indigo-300 dark:hover:bg-indigo-900/35"
-                      >
-                        {isDownloading(notaCredito.idNotaCredito, "cdr-zip") ? (
-                          <ArrowPathIcon className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <ArrowDownTrayIcon className="h-4 w-4" />
-                        )}
-                      </button>
-                    </div>
+                    <ActionButtons
+                      notaCredito={notaCredito}
+                      downloadingDocument={downloadingDocument}
+                      bajaAction={bajaAction}
+                      isAnyDownloadActive={isAnyDownloadActive}
+                      isDownloading={isDownloading}
+                      onViewDetail={onViewDetail}
+                      onDownloadDocument={onDownloadDocument}
+                      onSolicitarBaja={onSolicitarBaja}
+                      onConsultarBajaTicket={onConsultarBajaTicket}
+                    />
                   </td>
                 </tr>
               ))
@@ -259,24 +268,27 @@ export function NotasCreditoTable({
         </table>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 lg:hidden">
+      <div className="space-y-3 lg:hidden">
         {loading ? (
-          <article className="rounded-xl border p-6 text-center text-sm text-muted-foreground">
-            Cargando notas de credito...
+          <article className="rounded-2xl border border-slate-100 bg-slate-50/80 p-6 dark:border-slate-700 dark:bg-slate-900/40">
+            <LoaderSpinner text="Cargando notas de credito..." />
           </article>
         ) : notasCredito.length === 0 ? (
-          <article className="rounded-xl border p-6 text-center text-sm text-muted-foreground">
+          <article className="rounded-2xl border border-slate-100 bg-slate-50/80 p-6 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
             Sin notas de credito para los filtros seleccionados
           </article>
         ) : (
           notasCredito.map((notaCredito) => (
-            <article key={notaCredito.idNotaCredito} className="rounded-xl border bg-background p-3">
-              <div className="mb-2 flex items-start justify-between gap-2">
-                <div>
-                  <p className="text-sm font-semibold">
-                    {formatComprobante(notaCredito)}
+            <article
+              key={notaCredito.idNotaCredito}
+              className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-900/40"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">
+                    {notaCredito.nombreCliente || "Sin cliente"}
                   </p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                     {formatFechaHora(notaCredito.fecha)}
                   </p>
                 </div>
@@ -287,121 +299,107 @@ export function NotasCreditoTable({
                 </span>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="rounded-lg bg-muted/40 p-2">
-                  <p className="text-muted-foreground">Cliente</p>
-                  <p className="font-semibold">{notaCredito.nombreCliente || "Sin cliente"}</p>
-                </div>
-                <div className="rounded-lg bg-muted/40 p-2">
-                  <p className="text-muted-foreground">Total</p>
-                  <p className="font-semibold">
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <span className="inline-flex rounded-full bg-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-700 dark:bg-slate-700 dark:text-slate-200">
+                  {formatComprobante(notaCredito)}
+                </span>
+                {notaCredito.stockDevuelto && (
+                  <span className="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                    Stock devuelto
+                  </span>
+                )}
+              </div>
+
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <div className="rounded-xl border border-slate-200/70 bg-white px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/80">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                    Total
+                  </p>
+                  <p className="mt-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
                     {formatMonto(notaCredito.total, notaCredito.moneda)}
                   </p>
                 </div>
-                <div className="rounded-lg bg-muted/40 p-2">
-                  <p className="text-muted-foreground">Referencia</p>
-                  <p className="font-semibold">
+                <div className="rounded-xl border border-slate-200/70 bg-white px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/80">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                    Items
+                  </p>
+                  <p className="mt-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                    {notaCredito.items} item(s)
+                  </p>
+                </div>
+                <div className="rounded-xl border border-slate-200/70 bg-white px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/80">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                    Referencia
+                  </p>
+                  <p className="mt-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
                     {notaCredito.numeroVentaReferencia || "Sin referencia"}
                   </p>
-                  <p className="mt-1 text-[11px] text-muted-foreground">
+                  <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
                     {notaCredito.tipoComprobanteVentaReferencia || "Sin referencia"}
                   </p>
                 </div>
-                <div className="rounded-lg bg-muted/40 p-2">
-                  <p className="text-muted-foreground">Motivo</p>
-                  <p className="font-semibold">
-                    {notaCredito.codigoMotivo} -{" "}
-                    {getNotaCreditoMotivoLabel(
-                      notaCredito.codigoMotivo,
-                      notaCredito.descripcionMotivo
-                    )}
+                <div className="rounded-xl border border-slate-200/70 bg-white px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/80">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                    Usuario
                   </p>
-                </div>
-                <div className="rounded-lg bg-muted/40 p-2">
-                  <p className="text-muted-foreground">Items</p>
-                  <p className="font-semibold">{notaCredito.items}</p>
-                </div>
-                <div className="rounded-lg bg-muted/40 p-2">
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Image
-                      src="/img/Sunat.png"
-                      alt="SUNAT"
-                      width={18}
-                      height={18}
-                      className="h-[18px] w-[18px] shrink-0 object-contain"
-                    />
-                    <p>SUNAT</p>
-                  </div>
-                  <div className="mt-1">
-                    <SunatStatusBadge estado={notaCredito.sunatEstado} />
-                  </div>
+                  <p className="mt-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                    {notaCredito.nombreUsuario || "Sin usuario"}
+                  </p>
+                  <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                    {notaCredito.nombreSucursal || "Sin sucursal"}
+                  </p>
                 </div>
               </div>
 
-              <div className="mt-3 flex justify-end gap-2">
-                <button
-                  type="button"
-                  title="Descargar PDF"
-                  aria-label={`Descargar PDF de la nota ${formatComprobante(notaCredito)}`}
-                  onClick={() => onDownloadDocument(notaCredito, "pdf")}
-                  disabled={downloadingDocument !== null}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-300 bg-red-50 text-red-700 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-700/50 dark:bg-red-900/20 dark:text-red-300 dark:hover:bg-red-900/35"
-                >
-                  {isDownloading(notaCredito.idNotaCredito, "pdf") ? (
-                    <ArrowPathIcon className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <DocumentArrowDownIcon className="h-4 w-4" />
+              <div className="mt-2 rounded-xl border border-slate-200/70 bg-white px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/80">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                  Motivo
+                </p>
+                <p className="mt-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                  {notaCredito.codigoMotivo} -{" "}
+                  {getNotaCreditoMotivoLabel(
+                    notaCredito.codigoMotivo,
+                    notaCredito.descripcionMotivo
                   )}
-                </button>
-                <button
-                  type="button"
-                  title="Descargar XML"
-                  aria-label={`Descargar XML de la nota ${formatComprobante(notaCredito)}`}
-                  onClick={() => onDownloadDocument(notaCredito, "xml")}
-                  disabled={downloadingDocument !== null}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-700 transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-700/50 dark:bg-emerald-900/20 dark:text-emerald-300 dark:hover:bg-emerald-900/35"
-                >
-                  {isDownloading(notaCredito.idNotaCredito, "xml") ? (
-                    <ArrowPathIcon className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <CodeBracketIcon className="h-4 w-4" />
-                  )}
-                </button>
-                <button
-                  type="button"
-                  title="Ver CDR (XML)"
-                  aria-label={`Ver CDR XML de la nota ${formatComprobante(notaCredito)}`}
-                  onClick={() => onDownloadDocument(notaCredito, "cdr-xml")}
-                  disabled={downloadingDocument !== null}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-blue-300 bg-blue-50 text-blue-700 transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-blue-700/50 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/35"
-                >
-                  {isDownloading(notaCredito.idNotaCredito, "cdr-xml") ? (
-                    <ArrowPathIcon className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <DocumentArrowDownIcon className="h-4 w-4" />
-                  )}
-                </button>
-                <button
-                  type="button"
-                  title="Descargar CDR (ZIP)"
-                  aria-label={`Descargar CDR ZIP de la nota ${formatComprobante(notaCredito)}`}
-                  onClick={() => onDownloadDocument(notaCredito, "cdr-zip")}
-                  disabled={downloadingDocument !== null}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-indigo-300 bg-indigo-50 text-indigo-700 transition-colors hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-indigo-700/50 dark:bg-indigo-900/20 dark:text-indigo-300 dark:hover:bg-indigo-900/35"
-                >
-                  {isDownloading(notaCredito.idNotaCredito, "cdr-zip") ? (
-                    <ArrowPathIcon className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <ArrowDownTrayIcon className="h-4 w-4" />
-                  )}
-                </button>
+                </p>
+                <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                  {notaCredito.descripcionMotivo || "Sin descripcion"}
+                </p>
+              </div>
+
+              <div className="mt-2 rounded-xl border border-slate-200/70 bg-white px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/80">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                  SUNAT
+                </p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <SunatStatusBadge estado={notaCredito.sunatEstado} />
+                  {notaCredito.sunatBajaEstado ? (
+                    <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${getSunatBadgeClass(notaCredito.sunatBajaEstado)}`}>
+                      Baja: {getSunatEstadoLabel(notaCredito.sunatBajaEstado)}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="mt-4 flex justify-end">
+                <ActionButtons
+                  notaCredito={notaCredito}
+                  downloadingDocument={downloadingDocument}
+                  bajaAction={bajaAction}
+                  isAnyDownloadActive={isAnyDownloadActive}
+                  isDownloading={isDownloading}
+                  onViewDetail={onViewDetail}
+                  onDownloadDocument={onDownloadDocument}
+                  onSolicitarBaja={onSolicitarBaja}
+                  onConsultarBajaTicket={onConsultarBajaTicket}
+                />
               </div>
             </article>
           ))
         )}
       </div>
 
-      <div className="flex items-center justify-between border-t pt-3">
+      <div className="flex items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-700/60">
         <p className="text-xs text-muted-foreground">
           {totalElements} notas de credito
           {totalPages > 0 && ` - Pagina ${page + 1} de ${totalPages}`}
@@ -411,7 +409,7 @@ export function NotasCreditoTable({
             type="button"
             disabled={!canGoPrev}
             onClick={() => onPageChange(page - 1)}
-            className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
           >
             Anterior
           </button>
@@ -419,12 +417,226 @@ export function NotasCreditoTable({
             type="button"
             disabled={!canGoNext}
             onClick={() => onPageChange(page + 1)}
-            className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
           >
             Siguiente
           </button>
         </div>
       </div>
     </section>
+  )
+}
+
+interface ActionButtonsProps {
+  notaCredito: NotaCreditoHistorial
+  downloadingDocument:
+    | { idNotaCredito: number; kind: NotaCreditoDocumentKind }
+    | null
+  bajaAction:
+    | { idNotaCredito: number; kind: "solicitar-baja" | "consultar-ticket" }
+    | null
+  isAnyDownloadActive: boolean
+  isDownloading: (notaCreditoId: number, kind: NotaCreditoDocumentKind) => boolean
+  onViewDetail: (notaCredito: NotaCreditoHistorial) => void
+  onDownloadDocument: (
+    notaCredito: NotaCreditoHistorial,
+    kind: NotaCreditoDocumentKind
+  ) => void
+  onSolicitarBaja: (notaCredito: NotaCreditoHistorial) => void
+  onConsultarBajaTicket: (notaCredito: NotaCreditoHistorial) => void
+}
+
+function ActionButtons({
+  notaCredito,
+  downloadingDocument,
+  bajaAction,
+  isAnyDownloadActive,
+  isDownloading,
+  onViewDetail,
+  onDownloadDocument,
+  onSolicitarBaja,
+  onConsultarBajaTicket,
+}: ActionButtonsProps) {
+  const normalizedEstado = normalizeValue(notaCredito.estado)
+  const normalizedSunatEstado = normalizeValue(notaCredito.sunatEstado)
+  const normalizedSunatBajaEstado = normalizeValue(notaCredito.sunatBajaEstado)
+  const bajaActiva = SUNAT_BAJA_ACTIVE_ESTADOS.has(normalizedSunatBajaEstado)
+  const notaBloqueada =
+    NOTA_CREDITO_ACTION_BLOCKED_ESTADOS.has(normalizedEstado) || bajaActiva
+  const canSolicitarBaja =
+    normalizedEstado === "EMITIDA" &&
+    ["ACEPTADO", "ACEPTADA", "OBSERVADO"].includes(normalizedSunatEstado) &&
+    !notaBloqueada
+  const canConsultarBajaTicket = [
+    "PENDIENTE_ENVIO",
+    "PENDIENTE_CDR",
+    "ERROR",
+    "ERROR_TRANSITORIO",
+  ].includes(normalizedSunatBajaEstado)
+  const canDownloadBajaXml = normalizedSunatBajaEstado !== ""
+  const canDownloadBajaCdr = ["ACEPTADO", "ACEPTADA", "OBSERVADO"].includes(
+    normalizedSunatBajaEstado
+  )
+
+  const isBajaBusy = bajaAction?.idNotaCredito === notaCredito.idNotaCredito
+  const isBusy =
+    downloadingDocument?.idNotaCredito === notaCredito.idNotaCredito || isBajaBusy
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+        >
+          {isBusy ? (
+            <ArrowPathIcon className="h-4 w-4 animate-spin" />
+          ) : (
+            <EllipsisVerticalIcon className="h-4 w-4" />
+          )}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground">
+          {notaCredito.tipoComprobante} {formatComprobante(notaCredito)}
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+
+        <DropdownMenuItem onClick={() => onViewDetail(notaCredito)}>
+          <EyeIcon className="mr-2 h-4 w-4 text-slate-500" />
+          Ver detalle
+        </DropdownMenuItem>
+
+        <DropdownMenuSeparator />
+
+        <DropdownMenuItem
+          onClick={() => {
+            if (canSolicitarBaja) onSolicitarBaja(notaCredito)
+          }}
+          disabled={!canSolicitarBaja || bajaAction !== null}
+          className="text-rose-700 focus:text-rose-700 dark:text-rose-400"
+        >
+          {bajaAction?.idNotaCredito === notaCredito.idNotaCredito &&
+          bajaAction.kind === "solicitar-baja" ? (
+            <ArrowPathIcon className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <NoSymbolIcon className="mr-2 h-4 w-4" />
+          )}
+          Solicitar Baja SUNAT
+        </DropdownMenuItem>
+
+        {canConsultarBajaTicket ? (
+          <DropdownMenuItem
+            onClick={() => onConsultarBajaTicket(notaCredito)}
+            disabled={bajaAction !== null}
+            className="text-cyan-700 focus:text-cyan-700 dark:text-cyan-400"
+          >
+            {bajaAction?.idNotaCredito === notaCredito.idNotaCredito &&
+            bajaAction.kind === "consultar-ticket" ? (
+              <ArrowPathIcon className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <ArrowPathIcon className="mr-2 h-4 w-4" />
+            )}
+            Consultar ticket baja
+          </DropdownMenuItem>
+        ) : null}
+
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel className="text-[11px] font-medium text-muted-foreground">
+          Documentos
+        </DropdownMenuLabel>
+
+        <DropdownMenuItem
+          onClick={() => onDownloadDocument(notaCredito, "pdf")}
+          disabled={isAnyDownloadActive}
+          className="text-rose-700 focus:text-rose-700 dark:text-rose-400"
+        >
+          {isDownloading(notaCredito.idNotaCredito, "pdf") ? (
+            <ArrowPathIcon className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <DocumentArrowDownIcon className="mr-2 h-4 w-4" />
+          )}
+          Descargar PDF
+        </DropdownMenuItem>
+
+        <DropdownMenuItem
+          onClick={() => onDownloadDocument(notaCredito, "xml")}
+          disabled={isAnyDownloadActive}
+          className="text-emerald-700 focus:text-emerald-700 dark:text-emerald-400"
+        >
+          {isDownloading(notaCredito.idNotaCredito, "xml") ? (
+            <ArrowPathIcon className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <CodeBracketIcon className="mr-2 h-4 w-4" />
+          )}
+          Descargar XML
+        </DropdownMenuItem>
+
+        <DropdownMenuItem
+          onClick={() => onDownloadDocument(notaCredito, "cdr-xml")}
+          disabled={isAnyDownloadActive}
+          className="text-blue-700 focus:text-blue-700 dark:text-blue-400"
+        >
+          {isDownloading(notaCredito.idNotaCredito, "cdr-xml") ? (
+            <ArrowPathIcon className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <DocumentTextIcon className="mr-2 h-4 w-4" />
+          )}
+          Ver CDR
+        </DropdownMenuItem>
+
+        <DropdownMenuItem
+          onClick={() => onDownloadDocument(notaCredito, "cdr-zip")}
+          disabled={isAnyDownloadActive}
+          className="text-indigo-700 focus:text-indigo-700 dark:text-indigo-400"
+        >
+          {isDownloading(notaCredito.idNotaCredito, "cdr-zip") ? (
+            <ArrowPathIcon className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <ArrowDownTrayIcon className="mr-2 h-4 w-4" />
+          )}
+          Descargar CDR
+        </DropdownMenuItem>
+
+        {(canDownloadBajaXml || canDownloadBajaCdr) && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="text-[11px] font-medium text-muted-foreground">
+              Baja SUNAT
+            </DropdownMenuLabel>
+
+            {canDownloadBajaXml ? (
+              <DropdownMenuItem
+                onClick={() => onDownloadDocument(notaCredito, "baja-xml")}
+                disabled={isAnyDownloadActive}
+                className="text-orange-700 focus:text-orange-700 dark:text-orange-400"
+              >
+                {isDownloading(notaCredito.idNotaCredito, "baja-xml") ? (
+                  <ArrowPathIcon className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <DocumentArrowDownIcon className="mr-2 h-4 w-4" />
+                )}
+                XML de baja
+              </DropdownMenuItem>
+            ) : null}
+
+            {canDownloadBajaCdr ? (
+              <DropdownMenuItem
+                onClick={() => onDownloadDocument(notaCredito, "baja-cdr")}
+                disabled={isAnyDownloadActive}
+                className="text-purple-700 focus:text-purple-700 dark:text-purple-400"
+              >
+                {isDownloading(notaCredito.idNotaCredito, "baja-cdr") ? (
+                  <ArrowPathIcon className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <DocumentArrowDownIcon className="mr-2 h-4 w-4" />
+                )}
+                CDR de baja
+              </DropdownMenuItem>
+            ) : null}
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

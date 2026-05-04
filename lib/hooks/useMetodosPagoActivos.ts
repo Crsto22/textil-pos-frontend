@@ -34,6 +34,28 @@ function toArray(data: unknown): unknown[] {
   return Array.isArray(content) ? content : []
 }
 
+function normalizeCuentas(value: unknown) {
+  if (!Array.isArray(value)) return []
+
+  return value
+    .map((item) => {
+      const cuenta = typeof item === "object" && item !== null ? (item as Record<string, unknown>) : null
+      if (!cuenta) return null
+
+      const idMetodoPagoCuenta = Number(
+        cuenta.idMetodoPagoCuenta ?? cuenta.id_metodo_pago_cuenta ?? cuenta.id
+      )
+      const numeroCuenta = typeof cuenta.numeroCuenta === "string" ? cuenta.numeroCuenta.trim() : ""
+
+      if (!Number.isFinite(idMetodoPagoCuenta) || idMetodoPagoCuenta <= 0 || numeroCuenta.length === 0) {
+        return null
+      }
+
+      return { idMetodoPagoCuenta, numeroCuenta }
+    })
+    .filter((item): item is NonNullable<typeof item> => item !== null)
+}
+
 function normalizeMetodoPago(value: unknown): MetodoPagoActivo | null {
   const item = typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null
   if (!item) return null
@@ -41,11 +63,12 @@ function normalizeMetodoPago(value: unknown): MetodoPagoActivo | null {
   const idMetodoPago = Number(item.idMetodoPago ?? item.id_metodo_pago ?? item.id)
   const nombre = typeof item.nombre === "string" ? item.nombre.trim() : ""
   const estado = item.estado ?? item.activo
+  const cuentas = normalizeCuentas(item.cuentas)
 
   if (estado !== undefined && !isEstadoActivo(estado)) return null
   if (!Number.isFinite(idMetodoPago) || idMetodoPago <= 0 || nombre.length === 0) return null
 
-  return { idMetodoPago, nombre }
+  return { idMetodoPago, nombre, cuentas }
 }
 
 export function useMetodosPagoActivos({ enabled = true }: UseMetodosPagoActivosParams = {}) {

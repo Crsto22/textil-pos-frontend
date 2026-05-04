@@ -20,7 +20,7 @@ function pad2(value: number): string {
   return String(value).padStart(2, "0")
 }
 
-function parseFechaHoraLocal(value: string | null | undefined): Date | null {
+export function parseFechaHoraLocal(value: string | null | undefined): Date | null {
   const normalizedValue = normalizarFechaHoraLocal(value)
   if (normalizedValue === "") return null
 
@@ -259,6 +259,16 @@ export function formatearTiempoRestanteOferta(miliseconds: number): string {
   return `${totalMinutes} min`
 }
 
+export function formatearTiempoRestanteOfertaResumido(miliseconds: number): string {
+  const totalHours = Math.max(1, Math.ceil(miliseconds / 3600000))
+
+  if (totalHours >= 24) {
+    return formatearCantidadTiempo(Math.ceil(totalHours / 24), "dia", "dias")
+  }
+
+  return formatearCantidadTiempo(totalHours, "hora", "horas")
+}
+
 export function obtenerTextoExpiracionOferta(
   oferta: OfertaTemporal,
   ahora: Date = new Date()
@@ -279,4 +289,52 @@ export function obtenerTextoExpiracionOferta(
   }
 
   return `Se expira en ${formatearTiempoRestanteOferta(miliseconds)}`
+}
+
+export type CountdownOferta =
+  | { tipo: "vence"; texto: string }
+  | { tipo: "inicia"; texto: string }
+
+export function obtenerCountdownOferta(
+  oferta: OfertaTemporal,
+  ahora: Date = new Date()
+): CountdownOferta | null {
+  const estado = obtenerEstadoVigenciaOferta(oferta, ahora)
+
+  if (estado === "activa") {
+    const ms = obtenerMilisegundosRestantesOferta(oferta, ahora)
+    if (ms === null) return null
+    return { tipo: "vence", texto: `Vence en ${formatearTiempoRestanteOferta(ms)}` }
+  }
+
+  if (estado === "programada") {
+    const fechaInicio = parseFechaHoraLocal(oferta.ofertaInicio)
+    if (!fechaInicio) return null
+    const ms = Math.max(0, fechaInicio.getTime() - ahora.getTime())
+    return { tipo: "inicia", texto: `Inicia en ${formatearTiempoRestanteOferta(ms)}` }
+  }
+
+  return null
+}
+
+export function obtenerCountdownOfertaResumido(
+  oferta: OfertaTemporal,
+  ahora: Date = new Date()
+): CountdownOferta | null {
+  const estado = obtenerEstadoVigenciaOferta(oferta, ahora)
+
+  if (estado === "activa") {
+    const ms = obtenerMilisegundosRestantesOferta(oferta, ahora)
+    if (ms === null) return null
+    return { tipo: "vence", texto: `Vence en ${formatearTiempoRestanteOfertaResumido(ms)}` }
+  }
+
+  if (estado === "programada") {
+    const fechaInicio = parseFechaHoraLocal(oferta.ofertaInicio)
+    if (!fechaInicio) return null
+    const ms = Math.max(0, fechaInicio.getTime() - ahora.getTime())
+    return { tipo: "inicia", texto: `Inicia en ${formatearTiempoRestanteOfertaResumido(ms)}` }
+  }
+
+  return null
 }

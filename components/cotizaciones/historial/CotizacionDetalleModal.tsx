@@ -3,14 +3,15 @@ import {
   CalendarDaysIcon,
   UserIcon,
 } from "@heroicons/react/24/outline"
+import { LoaderSpinner } from "@/components/ui/loader-spinner"
 
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
 import { formatearRangoOferta } from "@/lib/oferta-utils"
 import { formatComprobante, formatFechaHora, formatMonto } from "@/components/ventas/historial/historial.utils"
 import type { CotizacionResponse } from "@/lib/types/cotizacion"
@@ -38,19 +39,19 @@ export function CotizacionDetalleModal({
   onRetry,
 }: CotizacionDetalleModalProps) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[96vh] w-[96vw] overflow-y-auto p-0 sm:max-w-[1180px]">
-        <DialogHeader className="border-b px-6 py-4">
-          <DialogTitle>Detalle de Cotizacion</DialogTitle>
-          <DialogDescription>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="bottom" className="flex h-[96dvh] flex-col gap-0 p-0">
+        <SheetHeader className="shrink-0 border-b px-4 py-4 sm:px-6">
+          <SheetTitle className="text-sm sm:text-lg">Detalle de Cotizacion</SheetTitle>
+          <SheetDescription className="text-xs sm:text-sm">
             Productos, condiciones y resumen de la cotizacion seleccionada.
-          </DialogDescription>
-        </DialogHeader>
+          </SheetDescription>
+        </SheetHeader>
 
-        <div className="space-y-4 p-6">
+        <div className="min-h-0 flex-1 overflow-y-auto space-y-4 p-4 sm:p-6">
           {loading && (
-            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/20 dark:text-slate-300">
-              Cargando detalle de cotizacion...
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-8 flex items-center justify-center dark:border-slate-700 dark:bg-slate-900/20">
+              <LoaderSpinner text="Cargando detalle de cotizacion..." />
             </div>
           )}
 
@@ -178,7 +179,7 @@ export function CotizacionDetalleModal({
             </article>
           )}
         </div>
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   )
 }

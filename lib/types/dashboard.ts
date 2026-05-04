@@ -3,15 +3,21 @@ export type DashboardFiltro =
   | "ULT_7_DIAS"
   | "ULT_14_DIAS"
   | "ULT_30_DIAS"
-  | "ULT_12_MESES"
+  | "TIEMPO_REAL"
+
+export type DashboardGranularidad = "HORA" | "DIA" | "MES" | (string & {})
 
 export interface DashboardFilters {
-  filtro: DashboardFiltro
+  filtro?: DashboardFiltro
+  desde?: string
+  hasta?: string
   idSucursal: number | null
 }
 
 export interface DashboardSalePoint {
   fecha: string
+  etiqueta: string
+  granularidad: DashboardGranularidad
   monto: number
 }
 
@@ -112,6 +118,31 @@ export interface DashboardVentasData {
   topProductosMasVendidos: DashboardTopProduct[]
 }
 
+export interface DashboardResumenMovimientos {
+  totalMovimientos: number
+  unidadesEntrada: number
+  unidadesSalida: number
+  unidadesAjuste: number
+  unidadesReserva: number
+  unidadesLiberacion: number
+  trasladosEntrada: number
+  unidadesTrasladoEntrada: number
+  trasladosSalida: number
+  unidadesTrasladoSalida: number
+}
+
+export interface DashboardMovimientoItem {
+  fecha: string
+  tipo: string
+  motivo: string | null
+  producto: string
+  color: string | null
+  talla: string | null
+  cantidad: number
+  stockAntes: number
+  stockDespues: number
+}
+
 export interface DashboardAlmacenData {
   dashboard: "ALMACEN"
   filtro: DashboardFiltro
@@ -125,9 +156,111 @@ export interface DashboardAlmacenData {
   stockBajo: number
   reposicionUrgente: DashboardStockCriticoItem[]
   topMayorSalida: DashboardTopProduct[]
+  resumenMovimientos: DashboardResumenMovimientos
+  ultimosMovimientos: DashboardMovimientoItem[]
+  topStockActual: DashboardTopProduct[]
+}
+
+export interface DashboardSistemaStorageCarpeta {
+  carpeta: string
+  existe: boolean
+  bytes: number
+  bytesLegible: string
+  archivos: number
+}
+
+export interface DashboardSistemaStorage {
+  basePath: string
+  existe: boolean
+  totalBytes: number
+  totalLegible: string
+  totalArchivos: number
+  carpetas: DashboardSistemaStorageCarpeta[]
+}
+
+export interface DashboardSistemaDatabase {
+  sizeMb: number
+  tablesCount: number
+  tablasMasPesadas: { tableName: string; sizeMb: number; rows: number }[]
+}
+
+export interface DashboardSistemaRuntime {
+  applicationName: string
+  javaVersion: string
+  uptimeMs: number
+  uptimeLegible: string
+  processors: number
+  memoryUsedBytes: number
+  memoryUsedLegible: string
+  memoryFreeBytes: number
+  memoryFreeLegible: string
+  memoryMaxBytes: number
+  memoryMaxLegible: string
+  memoryUsedPercent: number
+}
+
+export interface DashboardSistemaDisk {
+  path: string
+  totalBytes: number
+  totalLegible: string
+  usedBytes: number
+  usedLegible: string
+  freeBytes: number
+  freeLegible: string
+  freePercent: number
+}
+
+export interface DashboardSistemaSunatJob {
+  idSunatJob: number
+  estado: string
+  tipoDocumento: string
+  fechaCreacion: string
+  fechaActualizacion: string
+}
+
+export interface DashboardSistemaSunatJobEstado {
+  estado: string
+  total: number
+}
+
+export interface DashboardSistemaSunat {
+  totalJobs: number
+  jobsNoFinalizados: number
+  jobsPorEstado: DashboardSistemaSunatJobEstado[]
+  ultimoJob: DashboardSistemaSunatJob | null
+}
+
+export interface DashboardSistemaUsuariosRol {
+  rol: string
+  total: number
+}
+
+export interface DashboardSistemaUsuarios {
+  activos: number
+  eliminados: number
+  activosPorRol: DashboardSistemaUsuariosRol[]
+}
+
+export interface DashboardSistemaAlerta {
+  componente: string
+  estado: string
+  mensaje: string
+}
+
+export interface DashboardSistemaData {
+  dashboard: "SISTEMA"
+  generadoEn: string
+  storage: DashboardSistemaStorage
+  database: DashboardSistemaDatabase
+  runtime: DashboardSistemaRuntime
+  disk: DashboardSistemaDisk
+  sunat: DashboardSistemaSunat
+  usuarios: DashboardSistemaUsuarios
+  alertas: DashboardSistemaAlerta[]
 }
 
 export type DashboardData =
   | DashboardAdminData
   | DashboardVentasData
   | DashboardAlmacenData
+  | DashboardSistemaData

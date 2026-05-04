@@ -273,7 +273,7 @@ function ProductosVariantesTableComponent({
                       ) : (
                         <div className="flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 dark:border-amber-900/40 dark:bg-amber-900/10">
                           <ExclamationTriangleIcon className="h-3.5 w-3.5 shrink-0 text-amber-500" />
-                          <span className="text-xs text-amber-700 dark:text-amber-400">Sin stock registrado</span>
+                          <span className="text-xs text-amber-700 dark:text-amber-400">No disponible en esta sucursal</span>
                         </div>
                       )}
                     </td>

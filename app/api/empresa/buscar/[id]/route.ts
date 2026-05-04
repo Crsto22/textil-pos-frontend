@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { normalizeAssetUrlField } from "@/lib/server/public-asset-url"
 
 const BACKEND_URL = process.env.BACKEND_URL
 
@@ -52,7 +53,7 @@ export async function GET(
       return NextResponse.json({ message }, { status: backendRes.status })
     }
 
-    return NextResponse.json(payload, { status: 200 })
+    return NextResponse.json(normalizeAssetUrlField(payload, "logoUrl"), { status: 200 })
   } catch (error) {
     console.error("[EMPRESA/BUSCAR]", error)
     return NextResponse.json(

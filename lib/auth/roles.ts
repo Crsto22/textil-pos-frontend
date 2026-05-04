@@ -5,6 +5,7 @@ export const AUTH_ROLES = [
   "VENTAS",
   "ALMACEN",
   "VENTAS_ALMACEN",
+  "SISTEMA",
 ] as const
 
 export const LEGACY_AUTH_ROLES = ["VENDEDOR"] as const
@@ -24,6 +25,7 @@ export const ROLE_LABELS: Record<SupportedAuthRole, string> = {
   ALMACEN: "Almacen",
   VENTAS_ALMACEN: "Ventas y Almacen",
   VENDEDOR: "Vendedor",
+  SISTEMA: "Sistema",
 }
 
 export function normalizeSupportedRole(
@@ -84,6 +86,11 @@ export function getRoleLabel(role: string | null | undefined): string {
     .filter(Boolean)
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ")
+}
+
+export function roleIsRestrictedToSucursalOffer(role: string | null | undefined): boolean {
+  const normalizedRole = normalizeSupportedRole(role)
+  return normalizedRole === "ALMACEN" || normalizedRole === "VENTAS_ALMACEN"
 }
 
 export function normalizeUsuarioTipoSucursal(

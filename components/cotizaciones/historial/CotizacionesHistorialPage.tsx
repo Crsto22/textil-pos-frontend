@@ -10,6 +10,7 @@ import { CotizacionEstadoDialog } from "@/components/cotizaciones/historial/Coti
 import { CotizacionesHistorialFilters } from "@/components/cotizaciones/historial/CotizacionesHistorialFilters"
 import { CotizacionesHistorialTable } from "@/components/cotizaciones/historial/CotizacionesHistorialTable"
 import { authFetch } from "@/lib/auth/auth-fetch"
+import { useAuth } from "@/lib/auth/auth-context"
 import {
   downloadCotizacionDocument,
   getCotizacionDownloadConfig,
@@ -50,7 +51,11 @@ export function CotizacionesHistorialPage() {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const [filters, setFilters] = useState<CotizacionHistorialFilters>(DEFAULT_FILTERS)
+  const { user } = useAuth()
+  const [filters, setFilters] = useState<CotizacionHistorialFilters>(() => ({
+    ...DEFAULT_FILTERS,
+    idSucursal: user?.idSucursal ?? null,
+  }))
   const [openingPdfCotizacionId, setOpeningPdfCotizacionId] = useState<number | null>(null)
   const [downloadingPdfCotizacionId, setDownloadingPdfCotizacionId] = useState<number | null>(null)
   const [estadoDialogOpen, setEstadoDialogOpen] = useState(false)
@@ -94,7 +99,7 @@ export function CotizacionesHistorialPage() {
   }
 
   const handleClearFilters = () => {
-    setFilters(DEFAULT_FILTERS)
+    setFilters({ ...DEFAULT_FILTERS, idSucursal: user?.idSucursal ?? null })
   }
 
   const handleUpdateEstado = async (

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { normalizeAssetUrlFieldsDeep } from "@/lib/server/public-asset-url"
 
 const BACKEND_URL = process.env.BACKEND_URL
 const ALLOWED_QUERY_KEYS = ["page", "idCategoria", "idColor", "q", "conOferta", "idSucursal", "soloDisponibles"] as const
@@ -80,7 +81,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ message }, { status: backendRes.status })
     }
 
-    return NextResponse.json(payload, { status: backendRes.status })
+    return NextResponse.json(
+      normalizeAssetUrlFieldsDeep(payload, ["url", "urlThumb"]),
+      { status: backendRes.status }
+    )
   } catch (error) {
     console.error("[VARIANTE/LISTAR-RESUMEN]", error)
     return NextResponse.json({ message: "Error interno del servidor" }, { status: 500 })

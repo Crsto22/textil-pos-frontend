@@ -4,6 +4,10 @@ import {
   roleHasVentasAccess,
 } from "@/lib/auth/roles"
 
+const GUIA_ROUTES = [
+  "/ventas/guia-remision",
+]
+
 interface RoleConfig {
   allowedRoutes: string[]
   defaultRoute: string
@@ -50,6 +54,10 @@ export const ROLE_CONFIG: Record<string, RoleConfig> = {
     allowedRoutes: ["*"],
     defaultRoute: "/dashboard",
   },
+  SISTEMA: {
+    allowedRoutes: ["*"],
+    defaultRoute: "/dashboard",
+  },
 }
 
 export function hasAccess(
@@ -59,8 +67,16 @@ export function hasAccess(
   const normalizedRole = normalizeSupportedRole(role)
   if (!normalizedRole) return false
 
-  if (normalizedRole === "ADMINISTRADOR") {
+  if (normalizedRole === "ADMINISTRADOR" || normalizedRole === "SISTEMA") {
     return true
+  }
+
+  // Guías de remisión: solo ALMACEN y VENTAS_ALMACEN (no VENTAS)
+  const isGuiaRoute = GUIA_ROUTES.some(
+    (route) => pathname === route || pathname.startsWith(`${route}/`)
+  )
+  if (isGuiaRoute) {
+    return roleHasAlmacenAccess(normalizedRole)
   }
 
   const isVentasRoute = SALES_ROUTES.some(

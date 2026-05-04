@@ -1,12 +1,12 @@
 "use client"
 
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
 import type {
   VentaAnularRequest,
   VentaAnularResult,
@@ -41,16 +41,16 @@ export function VentaDetalleModal({
   anulandoVenta,
 }: VentaDetalleModalProps) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[96vh] w-[96vw] overflow-y-auto p-0 sm:max-w-[1200px]">
-        <DialogHeader className="border-b px-6 py-4">
-          <DialogTitle>Detalle de Venta</DialogTitle>
-          <DialogDescription>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="bottom" className="flex h-[96dvh] flex-col gap-0 p-0">
+        <SheetHeader className="shrink-0 border-b px-4 py-4 sm:px-6">
+          <SheetTitle className="text-sm sm:text-lg">Detalle de Venta</SheetTitle>
+          <SheetDescription className="text-xs sm:text-sm">
             Comprobante, items y pagos de la venta seleccionada.
-          </DialogDescription>
-        </DialogHeader>
+          </SheetDescription>
+        </SheetHeader>
 
-        <div className="p-6">
+        <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
           <VentaDetalleContent
             detalle={detalle}
             loading={loading}
@@ -62,7 +62,7 @@ export function VentaDetalleModal({
             anulandoVenta={anulandoVenta}
           />
         </div>
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   )
 }

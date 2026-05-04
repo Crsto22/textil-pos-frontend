@@ -1,15 +1,15 @@
 import { useState } from "react"
 
-import {
-    Dialog,
-    DialogClose,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import {
+    Sheet,
+    SheetClose,
+    SheetContent,
+    SheetDescription,
+    SheetFooter,
+    SheetHeader,
+    SheetTitle,
+} from "@/components/ui/sheet"
 import type { Cliente } from "@/lib/types/cliente"
 
 interface ClienteDeleteDialogProps {
@@ -47,34 +47,38 @@ export function ClienteDeleteDialog({
     }
 
     return (
-        <Dialog open={open} onOpenChange={handleOpenChange}>
-            <DialogContent className="sm:max-w-100" showCloseButton={!isDeleting}>
-                <DialogHeader>
-                    <DialogTitle>Eliminar Cliente</DialogTitle>
-                    <DialogDescription>
-                        ¿Estás seguro de eliminar a{" "}
+        <Sheet open={open} onOpenChange={handleOpenChange}>
+            <SheetContent
+                side="bottom"
+                className="flex h-auto max-h-[60dvh] flex-col gap-0 p-0"
+            >
+                <SheetHeader className="shrink-0 border-b border-slate-100 px-4 pb-3 pt-4 dark:border-slate-700/60">
+                    <SheetTitle className="text-sm">Eliminar Cliente</SheetTitle>
+                    <SheetDescription className="text-xs sm:text-sm">
+                        Estas seguro de eliminar a{" "}
                         <span className="font-semibold text-foreground">
                             {target?.nombres}
                         </span>
-                        ? Esta acción desactivará al cliente del sistema.
-                    </DialogDescription>
-                </DialogHeader>
-                <DialogFooter>
-                    <DialogClose asChild>
-                        <Button type="button" variant="outline" disabled={isDeleting}>
+                        ? Esta accion desactivara al cliente del sistema.
+                    </SheetDescription>
+                </SheetHeader>
+                <SheetFooter className="shrink-0 px-4 py-4">
+                    <SheetClose asChild>
+                        <Button type="button" variant="outline" disabled={isDeleting} className="h-11">
                             Cancelar
                         </Button>
-                    </DialogClose>
+                    </SheetClose>
                     <Button
                         type="button"
                         variant="destructive"
                         onClick={handleDelete}
                         disabled={isDeleting}
+                        className="h-11"
                     >
                         {isDeleting ? "Eliminando..." : "Eliminar"}
                     </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+                </SheetFooter>
+            </SheetContent>
+        </Sheet>
     )
 }

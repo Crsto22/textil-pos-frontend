@@ -2,8 +2,6 @@ export type EstadoComprobante = "ACTIVO" | "INACTIVO" | string
 
 export interface ComprobanteConfig {
   idComprobante: number
-  idSucursal: number | null
-  nombreSucursal: string
   tipoComprobante: string
   serie: string
   ultimoCorrelativo: number
@@ -16,11 +14,10 @@ export interface ComprobanteConfig {
 }
 
 export interface ComprobanteCreateRequest {
-  idSucursal: number
   tipoComprobante: string
   serie: string
-  ultimoCorrelativo: number
-  activo: EstadoComprobante
+  ultimoCorrelativo?: number
+  activo?: EstadoComprobante
 }
 
 export interface ComprobanteUpdateRequest {

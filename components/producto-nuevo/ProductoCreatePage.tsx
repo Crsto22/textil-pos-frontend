@@ -2,7 +2,8 @@
 
 import { useCallback, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { AlertTriangle, Loader2 } from "lucide-react"
+import { AlertTriangle } from "lucide-react"
+import { LoaderSpinner } from "@/components/ui/loader-spinner"
 
 import {
   ProductoAttributesSidebar,
@@ -172,10 +173,7 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
   if (loadingDetalle) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
-        <div className="flex items-center gap-2 text-sm text-slate-500">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Cargando detalle del producto...
-        </div>
+        <LoaderSpinner text="Cargando detalle del producto..." />
       </div>
     )
   }

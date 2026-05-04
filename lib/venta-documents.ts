@@ -1,7 +1,7 @@
 import { authFetch } from "@/lib/auth/auth-fetch"
 import { setDocumentPreviewLoadingState } from "@/lib/document-preview-loader"
 
-export type VentaDocumentKind = "comprobante" | "ticket" | "xml" | "cdr-xml" | "cdr-zip"
+export type VentaDocumentKind = "comprobante" | "ticket" | "xml" | "cdr-xml" | "cdr-zip" | "baja-xml" | "baja-cdr"
 
 interface VentaDocumentSource {
   idVenta: number
@@ -73,6 +73,30 @@ export function getVentaDocumentConfig(
       successMessage: "CDR ZIP descargado correctamente.",
       errorLabel: "CDR ZIP",
       loadingMessage: "Descargando CDR ZIP...",
+      disposition: "download",
+      openMode: "tab",
+    }
+  }
+
+  if (kind === "baja-xml") {
+    return {
+      endpoint: `/api/venta/${venta.idVenta}/sunat/baja/xml`,
+      fallbackFileName: `baja_venta_${venta.idVenta}.xml`,
+      successMessage: "XML de baja descargado correctamente.",
+      errorLabel: "XML de baja",
+      loadingMessage: "Descargando XML de baja...",
+      disposition: "download",
+      openMode: "tab",
+    }
+  }
+
+  if (kind === "baja-cdr") {
+    return {
+      endpoint: `/api/venta/${venta.idVenta}/sunat/baja/cdr?formato=zip`,
+      fallbackFileName: `cdr_baja_venta_${venta.idVenta}.zip`,
+      successMessage: "CDR de baja descargado correctamente.",
+      errorLabel: "CDR de baja",
+      loadingMessage: "Descargando CDR de baja...",
       disposition: "download",
       openMode: "tab",
     }

@@ -8,6 +8,7 @@ import {
   createOfertaBulkFormDraft,
   createOfertaFormDraft,
   patchOfertasLote,
+  patchOfertasSucursalLote,
   resolveOfertaPriceFromMode,
 } from "@/lib/oferta-batch"
 import { authFetch } from "@/lib/auth/auth-fetch"
@@ -174,7 +175,10 @@ function buildEffectiveDraft(
   bulkForm: OfertaBulkFormDraft
 ): OfertaFormDraft {
   return {
-    precioOfertaInput: draft.precioOfertaInput,
+    precioOfertaInput:
+      draft.precioOfertaInput.trim() !== ""
+        ? draft.precioOfertaInput
+        : bulkForm.priceInput,
     ofertaInicioInput:
       draft.ofertaInicioInput.trim() !== ""
         ? draft.ofertaInicioInput
@@ -186,7 +190,7 @@ function buildEffectiveDraft(
   }
 }
 
-export function useOfertaBatchEditor() {
+export function useOfertaBatchEditor(idSucursal: number | null = null) {
   const [productQuery, setProductQuery] = useState("")
   const debouncedProductQuery = useDebouncedValue(productQuery, SEARCH_DEBOUNCE_MS)
   const [products, setProducts] = useState<ProductoResumen[]>([])
@@ -525,42 +529,57 @@ export function useOfertaBatchEditor() {
     [variants]
   )
 
-  const toggleSelectAllFilteredVariants = useCallback(() => {
-    if (filteredVariants.length === 0) return
+  const setVariantSelectionForIds = useCallback(
+    (idsProductoVariante: number[], nextSelected: boolean) => {
+      if (idsProductoVariante.length === 0) return
 
-    setSelectedVariantIds((previous) => {
-      if (
-        filteredVariants.every((variant) =>
-          previous.includes(variant.idProductoVariante)
-        )
-      ) {
-        return previous.filter(
-          (id) =>
-            !filteredVariants.some(
-              (variant) => variant.idProductoVariante === id
-            )
-        )
+      const idSet = new Set(idsProductoVariante)
+      const targetVariants = variants.filter((variant) =>
+        idSet.has(variant.idProductoVariante)
+      )
+      if (targetVariants.length === 0) return
+
+      setSelectedVariantIds((previous) => {
+        if (!nextSelected) {
+          return previous.filter((id) => !idSet.has(id))
+        }
+
+        const nextIds = new Set(previous)
+        targetVariants.forEach((variant) => {
+          nextIds.add(variant.idProductoVariante)
+        })
+        return Array.from(nextIds)
+      })
+
+      if (nextSelected) {
+        setDraftsByVariantId((previous) => {
+          let next = previous
+
+          targetVariants.forEach((variant) => {
+            next = ensureDraftMapEntry(next, variant)
+          })
+
+          return next
+        })
       }
 
-      const nextIds = new Set(previous)
-      filteredVariants.forEach((variant) => {
-        nextIds.add(variant.idProductoVariante)
-      })
-      return Array.from(nextIds)
-    })
+      setShowValidationFeedback(false)
+      setSubmitError(null)
+    },
+    [variants]
+  )
 
-    setDraftsByVariantId((previous) => {
-      let next = previous
+  const toggleSelectAllFilteredVariants = useCallback(() => {
+    if (filteredVariants.length === 0) return
+    const shouldSelect = !filteredVariants.every((variant) =>
+      selectedVariantIdSet.has(variant.idProductoVariante)
+    )
 
-      filteredVariants.forEach((variant) => {
-        next = ensureDraftMapEntry(next, variant)
-      })
-
-      return next
-    })
-    setShowValidationFeedback(false)
-    setSubmitError(null)
-  }, [filteredVariants])
+    setVariantSelectionForIds(
+      filteredVariants.map((variant) => variant.idProductoVariante),
+      shouldSelect
+    )
+  }, [filteredVariants, selectedVariantIdSet, setVariantSelectionForIds])
 
   const clearSelectedVariants = useCallback(() => {
     setSelectedVariantIds([])
@@ -715,9 +734,8 @@ export function useOfertaBatchEditor() {
       return false
     }
 
-    const items = previewItems.flatMap((previewItem) => {
+    const validItems = previewItems.flatMap((previewItem) => {
       if (!previewItem.validationResult.ok) return []
-
       return [
         {
           idProductoVariante: previewItem.variant.idProductoVariante,
@@ -731,7 +749,12 @@ export function useOfertaBatchEditor() {
     setSaving(true)
     setSubmitError(null)
 
-    const patchResult = await patchOfertasLote(items)
+    const patchResult =
+      idSucursal !== null
+        ? await patchOfertasSucursalLote(
+            validItems.map((item) => ({ ...item, idSucursal }))
+          )
+        : await patchOfertasLote(validItems)
 
     setSaving(false)
 
@@ -742,7 +765,7 @@ export function useOfertaBatchEditor() {
     }
 
     const itemMap = new Map(
-      items.map((item) => [item.idProductoVariante, item] as const)
+      validItems.map((item) => [item.idProductoVariante, item] as const)
     )
 
     setProductDetail((previous) => {
@@ -774,12 +797,12 @@ export function useOfertaBatchEditor() {
     setShowValidationFeedback(false)
     setSubmitError(null)
     toast.success(
-      items.length === 1
+      validItems.length === 1
         ? "Oferta guardada correctamente."
-        : `${items.length} ofertas guardadas correctamente.`
+        : `${validItems.length} ofertas guardadas correctamente.`
     )
     return true
-  }, [previewItems, selectedProduct])
+  }, [idSucursal, previewItems, selectedProduct])
 
   return {
     productQuery,
@@ -806,6 +829,7 @@ export function useOfertaBatchEditor() {
     setVariantQuery,
     handleProductSelect,
     toggleVariantSelection,
+    setVariantSelectionForIds,
     toggleSelectAllFilteredVariants,
     clearSelectedVariants,
     updateBulkFormField,

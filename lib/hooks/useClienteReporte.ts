@@ -48,8 +48,7 @@ function normalizeFiltro(value: unknown): ClienteReporteFiltro {
     value === "HOY" ||
     value === "ULT_7_DIAS" ||
     value === "ULT_14_DIAS" ||
-    value === "ULT_30_DIAS" ||
-    value === "ULT_12_MESES"
+    value === "ULT_30_DIAS"
   ) {
     return value
   }

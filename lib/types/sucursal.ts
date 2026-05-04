@@ -16,6 +16,8 @@ export interface SucursalRequestBase
   extends Omit<SucursalBase, "telefono" | "correo"> {
   telefono?: string
   correo?: string
+  ubigeo?: string
+  codigoEstablecimientoSunat?: string
 }
 
 export interface SucursalUsuarioDetalle {
@@ -27,6 +29,8 @@ export interface SucursalUsuarioDetalle {
 
 export interface Sucursal extends SucursalBase {
   idSucursal: number
+  ubigeo?: string | null
+  codigoEstablecimientoSunat?: string | null
   estado: "ACTIVO" | "INACTIVO" | string
   fechaCreacion: string
   nombreEmpresa: string
@@ -49,6 +53,8 @@ export const emptyCreate: SucursalCreateRequest = {
   telefono: "",
   correo: "",
   tipo: "VENTA",
+  ubigeo: "",
+  codigoEstablecimientoSunat: "",
   idEmpresa: 1,
 }
 
@@ -60,6 +66,8 @@ export const emptyUpdate: SucursalUpdateRequest = {
   correo: "",
   tipo: "VENTA",
   estado: "ACTIVO",
+  ubigeo: "",
+  codigoEstablecimientoSunat: "",
   idEmpresa: 1,
 }
 

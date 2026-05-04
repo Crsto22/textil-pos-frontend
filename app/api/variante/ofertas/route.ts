@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 
 const BACKEND_URL = process.env.BACKEND_URL
-const ALLOWED_QUERY_KEYS = ["page"] as const
+const ALLOWED_QUERY_KEYS = ["page", "idSucursal"] as const
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : null

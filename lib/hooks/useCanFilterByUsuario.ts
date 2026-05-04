@@ -16,5 +16,10 @@ export function useCanFilterByUsuario(): boolean {
 }
 
 export function useCanFilterBySucursal(): boolean {
-  return useCanFilterByAdminRole()
+  const { user } = useAuth()
+
+  return useMemo(
+    () => isAdministratorRole(user?.rol) || (user?.sucursalesPermitidas ?? []).length > 1,
+    [user?.rol, user?.sucursalesPermitidas]
+  )
 }

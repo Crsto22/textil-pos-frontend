@@ -3,9 +3,7 @@
 import { useCallback, useState } from "react"
 
 import { authFetch } from "@/lib/auth/auth-fetch"
-import type { ProductoImportResponse } from "@/lib/types/producto"
-
-const ALLOWED_FILE_EXTENSIONS = [".xlsx", ".xls"]
+import type { ProductoImportRequest, ProductoImportResponse } from "@/lib/types/producto"
 
 interface ImportSuccessResult {
   ok: true
@@ -28,11 +26,6 @@ function parseNonNegativeInt(value: unknown): number | null {
   const parsed = Number(value)
   if (!Number.isInteger(parsed) || parsed < 0) return null
   return parsed
-}
-
-function hasAllowedExtension(fileName: string): boolean {
-  const lowerName = fileName.trim().toLowerCase()
-  return ALLOWED_FILE_EXTENSIONS.some((extension) => lowerName.endsWith(extension))
 }
 
 function normalizeImportResponse(payload: unknown): ProductoImportResponse | null {
@@ -87,44 +80,39 @@ export function useProductoImport() {
   const [lastResult, setLastResult] = useState<ProductoImportResponse | null>(null)
 
   const importFile = useCallback(
-    async (file: File): Promise<ProductoImportResult> => {
+    async (payload: ProductoImportRequest): Promise<ProductoImportResult> => {
       if (isImporting) {
         return { ok: false, message: "Ya hay una importacion en proceso" }
       }
 
-      if (!(file instanceof File)) {
-        return { ok: false, message: "Debe seleccionar un archivo valido" }
-      }
-
-      if (file.size <= 0) {
-        return { ok: false, message: "El archivo no puede estar vacio" }
-      }
-
-      if (!hasAllowedExtension(file.name)) {
-        return { ok: false, message: "Solo se permiten archivos .xlsx o .xls" }
+      if (
+        !payload ||
+        typeof payload !== "object" ||
+        !Array.isArray(payload.productos) ||
+        payload.productos.length === 0
+      ) {
+        return { ok: false, message: "No hay productos listos para importar" }
       }
 
       setIsImporting(true)
 
       try {
-        const formData = new FormData()
-        formData.append("file", file, file.name)
-
         const response = await authFetch("/api/producto/importar", {
           method: "POST",
-          body: formData,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
         })
-        const payload = await parseJsonSafe(response)
+        const responsePayload = await parseJsonSafe(response)
 
         if (!response.ok) {
           return {
             ok: false,
-            message: getResponseMessage(payload, "No se pudo importar el archivo"),
+            message: getResponseMessage(responsePayload, "No se pudo importar los productos"),
             status: response.status,
           }
         }
 
-        const normalized = normalizeImportResponse(payload)
+        const normalized = normalizeImportResponse(responsePayload)
         if (!normalized) {
           return {
             ok: false,

@@ -71,7 +71,7 @@ export function AdminDashboardContent({ data }: { data: DashboardAdminData }) {
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <MetricCard
           title="Ventas del filtro"
           value={formatMonedaPen(data.kpis.ventasTotalesFiltro)}
@@ -98,7 +98,7 @@ export function AdminDashboardContent({ data }: { data: DashboardAdminData }) {
         />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <MetricCard
           title="Comprobantes anulados"
           value={String(data.kpis.comprobantesAnulados)}
@@ -126,24 +126,24 @@ export function AdminDashboardContent({ data }: { data: DashboardAdminData }) {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900/60">
-          <div className="mb-4 space-y-1">
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900/60">
+          <div className="mb-3 sm:mb-4 space-y-0.5 sm:space-y-1">
+            <h2 className="text-sm sm:text-lg font-semibold text-slate-900 dark:text-white">
               Tendencia de ventas
             </h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
               Evolucion diaria del monto emitido en el rango actual.
             </p>
           </div>
           <VentaTendenciaChart data={data.ventasPorFecha} />
         </section>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900/60">
-          <div className="mb-4 space-y-1">
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900/60">
+          <div className="mb-3 sm:mb-4 space-y-0.5 sm:space-y-1">
+            <h2 className="text-sm sm:text-lg font-semibold text-slate-900 dark:text-white">
               Ingresos por metodo de pago
             </h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
               Participacion de cada metodo sobre el ingreso total emitido.
             </p>
           </div>
@@ -157,7 +157,7 @@ export function AdminDashboardContent({ data }: { data: DashboardAdminData }) {
         </section>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-2">
+      <div className="hidden sm:grid gap-6 xl:grid-cols-2">
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900/60">
           <div className="mb-4 space-y-1">
             <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
@@ -191,12 +191,12 @@ export function AdminDashboardContent({ data }: { data: DashboardAdminData }) {
         </section>
       </div>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900/60">
-        <div className="mb-4 space-y-1">
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900/60">
+        <div className="mb-3 sm:mb-4 space-y-0.5 sm:space-y-1">
+          <h2 className="text-sm sm:text-lg font-semibold text-slate-900 dark:text-white">
             Distribucion por estado
           </h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
             Balance entre comprobantes emitidos y anulados.
           </p>
         </div>
@@ -209,12 +209,12 @@ export function AdminDashboardContent({ data }: { data: DashboardAdminData }) {
         />
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900/60">
-        <div className="mb-5 space-y-1">
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
+      <section className="hidden sm:block rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900/60">
+        <div className="mb-4 sm:mb-5 space-y-0.5 sm:space-y-1">
+          <h2 className="text-sm sm:text-lg font-semibold text-slate-900 dark:text-white">
             Stock critico
           </h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
             Variantes agotadas y proximas a agotarse para priorizar reposicion.
           </p>
         </div>

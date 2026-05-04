@@ -1,7 +1,13 @@
 import { authFetch } from "@/lib/auth/auth-fetch"
 import { setDocumentPreviewLoadingState } from "@/lib/document-preview-loader"
 
-export type NotaCreditoDocumentKind = "pdf" | "xml" | "cdr-xml" | "cdr-zip"
+export type NotaCreditoDocumentKind =
+  | "pdf"
+  | "xml"
+  | "cdr-xml"
+  | "cdr-zip"
+  | "baja-xml"
+  | "baja-cdr"
 
 interface NotaCreditoDocumentSource {
   idNotaCredito: number
@@ -61,6 +67,24 @@ export function getNotaCreditoDownloadConfig(
       fallbackFileName: `cdr_nota_credito_${notaCredito.idNotaCredito}.zip`,
       successMessage: "CDR ZIP descargado correctamente.",
       errorLabel: "CDR ZIP",
+    }
+  }
+
+  if (kind === "baja-xml") {
+    return {
+      endpoint: `/api/nota-credito/${notaCredito.idNotaCredito}/sunat/baja/xml`,
+      fallbackFileName: `baja_nota_credito_${notaCredito.idNotaCredito}.xml`,
+      successMessage: "XML de baja descargado correctamente.",
+      errorLabel: "XML de baja",
+    }
+  }
+
+  if (kind === "baja-cdr") {
+    return {
+      endpoint: `/api/nota-credito/${notaCredito.idNotaCredito}/sunat/baja/cdr?formato=zip`,
+      fallbackFileName: `cdr_baja_nota_credito_${notaCredito.idNotaCredito}.zip`,
+      successMessage: "CDR de baja descargado correctamente.",
+      errorLabel: "CDR de baja",
     }
   }
 

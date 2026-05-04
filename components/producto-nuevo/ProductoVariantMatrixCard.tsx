@@ -1,6 +1,6 @@
 "use client"
 
-import { type ReactNode, useCallback, useMemo, useState, useRef } from "react"
+import { type ReactNode, useCallback, useEffect, useMemo, useState, useRef } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import type { MediaItem } from "@/lib/types/producto-create"
@@ -274,6 +274,7 @@ function StockSucursalAccordion({
   stockSucursales,
   selectedSucursalIds,
   disableBulkOptions,
+  sucursalesSinStockIds,
   visibleActiveVariantKeys,
   onToggleSucursal,
   onSelectAllSucursales,
@@ -283,6 +284,7 @@ function StockSucursalAccordion({
   stockSucursales: VariantSucursalStockInput[]
   selectedSucursalIds: number[]
   disableBulkOptions: boolean
+  sucursalesSinStockIds: Set<number>
   visibleActiveVariantKeys: string[]
   onToggleSucursal: (idSucursal: number) => void
   onSelectAllSucursales: () => void
@@ -336,12 +338,14 @@ function StockSucursalAccordion({
           {allSucursales.map((sucursal) => {
             const isSelected = selectedSucursalIds.includes(sucursal.idSucursal)
             const isAlmacen = sucursal.tipoSucursal === "ALMACEN"
+            const sinStock = sucursalesSinStockIds.has(sucursal.idSucursal)
             const PillIcon = isAlmacen ? Warehouse : Store
             return (
               <button
                 key={sucursal.idSucursal}
                 type="button"
                 onClick={() => onToggleSucursal(sucursal.idSucursal)}
+                title={sinStock && !isSelected ? "Sin stock — clic para habilitar y agregar stock" : undefined}
                 className={cn(
                   "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-all",
                   isSelected
@@ -353,6 +357,11 @@ function StockSucursalAccordion({
               >
                 <PillIcon className="h-3 w-3 shrink-0" />
                 {sucursal.nombreSucursal.replace(/^almacen\s+/i, "Alm. ")}
+                {sinStock && !isSelected && (
+                  <span className="rounded-full bg-slate-200 px-1 py-px text-[9px] font-bold uppercase tracking-wide text-slate-500 dark:bg-slate-700 dark:text-slate-400">
+                    0
+                  </span>
+                )}
               </button>
             )
           })}
@@ -369,27 +378,38 @@ function StockSucursalAccordion({
         style={open ? { maxHeight: contentRef.current?.scrollHeight ?? 9999 } : { maxHeight: 0 }}
       >
         <div className="grid gap-3 px-3 pb-3 pt-2 md:grid-cols-2 xl:grid-cols-3">
-          {stockSucursales.map((sucursal) => (
-            <div key={sucursal.idSucursal} className="space-y-1.5">
-              <p className="text-[11px] font-semibold text-foreground">
-                {sucursal.nombreSucursal}
-              </p>
-              <Input
-                type="number"
-                min="0"
-                step="1"
-                placeholder="0"
-                disabled={disableBulkOptions}
-                onChange={(event) =>
-                  onApplyVariantSucursalStockToAll(
-                    sucursal.idSucursal,
-                    event.target.value,
-                    visibleActiveVariantKeys
-                  )
-                }
-              />
-            </div>
-          ))}
+          {stockSucursales.map((sucursal) => {
+            const sinStock = sucursalesSinStockIds.has(sucursal.idSucursal)
+            const isDisabled = disableBulkOptions
+            return (
+              <div key={sucursal.idSucursal} className="space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <p className="text-[11px] font-semibold text-foreground">
+                    {sucursal.nombreSucursal}
+                  </p>
+                  {sinStock && (
+                    <span className="rounded-full border border-slate-200 bg-slate-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-500">
+                      Sin stock
+                    </span>
+                  )}
+                </div>
+                <Input
+                  type="number"
+                  min="0"
+                  step="1"
+                  placeholder="0"
+                  disabled={isDisabled}
+                  onChange={(event) =>
+                    onApplyVariantSucursalStockToAll(
+                      sucursal.idSucursal,
+                      event.target.value,
+                      visibleActiveVariantKeys
+                    )
+                  }
+                />
+              </div>
+            )
+          })}
         </div>
       </div>
     </div>
@@ -422,20 +442,26 @@ export function ProductoVariantMatrixCard({
   const [selectedSucursalIds, setSelectedSucursalIds] = useState<number[]>(
     () => stockSucursales.map((s) => s.idSucursal)
   )
+  // Rastrea sucursales habilitadas manualmente por el usuario (aunque no tengan stock)
+  const manuallyEnabledIdsRef = useRef<Set<number>>(new Set())
 
   const handleToggleSucursal = useCallback((idSucursal: number) => {
     setSelectedSucursalIds((prev) => {
       if (prev.includes(idSucursal)) {
         // No deseleccionar si es la única seleccionada
         if (prev.length === 1) return prev
+        manuallyEnabledIdsRef.current.delete(idSucursal)
         return prev.filter((id) => id !== idSucursal)
       }
+      manuallyEnabledIdsRef.current.add(idSucursal)
       return [...prev, idSucursal]
     })
   }, [])
 
   const handleSelectAllSucursales = useCallback(() => {
-    setSelectedSucursalIds(stockSucursales.map((s) => s.idSucursal))
+    const allIds = stockSucursales.map((s) => s.idSucursal)
+    for (const id of allIds) manuallyEnabledIdsRef.current.add(id)
+    setSelectedSucursalIds(allIds)
   }, [stockSucursales])
 
   const effectiveStockSucursales = useMemo(
@@ -498,6 +524,33 @@ export function ProductoVariantMatrixCard({
   const hasQuickFiltersActive =
     effectiveFilteredTallaIds.length > 0 || effectiveFilteredColorIds.length > 0
   const disableBulkOptions = !hasAttributeSelection || visibleActiveVariantKeys.length === 0
+
+  // Sucursales donde TODAS las variantes activas tienen 0 o ningún stock registrado
+  const sucursalesSinStockIds = useMemo(() => {
+    const activeRows = variantRows.filter((v) => v.estado === "ACTIVO")
+    if (activeRows.length === 0) return new Set<number>()
+    const result = new Set<number>()
+    for (const sucursal of stockSucursales) {
+      const allZeroOrEmpty = activeRows.every((v) => {
+        const stock = v.stocksSucursales[sucursal.idSucursal] ?? ""
+        const parsed = Number.parseInt(stock, 10)
+        return !Number.isFinite(parsed) || parsed <= 0
+      })
+      if (allZeroOrEmpty) result.add(sucursal.idSucursal)
+    }
+    return result
+  }, [stockSucursales, variantRows])
+
+  // Quitar de la selección las sucursales sin stock, excepto las habilitadas manualmente
+  useEffect(() => {
+    if (sucursalesSinStockIds.size === 0) return
+    setSelectedSucursalIds((prev) => {
+      const filtered = prev.filter(
+        (id) => !sucursalesSinStockIds.has(id) || manuallyEnabledIdsRef.current.has(id)
+      )
+      return filtered.length > 0 ? filtered : prev
+    })
+  }, [sucursalesSinStockIds])
 
   const deleteTarget = useMemo(
     () =>
@@ -643,6 +696,7 @@ export function ProductoVariantMatrixCard({
             stockSucursales={effectiveStockSucursales}
             selectedSucursalIds={selectedSucursalIds}
             disableBulkOptions={disableBulkOptions}
+            sucursalesSinStockIds={sucursalesSinStockIds}
             visibleActiveVariantKeys={visibleActiveVariantKeys}
             onToggleSucursal={handleToggleSucursal}
             onSelectAllSucursales={handleSelectAllSucursales}

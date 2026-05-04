@@ -65,12 +65,13 @@ export default function CategoryFilter({
   const canGoNextColorPage = safeColorPage < safeTotalColorPages - 1
 
   return (
-    <div className="flex flex-wrap items-center gap-3">
-      <div className="flex flex-wrap items-center gap-2 flex-1">
+    <div className="space-y-2">
+      {/* ─── Fila categorías — scroll horizontal ─── */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5" style={{ scrollbarWidth: "none" }}>
         <button
           onClick={() => onCategoryChange(null)}
           className={[
-            "px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-150",
+            "shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition-all duration-150",
             activeCategoryId === null
               ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm"
               : "bg-white text-slate-600 border border-slate-200 hover:border-slate-300 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 dark:hover:bg-slate-700",
@@ -84,7 +85,7 @@ export default function CategoryFilter({
             key={category.id}
             onClick={() => onCategoryChange(category.id)}
             className={[
-              "px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-150",
+              "shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition-all duration-150",
               activeCategoryId === category.id
                 ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm"
                 : "bg-white text-slate-600 border border-slate-200 hover:border-slate-300 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 dark:hover:bg-slate-700",
@@ -95,94 +96,89 @@ export default function CategoryFilter({
         ))}
 
         {hasCategoryPagination && (
-          <div className="ml-1 flex items-center gap-1.5">
+          <div className="flex shrink-0 items-center gap-1">
             <button
               onClick={onCategoryPrevPage}
               disabled={!canGoPrevCategoryPage}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition-all duration-150 hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+              className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition-all duration-150 hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
               title="Categorias anteriores"
               aria-label="Categorias anteriores"
             >
-              <ChevronLeftIcon className="h-4 w-4" />
+              <ChevronLeftIcon className="h-3.5 w-3.5" />
             </button>
-
-            <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+            <span className="text-[10px] font-semibold tabular-nums text-slate-500 dark:text-slate-400">
               {safeCategoryPage + 1}/{safeTotalCategoryPages}
             </span>
-
             <button
               onClick={onCategoryNextPage}
               disabled={!canGoNextCategoryPage}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition-all duration-150 hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+              className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition-all duration-150 hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
               title="Siguientes categorias"
               aria-label="Siguientes categorias"
             >
-              <ChevronRightIcon className="h-4 w-4" />
+              <ChevronRightIcon className="h-3.5 w-3.5" />
             </button>
           </div>
         )}
       </div>
 
-      <div className="hidden h-6 w-px bg-slate-200 dark:bg-slate-700 sm:block" />
-
-      <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
-        <button
-          onClick={() => onColorChange(null)}
-          className={[
-            "rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-all duration-150",
-            activeColorId === null
-              ? "border-slate-900 bg-slate-900 text-white dark:border-white dark:bg-white dark:text-slate-900"
-              : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700",
-          ].join(" ")}
-        >
-          Todos colores
-        </button>
-
-        {colors.map((color) => (
+      {/* ─── Fila colores — scroll horizontal ─── */}
+      {colors.length > 0 && (
+        <div className="flex items-center gap-2 overflow-x-auto pb-0.5" style={{ scrollbarWidth: "none" }}>
           <button
-            key={color.id}
-            title={color.name}
-            onClick={() =>
-              onColorChange(activeColorId === color.id ? null : color.id)
-            }
+            onClick={() => onColorChange(null)}
             className={[
-              "h-6 w-6 rounded-full border-2 transition-all duration-150 shrink-0",
-              activeColorId === color.id
-                ? "border-blue-500 scale-110 shadow-md"
-                : "border-white dark:border-slate-800 hover:scale-110",
+              "shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-all duration-150",
+              activeColorId === null
+                ? "border-slate-900 bg-slate-900 text-white dark:border-white dark:bg-white dark:text-slate-900"
+                : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700",
             ].join(" ")}
-            style={{ backgroundColor: normalizeHexColor(color.hex) }}
-          />
-        ))}
+          >
+            Todos
+          </button>
 
-        {hasColorPagination && (
-          <div className="flex items-center gap-1.5">
+          {colors.map((color) => (
             <button
-              onClick={onColorPrevPage}
-              disabled={!canGoPrevColorPage}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition-all duration-150 hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-              title="Colores anteriores"
-              aria-label="Colores anteriores"
-            >
-              <ChevronLeftIcon className="h-4 w-4" />
-            </button>
+              key={color.id}
+              title={color.name}
+              onClick={() => onColorChange(activeColorId === color.id ? null : color.id)}
+              className={[
+                "h-6 w-6 shrink-0 rounded-full border-2 transition-all duration-150",
+                activeColorId === color.id
+                  ? "border-blue-500 scale-110 shadow-md"
+                  : "border-white dark:border-slate-800 hover:scale-110",
+              ].join(" ")}
+              style={{ backgroundColor: normalizeHexColor(color.hex) }}
+            />
+          ))}
 
-            <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-              {safeColorPage + 1}/{safeTotalColorPages}
-            </span>
-
-            <button
-              onClick={onColorNextPage}
-              disabled={!canGoNextColorPage}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition-all duration-150 hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-              title="Siguientes colores"
-              aria-label="Siguientes colores"
-            >
-              <ChevronRightIcon className="h-4 w-4" />
-            </button>
-          </div>
-        )}
-      </div>
+          {hasColorPagination && (
+            <div className="flex shrink-0 items-center gap-1">
+              <button
+                onClick={onColorPrevPage}
+                disabled={!canGoPrevColorPage}
+                className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition-all duration-150 hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                title="Colores anteriores"
+                aria-label="Colores anteriores"
+              >
+                <ChevronLeftIcon className="h-3.5 w-3.5" />
+              </button>
+              <span className="text-[10px] font-semibold tabular-nums text-slate-500 dark:text-slate-400">
+                {safeColorPage + 1}/{safeTotalColorPages}
+              </span>
+              <button
+                onClick={onColorNextPage}
+                disabled={!canGoNextColorPage}
+                className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition-all duration-150 hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                title="Siguientes colores"
+                aria-label="Siguientes colores"
+              >
+                <ChevronRightIcon className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

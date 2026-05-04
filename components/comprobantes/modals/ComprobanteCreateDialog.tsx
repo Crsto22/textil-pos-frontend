@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 
 import { Button } from "@/components/ui/button"
-import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
 import {
   Dialog,
   DialogClose,
@@ -20,27 +19,27 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { useSucursalOptions } from "@/lib/hooks/useSucursalOptions"
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
 import { getComprobanteTipoOptions } from "@/lib/comprobante"
+import { useIsMobile } from "@/lib/hooks/useIsMobile"
 import type { ComprobanteCreateRequest } from "@/lib/types/comprobante"
 
 interface ComprobanteCreateDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onCreate: (payload: ComprobanteCreateRequest) => Promise<boolean>
-  initialIdSucursal?: number | null
 }
 
 interface CreateFormState {
-  idSucursal: number | null
   tipoComprobante: string
   serie: string
   ultimoCorrelativo: string
   activo: "ACTIVO" | "INACTIVO"
-}
-
-function hasValidSucursalId(idSucursal?: number | null): idSucursal is number {
-  return typeof idSucursal === "number" && idSucursal > 0
 }
 
 function parseCorrelativo(value: string) {
@@ -53,93 +52,58 @@ export function ComprobanteCreateDialog({
   open,
   onOpenChange,
   onCreate,
-  initialIdSucursal = null,
 }: ComprobanteCreateDialogProps) {
+  const isMobile = useIsMobile()
+
   const buildInitialForm = useCallback(
     (): CreateFormState => ({
-      idSucursal: hasValidSucursalId(initialIdSucursal)
-        ? initialIdSucursal
-        : null,
       tipoComprobante: "",
       serie: "",
       ultimoCorrelativo: "0",
       activo: "ACTIVO",
     }),
-    [initialIdSucursal]
+    []
   )
 
   const [form, setForm] = useState<CreateFormState>(buildInitialForm)
   const [isSaving, setIsSaving] = useState(false)
 
-  const {
-    sucursalOptions,
-    getSucursalOptionById,
-    loadingSucursales,
-    errorSucursales,
-    searchSucursal,
-    setSearchSucursal,
-  } = useSucursalOptions(open)
-
-  const hasValidSucursal = hasValidSucursalId(form.idSucursal)
   const parsedCorrelativo = parseCorrelativo(form.ultimoCorrelativo)
   const tipoComprobanteOptions = useMemo(
     () => getComprobanteTipoOptions(form.tipoComprobante),
     [form.tipoComprobante]
   )
 
-  const comboboxOptions = useMemo<ComboboxOption[]>(
-    () =>
-      hasValidSucursal &&
-      !sucursalOptions.some((option) => option.value === String(form.idSucursal))
-        ? [
-            getSucursalOptionById(Number(form.idSucursal)),
-            ...sucursalOptions,
-          ]
-        : sucursalOptions,
-    [form.idSucursal, getSucursalOptionById, hasValidSucursal, sucursalOptions]
-  )
-
   const isCreateValid =
-    hasValidSucursal &&
     form.tipoComprobante.trim() !== "" &&
     form.serie.trim() !== "" &&
     parsedCorrelativo !== null
 
   useEffect(() => {
     if (!open) return
-
     setForm(buildInitialForm())
-    setSearchSucursal("")
-  }, [buildInitialForm, open, setSearchSucursal])
+  }, [buildInitialForm, open])
 
   const resetDialogState = useCallback(() => {
     setForm(buildInitialForm())
-    setSearchSucursal("")
-  }, [buildInitialForm, setSearchSucursal])
+  }, [buildInitialForm])
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (isSaving) return
     onOpenChange(nextOpen)
-
-    if (!nextOpen) {
-      resetDialogState()
-    }
+    if (!nextOpen) resetDialogState()
   }
 
   const handleCreate = async () => {
-    if (!isCreateValid || parsedCorrelativo === null || !hasValidSucursal) return
-    const idSucursal = Number(form.idSucursal)
-
+    if (!isCreateValid || parsedCorrelativo === null) return
     setIsSaving(true)
     try {
       const success = await onCreate({
-        idSucursal,
         tipoComprobante: form.tipoComprobante.trim(),
         serie: form.serie.trim(),
         ultimoCorrelativo: parsedCorrelativo,
         activo: form.activo,
       })
-
       if (success) {
         resetDialogState()
         onOpenChange(false)
@@ -149,124 +113,106 @@ export function ComprobanteCreateDialog({
     }
   }
 
+  const formBody = (
+    <div className="grid gap-4 py-2">
+      <div className="grid gap-2">
+        <Label htmlFor="comprobante-create-tipo">Tipo de comprobante</Label>
+        <Select
+          value={form.tipoComprobante}
+          onValueChange={(value) => setForm((prev) => ({ ...prev, tipoComprobante: value }))}
+        >
+          <SelectTrigger id="comprobante-create-tipo" className="w-full">
+            <SelectValue placeholder="Selecciona tipo de comprobante" />
+          </SelectTrigger>
+          <SelectContent>
+            {tipoComprobanteOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-2">
+        <div className="grid gap-2">
+          <Label htmlFor="comprobante-create-serie">Serie</Label>
+          <Input
+            id="comprobante-create-serie"
+            value={form.serie}
+            onChange={(e) => setForm((prev) => ({ ...prev, serie: e.target.value }))}
+            placeholder="Ej. F001"
+          />
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="comprobante-create-correlativo">Ultimo correlativo</Label>
+          <Input
+            id="comprobante-create-correlativo"
+            type="number"
+            min="0"
+            step="1"
+            value={form.ultimoCorrelativo}
+            onChange={(e) => setForm((prev) => ({ ...prev, ultimoCorrelativo: e.target.value }))}
+          />
+        </div>
+      </div>
+
+      <div className="grid gap-2">
+        <Label htmlFor="comprobante-create-activo">Estado</Label>
+        <Select
+          value={form.activo}
+          onValueChange={(value) => setForm((prev) => ({ ...prev, activo: value as "ACTIVO" | "INACTIVO" }))}
+        >
+          <SelectTrigger id="comprobante-create-activo" className="w-full">
+            <SelectValue placeholder="Selecciona estado" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ACTIVO">Activo</SelectItem>
+            <SelectItem value="INACTIVO">Inactivo</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+  )
+
+  if (isMobile) {
+    return (
+      <Sheet open={open} onOpenChange={handleOpenChange}>
+        <SheetContent side="bottom" className="flex h-[85dvh] flex-col gap-0 p-0">
+          <SheetHeader className="shrink-0 border-b border-slate-100 px-4 pb-3 pt-4 dark:border-slate-700/60">
+            <SheetTitle className="text-sm">Nueva Configuracion</SheetTitle>
+          </SheetHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-3">
+            {formBody}
+          </div>
+          <div className="shrink-0 border-t border-slate-100 p-4 dark:border-slate-700/60">
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" className="flex-1" disabled={isSaving} onClick={() => handleOpenChange(false)}>
+                Cancelar
+              </Button>
+              <Button type="button" className="flex-1" onClick={handleCreate} disabled={!isCreateValid || isSaving}>
+                {isSaving ? "Guardando..." : "Guardar"}
+              </Button>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+    )
+  }
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-[520px]" showCloseButton={!isSaving}>
         <DialogHeader>
           <DialogTitle>Nueva Configuracion</DialogTitle>
           <DialogDescription>
-            Registra la configuracion de un comprobante por sucursal, incluida COTIZACION.
+            Registra una configuracion global de serie para un tipo de comprobante.
           </DialogDescription>
         </DialogHeader>
-
-        <div className="grid gap-4 py-2">
-          <div className="grid gap-2">
-            <Label htmlFor="comprobante-create-sucursal">Sucursal</Label>
-            <Combobox
-              id="comprobante-create-sucursal"
-              value={hasValidSucursal ? String(form.idSucursal) : ""}
-              options={comboboxOptions}
-              searchValue={searchSucursal}
-              onSearchValueChange={setSearchSucursal}
-              onValueChange={(value) =>
-                setForm((previous) => ({
-                  ...previous,
-                  idSucursal: Number(value),
-                }))
-              }
-              placeholder="Selecciona sucursal"
-              searchPlaceholder="Buscar sucursal..."
-              emptyMessage="No se encontraron sucursales"
-              loading={loadingSucursales}
-            />
-            {errorSucursales && <p className="text-xs text-red-500">{errorSucursales}</p>}
-          </div>
-
-          <div className="grid gap-2">
-            <Label htmlFor="comprobante-create-tipo">Tipo de comprobante</Label>
-            <Select
-              value={form.tipoComprobante}
-              onValueChange={(value) =>
-                setForm((previous) => ({
-                  ...previous,
-                  tipoComprobante: value,
-                }))
-              }
-            >
-              <SelectTrigger id="comprobante-create-tipo" className="w-full">
-                <SelectValue placeholder="Selecciona tipo de comprobante" />
-              </SelectTrigger>
-              <SelectContent>
-                {tipoComprobanteOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="grid gap-2 sm:grid-cols-2">
-            <div className="grid gap-2">
-              <Label htmlFor="comprobante-create-serie">Serie</Label>
-              <Input
-                id="comprobante-create-serie"
-                value={form.serie}
-                onChange={(event) =>
-                  setForm((previous) => ({
-                    ...previous,
-                    serie: event.target.value,
-                  }))
-                }
-                placeholder="Ej. F001"
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="comprobante-create-correlativo">Ultimo correlativo</Label>
-              <Input
-                id="comprobante-create-correlativo"
-                type="number"
-                min="0"
-                step="1"
-                value={form.ultimoCorrelativo}
-                onChange={(event) =>
-                  setForm((previous) => ({
-                    ...previous,
-                    ultimoCorrelativo: event.target.value,
-                  }))
-                }
-              />
-            </div>
-          </div>
-
-          <div className="grid gap-2">
-            <Label htmlFor="comprobante-create-activo">Estado</Label>
-            <Select
-              value={form.activo}
-              onValueChange={(value) =>
-                setForm((previous) => ({
-                  ...previous,
-                  activo: value as "ACTIVO" | "INACTIVO",
-                }))
-              }
-            >
-              <SelectTrigger id="comprobante-create-activo" className="w-full">
-                <SelectValue placeholder="Selecciona estado" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ACTIVO">Activo</SelectItem>
-                <SelectItem value="INACTIVO">Inactivo</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
+        {formBody}
         <DialogFooter>
           <DialogClose asChild>
-            <Button type="button" variant="outline" disabled={isSaving}>
-              Cancelar
-            </Button>
+            <Button type="button" variant="outline" disabled={isSaving}>Cancelar</Button>
           </DialogClose>
           <Button type="button" onClick={handleCreate} disabled={!isCreateValid || isSaving}>
             {isSaving ? "Guardando..." : "Guardar"}

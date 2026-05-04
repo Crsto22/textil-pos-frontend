@@ -11,17 +11,12 @@ function buildListParams(request: NextRequest) {
   const backendParams = new URLSearchParams()
 
   const rawActivo = searchParams.get("activo")
-  const idSucursal = searchParams.get("idSucursal")?.trim()
   const habilitadoVenta = searchParams.get("habilitadoVenta")?.trim()
 
   if (rawActivo !== null) {
     const activo = normalizeActivo(rawActivo)
     if (!activo) return null
     backendParams.set("activo", activo)
-  }
-
-  if (idSucursal) {
-    backendParams.set("idSucursal", idSucursal)
   }
 
   if (habilitadoVenta) {

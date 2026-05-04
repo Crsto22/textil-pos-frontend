@@ -11,6 +11,7 @@ const ALLOWED_QUERY_KEYS = [
   "idUsuario",
   "idSucursal",
   "idCliente",
+  "tipoComprobante",
   "incluirAnuladas",
 ] as const
 
@@ -19,10 +20,12 @@ function buildForwardQuery(request: NextRequest): string {
   const outgoingSearchParams = new URLSearchParams()
 
   ALLOWED_QUERY_KEYS.forEach((key) => {
-    const value = incomingSearchParams.get(key)
-    if (value !== null && value !== "") {
-      outgoingSearchParams.set(key, value)
-    }
+    const values = incomingSearchParams.getAll(key)
+    values.forEach((value) => {
+      if (value !== "") {
+        outgoingSearchParams.append(key, value)
+      }
+    })
   })
 
   const queryString = outgoingSearchParams.toString()
