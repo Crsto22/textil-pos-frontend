@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 
 import { sanitizeSucursalRequestBody } from "@/lib/sucursal"
+import { normalizeAssetUrlFieldsDeep } from "@/lib/server/public-asset-url"
 
 const BACKEND_URL = process.env.BACKEND_URL
 
@@ -68,7 +69,9 @@ export async function POST(request: NextRequest) {
       data = { message: text || "Sucursal creada exitosamente" }
     }
 
-    return NextResponse.json(data, { status: backendRes.status || 201 })
+    const normalizedData = normalizeAssetUrlFieldsDeep(data, ["fotoPerfilUrl"])
+
+    return NextResponse.json(normalizedData, { status: backendRes.status || 201 })
   } catch (error) {
     console.error("[SUCURSAL/INSERTAR]", error)
     return NextResponse.json(

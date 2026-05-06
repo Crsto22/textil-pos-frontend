@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 
 import { sanitizeSucursalRequestBody } from "@/lib/sucursal"
+import { normalizeAssetUrlFieldsDeep } from "@/lib/server/public-asset-url"
 
 const BACKEND_URL = process.env.BACKEND_URL
 
@@ -75,7 +76,10 @@ export async function PUT(
     } catch {
       data = { message: text || "Sucursal actualizada exitosamente" }
     }
-    return NextResponse.json(data, { status: 200 })
+
+    const normalizedData = normalizeAssetUrlFieldsDeep(data, ["fotoPerfilUrl"])
+
+    return NextResponse.json(normalizedData, { status: 200 })
   } catch (error) {
     console.error("[SUCURSAL/ACTUALIZAR]", error)
     return NextResponse.json(

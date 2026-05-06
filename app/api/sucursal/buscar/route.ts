@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { normalizeAssetUrlFieldsDeep } from "@/lib/server/public-asset-url"
 
 const BACKEND_URL = process.env.BACKEND_URL
 
@@ -68,7 +69,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ message }, { status: backendRes.status })
     }
 
-    const data = await backendRes.json()
+    const data = normalizeAssetUrlFieldsDeep(await backendRes.json(), [
+      "fotoPerfilUrl",
+    ])
     return NextResponse.json(data, { status: 200 })
   } catch (error) {
     console.error("[SUCURSAL/BUSCAR]", error)
