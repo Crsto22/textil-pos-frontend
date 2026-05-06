@@ -5,6 +5,7 @@ import {
   CpuChipIcon,
   ServerIcon,
   CloudIcon,
+  GlobeAltIcon,
   UsersIcon,
   BellAlertIcon,
   CheckCircleIcon,
@@ -134,6 +135,7 @@ function AlertaBadge({ alerta }: { alerta: DashboardSistemaAlerta }) {
 export function SistemaDashboardContent({ data }: { data: DashboardSistemaData }) {
   const memPercent = data.runtime.memoryUsedPercent
   const diskUsedPercent = 100 - data.disk.freePercent
+  const sunatService = data.sunat.servicio
 
   const usuariosChartData: RankingChartDatum[] = data.usuarios.activosPorRol.map((r) => ({
     label: r.rol,
@@ -295,6 +297,67 @@ export function SistemaDashboardContent({ data }: { data: DashboardSistemaData }
       </div>
 
       {/* DB tablas + Storage carpetas — bar charts */}
+      <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
+        <SectionCard
+          title="Servicio SUNAT"
+          subtitle="Estado del endpoint y conectividad actual"
+          icon={GlobeAltIcon}
+        >
+          {sunatService ? (
+            <>
+              <div className="mb-4 flex flex-wrap items-center gap-2">
+                <span
+                  className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                    sunatService.disponible
+                      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300"
+                      : "bg-rose-100 text-rose-700 dark:bg-rose-500/10 dark:text-rose-300"
+                  }`}
+                >
+                  {sunatService.estado}
+                </span>
+                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                  {sunatService.ambiente}
+                </span>
+                {sunatService.httpStatus > 0 ? (
+                  <span className="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-500/10 dark:text-blue-300">
+                    HTTP {sunatService.httpStatus}
+                  </span>
+                ) : null}
+              </div>
+              <MetricRow label="Latencia" value={`${sunatService.latenciaMs} ms`} />
+              <MetricRow label="Verificado en" value={formatDate(sunatService.verificadoEn)} />
+              <MetricRow label="Endpoint" value={sunatService.endpoint || "-"} mono />
+              {sunatService.mensaje ? (
+                <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/60">
+                  <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                    Mensaje del servicio
+                  </p>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">
+                    {sunatService.mensaje}
+                  </p>
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
+              No hay informacion del servicio SUNAT disponible.
+            </div>
+          )}
+        </SectionCard>
+
+        <SectionCard
+          title="Resumen tecnico"
+          subtitle="Storage y base de datos del sistema"
+          icon={CheckCircleIcon}
+        >
+          <MetricRow label="Storage base" value={data.storage.basePath || "-"} mono />
+          <MetricRow label="Storage disponible" value={data.storage.existe ? "Si" : "No"} />
+          <MetricRow label="Archivos en storage" value={String(data.storage.totalArchivos)} />
+          <MetricRow label="Tamano BD" value={`${data.database.sizeMb.toFixed(2)} MB`} />
+          <MetricRow label="Tablas en BD" value={String(data.database.tablesCount)} />
+        </SectionCard>
+      </div>
+
       <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
         <SectionCard
           title="Tablas mas pesadas"

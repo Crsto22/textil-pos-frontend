@@ -41,6 +41,10 @@ interface SunatFormErrors {
   usuarioSol?: string
   claveSol?: string
   urlBillService?: string
+  urlConsultaTicket?: string
+  urlApiToken?: string
+  urlApiCpe?: string
+  igvPorcentaje?: string
 }
 
 const MAX_CERT_SIZE_BYTES = 5 * 1024 * 1024
@@ -260,12 +264,16 @@ function SunatConnectionEditor({
   const hasDraftContent = useMemo(
     () =>
       Boolean(
-        form.usuarioSol.trim() ||
+          form.usuarioSol.trim() ||
           form.claveSol.trim() ||
           form.urlBillService.trim() ||
+          form.urlConsultaTicket.trim() ||
+          form.urlApiToken.trim() ||
+          form.urlApiCpe.trim() ||
           form.certificadoPassword.trim() ||
           form.clientId.trim() ||
           form.clientSecret.trim() ||
+          form.igvPorcentaje.trim() !== emptySunatConfigForm.igvPorcentaje ||
           form.ambiente !== emptySunatConfigForm.ambiente ||
           form.activo !== emptySunatConfigForm.activo
       ),
@@ -277,6 +285,10 @@ function SunatConnectionEditor({
       form.ambiente !== baseForm.ambiente ||
       form.usuarioSol.trim() !== baseForm.usuarioSol.trim() ||
       form.urlBillService.trim() !== baseForm.urlBillService.trim() ||
+      form.urlConsultaTicket.trim() !== baseForm.urlConsultaTicket.trim() ||
+      form.urlApiToken.trim() !== baseForm.urlApiToken.trim() ||
+      form.urlApiCpe.trim() !== baseForm.urlApiCpe.trim() ||
+      form.igvPorcentaje.trim() !== baseForm.igvPorcentaje.trim() ||
       form.activo !== baseForm.activo ||
       form.claveSol.trim().length > 0 ||
       form.certificadoPassword.trim().length > 0 ||
@@ -291,6 +303,16 @@ function SunatConnectionEditor({
   const endpointPreview =
     form.urlBillService.trim() ||
     config?.urlBillService ||
+    "Se usara el endpoint oficial por defecto del backend segun ambiente."
+
+  const consultaTicketPreview =
+    form.urlConsultaTicket.trim() ||
+    config?.urlConsultaTicket ||
+    "Se usara el endpoint oficial por defecto del backend segun ambiente."
+
+  const apiCpePreview =
+    form.urlApiCpe.trim() ||
+    config?.urlApiCpe ||
     "Se usara el endpoint oficial por defecto del backend segun ambiente."
 
   const setField = <K extends keyof SunatConfigFormValues>(
@@ -327,6 +349,31 @@ function SunatConnectionEditor({
     const urlBillService = form.urlBillService.trim()
     if (urlBillService && !isValidUrl(urlBillService)) {
       nextErrors.urlBillService = "Ingrese una URL valida"
+    }
+
+    const urlConsultaTicket = form.urlConsultaTicket.trim()
+    if (urlConsultaTicket && !isValidUrl(urlConsultaTicket)) {
+      nextErrors.urlConsultaTicket = "Ingrese una URL valida"
+    }
+
+    const urlApiToken = form.urlApiToken.trim()
+    if (urlApiToken && !isValidUrl(urlApiToken)) {
+      nextErrors.urlApiToken = "Ingrese una URL valida"
+    }
+
+    const urlApiCpe = form.urlApiCpe.trim()
+    if (urlApiCpe && !isValidUrl(urlApiCpe)) {
+      nextErrors.urlApiCpe = "Ingrese una URL valida"
+    }
+
+    const igvPorcentaje = Number(form.igvPorcentaje)
+    if (
+      !form.igvPorcentaje.trim() ||
+      !Number.isFinite(igvPorcentaje) ||
+      igvPorcentaje < 0 ||
+      igvPorcentaje > 100
+    ) {
+      nextErrors.igvPorcentaje = "Ingrese un IGV valido entre 0 y 100"
     }
 
     setFormErrors(nextErrors)
@@ -477,11 +524,17 @@ function SunatConnectionEditor({
                 <OverviewItem label="Empresa" value={displayCompanyName} />
                 <OverviewItem label="RUC" value={displayRuc} />
                 <OverviewItem label="Ambiente" value={form.ambiente} />
+                <OverviewItem label="IGV" value={`${form.igvPorcentaje || "0"}%`} />
                 <OverviewItem
                   label="Modo integracion"
                   value={config?.modoIntegracion ?? "DISABLED"}
                 />
                 <OverviewItem label="Endpoint" value={endpointPreview} />
+                <OverviewItem
+                  label="Consulta ticket"
+                  value={consultaTicketPreview}
+                />
+                <OverviewItem label="API CPE" value={apiCpePreview} />
                 <OverviewItem
                   label="Certificado"
                   value={config?.certificadoNombreArchivo ?? "Sin certificado cargado"}
@@ -669,6 +722,87 @@ function SunatConnectionEditor({
                     />
                   </SunatField>
                 </div>
+
+                <div className="lg:col-span-2">
+                  <SunatField
+                    label="URL Consulta Ticket"
+                    icon={Link2}
+                    error={formErrors.urlConsultaTicket}
+                    helper="Si lo dejas vacio, el backend usa el endpoint oficial segun ambiente."
+                  >
+                    <input
+                      type="url"
+                      value={form.urlConsultaTicket}
+                      onChange={(event) => {
+                        setField("urlConsultaTicket", event.target.value)
+                        if (formErrors.urlConsultaTicket) clearFieldError("urlConsultaTicket")
+                      }}
+                      className={`${inputBase} ${formErrors.urlConsultaTicket ? inputErr : ""}`}
+                      placeholder="https://e-factura.sunat.gob.pe/..."
+                    />
+                  </SunatField>
+                </div>
+
+                <div className="lg:col-span-2">
+                  <SunatField
+                    label="URL API Token"
+                    icon={Link2}
+                    error={formErrors.urlApiToken}
+                    helper="Endpoint del servicio de seguridad SUNAT para obtener token."
+                  >
+                    <input
+                      type="url"
+                      value={form.urlApiToken}
+                      onChange={(event) => {
+                        setField("urlApiToken", event.target.value)
+                        if (formErrors.urlApiToken) clearFieldError("urlApiToken")
+                      }}
+                      className={`${inputBase} ${formErrors.urlApiToken ? inputErr : ""}`}
+                      placeholder="https://api-seguridad.sunat.gob.pe/..."
+                    />
+                  </SunatField>
+                </div>
+
+                <div className="lg:col-span-2">
+                  <SunatField
+                    label="URL API CPE"
+                    icon={Link2}
+                    error={formErrors.urlApiCpe}
+                    helper="Endpoint de envio de comprobantes electronicos."
+                  >
+                    <input
+                      type="url"
+                      value={form.urlApiCpe}
+                      onChange={(event) => {
+                        setField("urlApiCpe", event.target.value)
+                        if (formErrors.urlApiCpe) clearFieldError("urlApiCpe")
+                      }}
+                      className={`${inputBase} ${formErrors.urlApiCpe ? inputErr : ""}`}
+                      placeholder="https://api-cpe.sunat.gob.pe/..."
+                    />
+                  </SunatField>
+                </div>
+
+                <SunatField
+                  label="IGV (%)"
+                  icon={FileText}
+                  error={formErrors.igvPorcentaje}
+                  helper="Rango permitido: 0 a 100. Para FACTURA y BOLETA este valor lo usa el backend desde la configuracion SUNAT."
+                >
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    value={form.igvPorcentaje}
+                    onChange={(event) => {
+                      setField("igvPorcentaje", event.target.value)
+                      if (formErrors.igvPorcentaje) clearFieldError("igvPorcentaje")
+                    }}
+                    className={`${inputBase} ${formErrors.igvPorcentaje ? inputErr : ""}`}
+                    placeholder="18.00"
+                  />
+                </SunatField>
 
                 <SunatField
                   label="Client ID"

@@ -223,11 +223,23 @@ export interface DashboardSistemaSunatJobEstado {
   total: number
 }
 
+export interface DashboardSistemaSunatServicio {
+  estado: string
+  disponible: boolean
+  ambiente: string
+  endpoint: string
+  httpStatus: number
+  latenciaMs: number
+  mensaje: string
+  verificadoEn: string
+}
+
 export interface DashboardSistemaSunat {
   totalJobs: number
   jobsNoFinalizados: number
   jobsPorEstado: DashboardSistemaSunatJobEstado[]
   ultimoJob: DashboardSistemaSunatJob | null
+  servicio: DashboardSistemaSunatServicio | null
 }
 
 export interface DashboardSistemaUsuariosRol {

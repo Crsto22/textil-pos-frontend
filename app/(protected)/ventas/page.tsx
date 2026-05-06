@@ -12,6 +12,7 @@ import {
   ClockIcon,
   CubeIcon,
   MagnifyingGlassIcon,
+  PencilSquareIcon,
   PlusIcon,
   ShoppingBagIcon,
   TagIcon,
@@ -24,6 +25,7 @@ import { LoaderSpinner } from "@/components/ui/loader-spinner"
 import { toast } from "sonner"
 
 import { formatMonedaPen } from "@/components/productos/productos.utils"
+import { ClienteEditDialog } from "@/components/clientes/modals/ClienteEditDialog"
 import { ProductosPagination } from "@/components/productos/ProductosPagination"
 import { ClienteCreateDialog } from "@/components/clientes/modals/ClienteCreateDialog"
 import CatalogViewToggle from "@/components/ventas/CatalogViewToggle"
@@ -75,7 +77,7 @@ import { AgregarStockModal } from "@/components/stock/AgregarStockModal"
 import { useGlobalBarcodeScanner } from "@/lib/hooks/useGlobalBarcodeScanner"
 import { buildSucursalComboboxOption } from "@/lib/sucursal"
 import type { Categoria, PageResponse as CategoriaPageResponse } from "@/lib/types/categoria"
-import type { Cliente, ClienteCreatePrefill } from "@/lib/types/cliente"
+import type { Cliente, ClienteCreatePrefill, ClienteUpdateRequest } from "@/lib/types/cliente"
 import type { Color, PageResponse as ColorPageResponse } from "@/lib/types/color"
 import type { ProductoResumen } from "@/lib/types/producto"
 import type { VentaLineaPrecioTipo } from "@/lib/types/venta-price"
@@ -329,6 +331,26 @@ function sanitizeNumericInput(value: string) {
   return value.replace(/\D+/g, "")
 }
 
+function toClienteFromSelection(selection: ClientSelection): Cliente | null {
+  if (selection.idCliente === null) return null
+
+  return {
+    idCliente: selection.idCliente,
+    tipoDocumento: selection.tipoDocumento ?? "SIN_DOC",
+    nroDocumento: selection.nroDocumento ?? "",
+    nombres: selection.nombre,
+    telefono: selection.telefono ?? "",
+    correo: selection.correo ?? "",
+    direccion: selection.direccion ?? "",
+    estado: selection.estado ?? "ACTIVO",
+    fechaCreacion: "",
+    idEmpresa: null,
+    nombreEmpresa: "",
+    idUsuarioCreacion: null,
+    nombreUsuarioCreacion: "",
+  }
+}
+
 export default function VentasPage() {
   const router = useRouter()
   const { user } = useAuth()
@@ -490,6 +512,7 @@ export default function VentasPage() {
   const [selectedPayment, setSelectedPayment] = useState<PaymentKey | null>(null)
   const [paymentOperationCode, setPaymentOperationCode] = useState("")
   const [selectedClient, setSelectedClient] = useState<ClientSelection>(DEFAULT_CLIENT)
+  const [editClientTarget, setEditClientTarget] = useState<Cliente | null>(null)
   const [clientCreatePrefill, setClientCreatePrefill] = useState<ClienteCreatePrefill | null>(null)
   const [isClientCreateOpen, setIsClientCreateOpen] = useState(false)
   const [isPaymentDrawerOpen, setIsPaymentDrawerOpen] = useState(false)
@@ -779,6 +802,16 @@ export default function VentasPage() {
     const tipoComprobante = selectedComprobante?.tipoComprobante?.trim().toUpperCase()
     return tipoComprobante === "FACTURA" ? "RUC" : null
   }, [selectedComprobante?.tipoComprobante])
+  const requiresRucClient = clienteTipoDocumentoFilter === "RUC"
+  const selectedClientHasRuc =
+    selectedClient.idCliente !== null &&
+    selectedClient.tipoDocumento?.trim().toUpperCase() === "RUC"
+  const clientFieldPlaceholder = requiresRucClient
+    ? "Elige un cliente con RUC"
+    : "Cliente Generico"
+  const clientSearchPlaceholder = requiresRucClient
+    ? "Buscar cliente por RUC o razon social..."
+    : "Buscar cliente..."
   const showIgvSummary = useMemo(
     () => appliesIgvForComprobante(selectedComprobante?.tipoComprobante),
     [selectedComprobante?.tipoComprobante]
@@ -878,6 +911,14 @@ export default function VentasPage() {
     return sucursalSheetOptions.filter((o) => o.label.toLowerCase().includes(lower))
   }, [sucursalSheetOptions, sheetSearchSucursal])
 
+  useEffect(() => {
+    if (!requiresRucClient) return
+    if (selectedClientHasRuc) return
+    if (selectedClient.idCliente === null) return
+
+    setSelectedClient(DEFAULT_CLIENT)
+  }, [requiresRucClient, selectedClient.idCliente, selectedClientHasRuc])
+
   const filteredComprobanteSheetOptions = useMemo(() => {
     if (!sheetSearchComprobante.trim()) return comprobanteOptions
     const lower = sheetSearchComprobante.toLowerCase()
@@ -916,7 +957,8 @@ export default function VentasPage() {
   const canContinueToPayment =
     cart.length > 0 &&
     resolvedSucursalId !== null &&
-    selectedComprobante !== null
+    selectedComprobante !== null &&
+    (!requiresRucClient || selectedClientHasRuc)
   const hasValidPaymentOperationCode = /^\d+$/.test(paymentOperationCode.trim())
   const canConfirm =
     canContinueToPayment &&
@@ -936,13 +978,19 @@ export default function VentasPage() {
       if (errorComprobantes) return errorComprobantes
       return "Selecciona un tipo de comprobante"
     }
+    if (requiresRucClient && !selectedClientHasRuc) {
+      return "Selecciona un cliente con RUC para emitir factura"
+    }
     return ""
   }, [
     cart.length,
+    errorComprobantes,
+    hasMultipleSucursales,
     isAdmin,
     loadingComprobantes,
-    errorComprobantes,
+    requiresRucClient,
     resolvedSucursalId,
+    selectedClientHasRuc,
     selectedComprobante,
   ])
   const paymentHint = useMemo(() => {
@@ -1093,6 +1141,12 @@ export default function VentasPage() {
     setSelectedClient({
       idCliente: client.idCliente,
       nombre: client.nombres,
+      tipoDocumento: client.tipoDocumento,
+      nroDocumento: client.nroDocumento,
+      telefono: client.telefono,
+      correo: client.correo,
+      direccion: client.direccion,
+      estado: client.estado,
     })
 
   }, [])
@@ -1101,6 +1155,71 @@ export default function VentasPage() {
     setSelectedClient(client)
     setClienteSheetOpen(false)
   }, [])
+
+  const handleEditSelectedClient = useCallback(() => {
+    const target = toClienteFromSelection(selectedClient)
+    if (!target) return
+    setEditClientTarget(target)
+  }, [selectedClient])
+
+  const handleUpdateClientFromVenta = useCallback(
+    async (id: number, payload: ClienteUpdateRequest) => {
+      try {
+        const response = await authFetch(`/api/cliente/actualizar/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        })
+
+        const data = await parseJsonSafe(response)
+        if (!response.ok) {
+          throw new Error(
+            (data && typeof data.message === "string" && data.message) ||
+              "No se pudo actualizar el cliente"
+          )
+        }
+
+        toast.success(
+          (data && typeof data.message === "string" && data.message) ||
+            "Cliente actualizado exitosamente"
+        )
+
+        setSelectedClient((previous) =>
+          previous.idCliente === id
+            ? {
+                ...previous,
+                nombre: payload.nombres,
+                tipoDocumento: payload.tipoDocumento,
+                nroDocumento: payload.nroDocumento,
+                telefono: payload.telefono,
+                correo: payload.correo,
+                direccion: payload.direccion,
+                estado: payload.estado,
+              }
+            : previous
+        )
+
+        setEditClientTarget((previous) =>
+          previous?.idCliente === id
+            ? {
+                ...previous,
+                ...payload,
+                idCliente: id,
+                nombres: payload.nombres,
+              }
+            : previous
+        )
+
+        return true
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : "No se pudo actualizar el cliente"
+        )
+        return false
+      }
+    },
+    []
+  )
 
   const closeModal = useCallback(() => {
     setModalProduct(null)
@@ -1542,6 +1661,15 @@ export default function VentasPage() {
         onCreated={handleClientCreated}
       />
 
+      <ClienteEditDialog
+        open={editClientTarget !== null}
+        cliente={editClientTarget}
+        onOpenChange={(open) => {
+          if (!open) setEditClientTarget(null)
+        }}
+        onUpdate={handleUpdateClientFromVenta}
+      />
+
       <Dialog
         open={pendingSucursalChange !== null}
         onOpenChange={(open) => { if (!open) handleCancelSucursalChange() }}
@@ -1874,20 +2002,37 @@ export default function VentasPage() {
             </div>
 
             {/* Cliente — fila completa */}
-            <button
-              type="button"
-              onClick={() => setClienteSheetOpen(true)}
-              className="flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-3 text-left transition hover:bg-slate-50 shadow-sm dark:border-slate-700/60 dark:bg-slate-800/80 dark:hover:bg-slate-700/40"
-            >
-              <UserCircleIcon className="h-4 w-4 shrink-0 text-emerald-500" />
-              <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Cliente</p>
-                <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">
-                  {selectedClient.nombre || "Cliente Generico"}
-                </p>
-              </div>
-              <ChevronRightIcon className="h-4 w-4 shrink-0 text-slate-300 dark:text-slate-600" />
-            </button>
+            <div className="flex items-center gap-2 rounded-2xl border border-slate-100 bg-white px-3 py-2.5 shadow-sm dark:border-slate-700/60 dark:bg-slate-800/80">
+              <button
+                type="button"
+                onClick={() => setClienteSheetOpen(true)}
+                className="flex min-w-0 flex-1 items-center gap-3 rounded-xl px-1 py-0.5 text-left transition hover:bg-slate-50 dark:hover:bg-slate-700/40"
+              >
+                <UserCircleIcon className="h-4 w-4 shrink-0 text-emerald-500" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Cliente</p>
+                  <p className={`truncate text-sm font-medium ${
+                    selectedClient.idCliente === null
+                      ? "text-slate-500 dark:text-slate-400"
+                      : "text-slate-800 dark:text-slate-100"
+                  }`}>
+                    {selectedClient.idCliente === null ? clientFieldPlaceholder : selectedClient.nombre}
+                  </p>
+                </div>
+                <ChevronRightIcon className="h-4 w-4 shrink-0 text-slate-300 dark:text-slate-600" />
+              </button>
+              {selectedClient.idCliente !== null && (
+                <button
+                  type="button"
+                  onClick={handleEditSelectedClient}
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-500 transition hover:border-slate-300 hover:bg-white hover:text-slate-700 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                  aria-label="Editar datos del cliente"
+                  title="Editar datos del cliente"
+                >
+                  <PencilSquareIcon className="h-4 w-4" />
+                </button>
+              )}
+            </div>
           </div>
 
           {/* ─── Selectores DESKTOP — comboboxes ─── */}
@@ -2008,8 +2153,21 @@ export default function VentasPage() {
                   onSelect={setSelectedClient}
                   onCreateClientRequest={handleClientCreateRequest}
                   tipoDocumentoFilter={clienteTipoDocumentoFilter}
+                  placeholder={clientFieldPlaceholder}
+                  searchPlaceholder={clientSearchPlaceholder}
                 />
               </div>
+              {selectedClient.idCliente !== null && (
+                <button
+                  type="button"
+                  onClick={handleEditSelectedClient}
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-500 transition hover:border-slate-300 hover:bg-white hover:text-slate-700 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                  aria-label="Editar datos del cliente"
+                  title="Editar datos del cliente"
+                >
+                  <PencilSquareIcon className="h-4 w-4" />
+                </button>
+              )}
             </div>
           </div>
 
@@ -2537,6 +2695,7 @@ export default function VentasPage() {
                 handleClientCreateRequest(prefill)
               }}
               tipoDocumentoFilter={clienteTipoDocumentoFilter}
+              searchPlaceholder={clientSearchPlaceholder}
             />
           </div>
         </SheetContent>

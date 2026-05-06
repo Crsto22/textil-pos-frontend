@@ -351,6 +351,20 @@ function normalizeSistemaDashboard(data: Record<string, unknown> | null): Dashbo
       }
     : null
 
+  const servicioRaw = sunat?.servicio as Record<string, unknown> | null
+  const servicio = servicioRaw
+    ? {
+        estado: toStringValue(servicioRaw.estado),
+        disponible: Boolean(servicioRaw.disponible),
+        ambiente: toStringValue(servicioRaw.ambiente),
+        endpoint: toStringValue(servicioRaw.endpoint),
+        httpStatus: toFiniteNumber(servicioRaw.httpStatus),
+        latenciaMs: toFiniteNumber(servicioRaw.latenciaMs),
+        mensaje: toStringValue(servicioRaw.mensaje),
+        verificadoEn: toStringValue(servicioRaw.verificadoEn),
+      }
+    : null
+
   const activosPorRol = Array.isArray(usuarios?.activosPorRol)
     ? (usuarios!.activosPorRol as Record<string, unknown>[]).map((r) => ({
         rol: toStringValue(r.rol),
@@ -411,6 +425,7 @@ function normalizeSistemaDashboard(data: Record<string, unknown> | null): Dashbo
       jobsNoFinalizados: toFiniteNumber(sunat?.jobsNoFinalizados),
       jobsPorEstado,
       ultimoJob,
+      servicio,
     },
     usuarios: {
       activos: toFiniteNumber(usuarios?.activos),

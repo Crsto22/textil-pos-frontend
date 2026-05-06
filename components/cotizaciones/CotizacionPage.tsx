@@ -18,6 +18,7 @@ import {
   CubeIcon,
   ExclamationTriangleIcon,
   MagnifyingGlassIcon,
+  PencilSquareIcon,
   PlusIcon,
   ShoppingBagIcon,
   TagIcon,
@@ -30,6 +31,7 @@ import { LoaderSpinner } from "@/components/ui/loader-spinner";
 import { toast } from "sonner";
 
 import { ProductosPagination } from "@/components/productos/ProductosPagination";
+import { ClienteEditDialog } from "@/components/clientes/modals/ClienteEditDialog";
 import { ClienteCreateDialog } from "@/components/clientes/modals/ClienteCreateDialog";
 import { formatMonedaPen } from "@/components/productos/productos.utils";
 import CatalogViewToggle from "@/components/ventas/CatalogViewToggle";
@@ -96,7 +98,11 @@ import type {
   Categoria,
   PageResponse as CategoriaPageResponse,
 } from "@/lib/types/categoria";
-import type { Cliente, ClienteCreatePrefill } from "@/lib/types/cliente";
+import type {
+  Cliente,
+  ClienteCreatePrefill,
+  ClienteUpdateRequest,
+} from "@/lib/types/cliente";
 import type {
   Color,
   PageResponse as ColorPageResponse,
@@ -298,6 +304,26 @@ function mapCotizacionToCart(cotizacion: CotizacionResponse): CartItemData[] {
   }));
 }
 
+function toClienteFromSelection(selection: ClientSelection): Cliente | null {
+  if (selection.idCliente === null) return null;
+
+  return {
+    idCliente: selection.idCliente,
+    tipoDocumento: selection.tipoDocumento ?? "SIN_DOC",
+    nroDocumento: selection.nroDocumento ?? "",
+    nombres: selection.nombre,
+    telefono: selection.telefono ?? "",
+    correo: selection.correo ?? "",
+    direccion: selection.direccion ?? "",
+    estado: selection.estado ?? "ACTIVO",
+    fechaCreacion: "",
+    idEmpresa: null,
+    nombreEmpresa: "",
+    idUsuarioCreacion: null,
+    nombreUsuarioCreacion: "",
+  };
+}
+
 export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
   const router = useRouter();
   const { user } = useAuth();
@@ -492,6 +518,7 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
   const [cart, setCart] = useState<CartItemData[]>([]);
   const [selectedClient, setSelectedClient] =
     useState<ClientSelection>(DEFAULT_CLIENT);
+  const [editClientTarget, setEditClientTarget] = useState<Cliente | null>(null);
   const [clientCreatePrefill, setClientCreatePrefill] =
     useState<ClienteCreatePrefill | null>(null);
   const [isClientCreateOpen, setIsClientCreateOpen] = useState(false);
@@ -1126,8 +1153,82 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
       setSelectedClient({
         idCliente: client.idCliente,
         nombre: client.nombres,
+        tipoDocumento: client.tipoDocumento,
+        nroDocumento: client.nroDocumento,
+        telefono: client.telefono,
+        correo: client.correo,
+        direccion: client.direccion,
+        estado: client.estado,
       });
       clearCotizacionError();
+    },
+    [clearCotizacionError],
+  );
+
+  const handleEditSelectedClient = useCallback(() => {
+    const target = toClienteFromSelection(selectedClient);
+    if (!target) return;
+    setEditClientTarget(target);
+  }, [selectedClient]);
+
+  const handleUpdateClientFromCotizacion = useCallback(
+    async (id: number, payload: ClienteUpdateRequest) => {
+      try {
+        const response = await authFetch(`/api/cliente/actualizar/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        const data = await parseJsonSafe(response);
+        if (!response.ok) {
+          throw new Error(
+            (data && typeof data.message === "string" && data.message) ||
+              "No se pudo actualizar el cliente",
+          );
+        }
+
+        toast.success(
+          (data && typeof data.message === "string" && data.message) ||
+            "Cliente actualizado exitosamente",
+        );
+
+        setSelectedClient((previous) =>
+          previous.idCliente === id
+            ? {
+                ...previous,
+                nombre: payload.nombres,
+                tipoDocumento: payload.tipoDocumento,
+                nroDocumento: payload.nroDocumento,
+                telefono: payload.telefono,
+                correo: payload.correo,
+                direccion: payload.direccion,
+                estado: payload.estado,
+              }
+            : previous,
+        );
+
+        setEditClientTarget((previous) =>
+          previous?.idCliente === id
+            ? {
+                ...previous,
+                ...payload,
+                idCliente: id,
+                nombres: payload.nombres,
+              }
+            : previous,
+        );
+
+        clearCotizacionError();
+        return true;
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "No se pudo actualizar el cliente",
+        );
+        return false;
+      }
     },
     [clearCotizacionError],
   );
@@ -1548,6 +1649,15 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
         onCreate={createCliente}
         prefill={clientCreatePrefill}
         onCreated={handleClientCreated}
+      />
+
+      <ClienteEditDialog
+        open={editClientTarget !== null}
+        cliente={editClientTarget}
+        onOpenChange={(open) => {
+          if (!open) setEditClientTarget(null);
+        }}
+        onUpdate={handleUpdateClientFromCotizacion}
       />
 
       <Dialog
@@ -2066,22 +2176,35 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
                 </div>
               )}
 
-              <button
-                type="button"
-                onClick={() => setClienteSheetOpen(true)}
-                className="flex items-center gap-2 rounded-2xl border border-slate-100 bg-white px-3 py-2.5 text-left transition hover:bg-slate-50 shadow-sm dark:border-slate-700/60 dark:bg-slate-800/80 dark:hover:bg-slate-700/40"
-              >
-                <UserCircleIcon className="h-4 w-4 shrink-0 text-emerald-500" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
-                    Cliente
-                  </p>
-                  <p className="truncate text-xs font-medium text-slate-800 dark:text-slate-100">
-                    {selectedClient.nombre || "Cliente Generico"}
-                  </p>
-                </div>
-                <ChevronRightIcon className="h-3.5 w-3.5 shrink-0 text-slate-300 dark:text-slate-600" />
-              </button>
+              <div className="flex items-center gap-2 rounded-2xl border border-slate-100 bg-white px-3 py-2.5 shadow-sm dark:border-slate-700/60 dark:bg-slate-800/80">
+                <button
+                  type="button"
+                  onClick={() => setClienteSheetOpen(true)}
+                  className="flex min-w-0 flex-1 items-center gap-2 rounded-xl px-0.5 py-0.5 text-left transition hover:bg-slate-50 dark:hover:bg-slate-700/40"
+                >
+                  <UserCircleIcon className="h-4 w-4 shrink-0 text-emerald-500" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                      Cliente
+                    </p>
+                    <p className="truncate text-xs font-medium text-slate-800 dark:text-slate-100">
+                      {selectedClient.nombre || "Cliente Generico"}
+                    </p>
+                  </div>
+                  <ChevronRightIcon className="h-3.5 w-3.5 shrink-0 text-slate-300 dark:text-slate-600" />
+                </button>
+                {selectedClient.idCliente !== null && (
+                  <button
+                    type="button"
+                    onClick={handleEditSelectedClient}
+                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-500 transition hover:border-slate-300 hover:bg-white hover:text-slate-700 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                    aria-label="Editar datos del cliente"
+                    title="Editar datos del cliente"
+                  >
+                    <PencilSquareIcon className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
@@ -2132,6 +2255,17 @@ export function CotizacionPage({ cotizacionId }: CotizacionPageProps) {
                   onCreateClientRequest={handleClientCreateRequest}
                 />
               </div>
+              {selectedClient.idCliente !== null && (
+                <button
+                  type="button"
+                  onClick={handleEditSelectedClient}
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-500 transition hover:border-slate-300 hover:bg-white hover:text-slate-700 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                  aria-label="Editar datos del cliente"
+                  title="Editar datos del cliente"
+                >
+                  <PencilSquareIcon className="h-4 w-4" />
+                </button>
+              )}
             </div>
           </div>
 

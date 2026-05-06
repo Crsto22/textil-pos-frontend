@@ -8,6 +8,8 @@ import {
 } from "@heroicons/react/24/outline"
 
 import { Button } from "@/components/ui/button"
+import { useAuth } from "@/lib/auth/auth-context"
+import { normalizeSupportedRole } from "@/lib/auth/roles"
 import {
     formatFechaHora as formatVentaFechaHora,
     formatMonto,
@@ -67,8 +69,12 @@ export function ClienteDetailContent({
     onRetry,
     compact = false,
 }: ClienteDetailContentProps) {
+    const { user } = useAuth()
     const clienteBase = detalleCliente ?? selectedCliente
     if (!clienteBase) return null
+    const normalizedRole = normalizeSupportedRole(user?.rol)
+    const canViewPurchaseHistory =
+        normalizedRole !== "VENTAS" && normalizedRole !== "VENTAS_ALMACEN"
 
     const color = getAvatarColor(clienteBase.idCliente)
     const initials = getInitials(clienteBase.nombres)
@@ -179,117 +185,119 @@ export function ClienteDetailContent({
                 </div>
             </div>
 
-            <div className={sectionClassName}>
-                <p className="mb-4 text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
-                    Historial de Compras
-                </p>
+            {canViewPurchaseHistory && (
+                <div className={sectionClassName}>
+                    <p className="mb-4 text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
+                        Historial de Compras
+                    </p>
 
-                {loading ? (
-                    <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-3">
-                            <div className="rounded-xl border bg-muted/20 p-3">
-                                <div className="h-3 w-20 animate-pulse rounded bg-muted" />
-                                <div className="mt-3 h-6 w-14 animate-pulse rounded bg-muted" />
-                            </div>
-                            <div className="rounded-xl border bg-muted/20 p-3">
-                                <div className="h-3 w-24 animate-pulse rounded bg-muted" />
-                                <div className="mt-3 h-6 w-20 animate-pulse rounded bg-muted" />
-                            </div>
-                        </div>
-                        <div className="space-y-3">
-                            {[0, 1, 2].map((item) => (
-                                <div
-                                    key={item}
-                                    className="rounded-xl border bg-muted/20 p-3"
-                                >
-                                    <div className="h-4 w-28 animate-pulse rounded bg-muted" />
-                                    <div className="mt-2 h-3 w-36 animate-pulse rounded bg-muted" />
-                                    <div className="mt-2 h-4 w-20 animate-pulse rounded bg-muted" />
+                    {loading ? (
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="rounded-xl border bg-muted/20 p-3">
+                                    <div className="h-3 w-20 animate-pulse rounded bg-muted" />
+                                    <div className="mt-3 h-6 w-14 animate-pulse rounded bg-muted" />
                                 </div>
-                            ))}
-                        </div>
-                    </div>
-                ) : error ? (
-                    <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/20 dark:text-red-300">
-                        <p>{error}</p>
-                        <Button
-                            type="button"
-                            variant="link"
-                            className="mt-1 h-auto p-0 text-red-700 dark:text-red-300"
-                            onClick={onRetry}
-                        >
-                            Reintentar
-                        </Button>
-                    </div>
-                ) : detalleCliente ? (
-                    <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-3">
-                            <div className="rounded-xl border bg-muted/20 p-3">
-                                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                                    Compras Totales
-                                </p>
-                                <p className="mt-2 text-2xl font-semibold text-foreground">
-                                    {detalleCliente.comprasTotales}
-                                </p>
-                            </div>
-                            <div className="rounded-xl border bg-muted/20 p-3">
-                                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                                    Monto Total
-                                </p>
-                                <p className="mt-2 text-lg font-semibold text-foreground">
-                                    {formatMonto(detalleCliente.montoTotalCompras, "PEN")}
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="space-y-3">
-                            {detalleCliente.ultimasCompras.length === 0 ? (
-                                <div className="rounded-xl border bg-muted/20 p-3 text-sm text-muted-foreground">
-                                    No hay compras emitidas registradas para este cliente.
+                                <div className="rounded-xl border bg-muted/20 p-3">
+                                    <div className="h-3 w-24 animate-pulse rounded bg-muted" />
+                                    <div className="mt-3 h-6 w-20 animate-pulse rounded bg-muted" />
                                 </div>
-                            ) : (
-                                detalleCliente.ultimasCompras.map((compra) => (
+                            </div>
+                            <div className="space-y-3">
+                                {[0, 1, 2].map((item) => (
                                     <div
-                                        key={compra.idVenta}
-                                        className="rounded-xl border bg-muted/10 p-3"
+                                        key={item}
+                                        className="rounded-xl border bg-muted/20 p-3"
                                     >
-                                        <div className="flex items-start justify-between gap-3">
-                                            <div className="min-w-0">
-                                                <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                                                    <ShoppingBagIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
-                                                    <span className="truncate">
-                                                        {compra.tipoComprobante}
+                                        <div className="h-4 w-28 animate-pulse rounded bg-muted" />
+                                        <div className="mt-2 h-3 w-36 animate-pulse rounded bg-muted" />
+                                        <div className="mt-2 h-4 w-20 animate-pulse rounded bg-muted" />
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    ) : error ? (
+                        <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/20 dark:text-red-300">
+                            <p>{error}</p>
+                            <Button
+                                type="button"
+                                variant="link"
+                                className="mt-1 h-auto p-0 text-red-700 dark:text-red-300"
+                                onClick={onRetry}
+                            >
+                                Reintentar
+                            </Button>
+                        </div>
+                    ) : detalleCliente ? (
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="rounded-xl border bg-muted/20 p-3">
+                                    <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                                        Compras Totales
+                                    </p>
+                                    <p className="mt-2 text-2xl font-semibold text-foreground">
+                                        {detalleCliente.comprasTotales}
+                                    </p>
+                                </div>
+                                <div className="rounded-xl border bg-muted/20 p-3">
+                                    <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                                        Monto Total
+                                    </p>
+                                    <p className="mt-2 text-lg font-semibold text-foreground">
+                                        {formatMonto(detalleCliente.montoTotalCompras, "PEN")}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-3">
+                                {detalleCliente.ultimasCompras.length === 0 ? (
+                                    <div className="rounded-xl border bg-muted/20 p-3 text-sm text-muted-foreground">
+                                        No hay compras emitidas registradas para este cliente.
+                                    </div>
+                                ) : (
+                                    detalleCliente.ultimasCompras.map((compra) => (
+                                        <div
+                                            key={compra.idVenta}
+                                            className="rounded-xl border bg-muted/10 p-3"
+                                        >
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div className="min-w-0">
+                                                    <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                                                        <ShoppingBagIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                                        <span className="truncate">
+                                                            {compra.tipoComprobante}
+                                                        </span>
+                                                    </p>
+                                                    <p className="mt-1 text-xs text-muted-foreground">
+                                                        {formatComprobante(compra)}
+                                                    </p>
+                                                    <p className="mt-1 text-xs text-muted-foreground">
+                                                        {formatVentaFechaHora(compra.fecha)}
+                                                    </p>
+                                                </div>
+                                                <div className="text-right">
+                                                    <span
+                                                        className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${getEstadoBadgeClass(compra.estado)}`}
+                                                    >
+                                                        {compra.estado}
                                                     </span>
-                                                </p>
-                                                <p className="mt-1 text-xs text-muted-foreground">
-                                                    {formatComprobante(compra)}
-                                                </p>
-                                                <p className="mt-1 text-xs text-muted-foreground">
-                                                    {formatVentaFechaHora(compra.fecha)}
-                                                </p>
-                                            </div>
-                                            <div className="text-right">
-                                                <span
-                                                    className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${getEstadoBadgeClass(compra.estado)}`}
-                                                >
-                                                    {compra.estado}
-                                                </span>
-                                                <p className="mt-2 text-sm font-semibold text-foreground">
-                                                    {formatMonto(compra.total, compra.moneda)}
-                                                </p>
+                                                    <p className="mt-2 text-sm font-semibold text-foreground">
+                                                        {formatMonto(compra.total, compra.moneda)}
+                                                    </p>
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                ))
-                            )}
+                                    ))
+                                )}
+                            </div>
                         </div>
-                    </div>
-                ) : (
-                    <div className="rounded-xl border bg-muted/20 p-3 text-sm text-muted-foreground">
-                        Selecciona un cliente para ver su historial de compras.
-                    </div>
-                )}
-            </div>
+                    ) : (
+                        <div className="rounded-xl border bg-muted/20 p-3 text-sm text-muted-foreground">
+                            Selecciona un cliente para ver su historial de compras.
+                        </div>
+                    )}
+                </div>
+            )}
 
             <div className={sectionClassName}>
                 <div className="space-y-4">

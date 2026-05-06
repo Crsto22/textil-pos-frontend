@@ -10,12 +10,16 @@ export interface SunatConfig {
   ambiente: SunatAmbiente
   usuarioSol: string
   urlBillService: string
+  urlConsultaTicket: string
+  urlApiToken: string
+  urlApiCpe: string
   certificadoNombreArchivo: string | null
   tieneClaveSol: boolean
   tieneCertificado: boolean
   tieneCertificadoPassword: boolean
   tieneClientId: boolean
   tieneClientSecret: boolean
+  igvPorcentaje: number
   activo: SunatConfigEstado
   modoIntegracion: SunatModoIntegracion
   createdAt: string | null
@@ -27,9 +31,13 @@ export interface SunatConfigUpsertRequest {
   usuarioSol: string
   claveSol: string
   urlBillService?: string | null
+  urlConsultaTicket?: string | null
+  urlApiToken?: string | null
+  urlApiCpe?: string | null
   certificadoPassword?: string | null
   clientId?: string | null
   clientSecret?: string | null
+  igvPorcentaje: number
   activo: SunatConfigEstado
 }
 
@@ -38,9 +46,13 @@ export interface SunatConfigFormValues {
   usuarioSol: string
   claveSol: string
   urlBillService: string
+  urlConsultaTicket: string
+  urlApiToken: string
+  urlApiCpe: string
   certificadoPassword: string
   clientId: string
   clientSecret: string
+  igvPorcentaje: string
   activo: "ACTIVO" | "INACTIVO"
 }
 

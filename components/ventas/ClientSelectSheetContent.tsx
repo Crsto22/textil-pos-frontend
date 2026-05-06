@@ -23,9 +23,23 @@ interface Props {
   onSelect: (client: ClientSelection) => void
   onCreateClientRequest?: (prefill: ClienteCreatePrefill) => void
   tipoDocumentoFilter?: TipoDocumento | null
+  searchPlaceholder?: string
 }
 
 const GENERIC_CLIENT: ClientSelection = { idCliente: null, nombre: "Cliente Generico" }
+
+function toClientSelection(client: Cliente): ClientSelection {
+  return {
+    idCliente: client.idCliente,
+    nombre: client.nombres,
+    tipoDocumento: client.tipoDocumento,
+    nroDocumento: client.nroDocumento,
+    telefono: client.telefono,
+    correo: client.correo,
+    direccion: client.direccion,
+    estado: client.estado,
+  }
+}
 
 function buildClientCreatePrefill(
   query: string,
@@ -55,6 +69,7 @@ export default function ClientSelectSheetContent({
   onSelect,
   onCreateClientRequest,
   tipoDocumentoFilter = null,
+  searchPlaceholder = "Buscar por nombre, DNI, RUC...",
 }: Props) {
   const [query, setQuery] = useState("")
   const [debouncedQuery, setDebouncedQuery] = useState("")
@@ -136,7 +151,7 @@ export default function ClientSelectSheetContent({
           return
         }
         const client: Cliente = await response.json()
-        onSelect({ idCliente: client.idCliente, nombre: client.nombres })
+        onSelect(toClientSelection(client))
       } catch {
         setQuickError("No se pudo conectar al servidor")
       } finally {
@@ -157,7 +172,7 @@ export default function ClientSelectSheetContent({
 
   const handleSelect = useCallback(
     (client: Cliente) => {
-      onSelect({ idCliente: client.idCliente, nombre: client.nombres })
+      onSelect(toClientSelection(client))
     },
     [onSelect]
   )
@@ -171,7 +186,7 @@ export default function ClientSelectSheetContent({
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Buscar por nombre, DNI, RUC..."
+          placeholder={searchPlaceholder}
           className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-sm placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-100 dark:focus:bg-slate-800"
         />
       </div>

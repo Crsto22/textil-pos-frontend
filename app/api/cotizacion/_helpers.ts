@@ -48,6 +48,12 @@ function getNonNegativeNumber(value: unknown): number | null {
   return parsed
 }
 
+function getPercentageNumber(value: unknown): number | null {
+  const parsed = getNonNegativeNumber(value)
+  if (parsed === null || parsed > 100) return null
+  return parsed
+}
+
 function getTrimmedString(value: unknown): string | null {
   if (typeof value !== "string") return null
   const normalized = value.trim()
@@ -188,7 +194,7 @@ export function normalizeCotizacionWritePayload(
   const igvPorcentaje =
     payload.igvPorcentaje === undefined || payload.igvPorcentaje === null
       ? undefined
-      : getNonNegativeNumber(payload.igvPorcentaje)
+      : getPercentageNumber(payload.igvPorcentaje)
   if (
     payload.igvPorcentaje !== undefined &&
     payload.igvPorcentaje !== null &&

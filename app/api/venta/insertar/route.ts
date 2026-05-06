@@ -2,6 +2,21 @@ import { NextRequest, NextResponse } from "next/server"
 
 const BACKEND_URL = process.env.BACKEND_URL
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null
+}
+
+function normalizeIgvPorcentaje(value: unknown): number | null {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) {
+    return null
+  }
+
+  return parsed
+}
+
 export async function POST(request: NextRequest) {
   try {
     if (!BACKEND_URL) {
@@ -17,7 +32,21 @@ export async function POST(request: NextRequest) {
     let body: string
     try {
       const payload = await request.json()
-      body = JSON.stringify(payload)
+      const normalizedPayload = asRecord(payload)
+      if (!normalizedPayload) {
+        return NextResponse.json({ message: "Body invalido o vacio" }, { status: 400 })
+      }
+
+      if (normalizedPayload.igvPorcentaje !== undefined) {
+        const igvPorcentaje = normalizeIgvPorcentaje(normalizedPayload.igvPorcentaje)
+        if (igvPorcentaje === null) {
+          return NextResponse.json({ message: "igvPorcentaje invalido" }, { status: 400 })
+        }
+
+        normalizedPayload.igvPorcentaje = igvPorcentaje
+      }
+
+      body = JSON.stringify(normalizedPayload)
     } catch {
       return NextResponse.json({ message: "Body invalido o vacio" }, { status: 400 })
     }

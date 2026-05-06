@@ -17,15 +17,36 @@ import { cn } from "@/lib/utils"
 export interface ClientSelection {
   idCliente: number | null
   nombre: string
+  tipoDocumento?: string
+  nroDocumento?: string
+  telefono?: string
+  correo?: string
+  direccion?: string
+  estado?: string
 }
 
 const GENERIC_CLIENT: ClientSelection = { idCliente: null, nombre: "Cliente Generico" }
+
+function toClientSelection(client: Cliente): ClientSelection {
+  return {
+    idCliente: client.idCliente,
+    nombre: client.nombres,
+    tipoDocumento: client.tipoDocumento,
+    nroDocumento: client.nroDocumento,
+    telefono: client.telefono,
+    correo: client.correo,
+    direccion: client.direccion,
+    estado: client.estado,
+  }
+}
 
 interface Props {
   selected: ClientSelection
   onSelect: (client: ClientSelection) => void
   onCreateClientRequest?: (prefill: ClienteCreatePrefill) => void
   tipoDocumentoFilter?: TipoDocumento | null
+  placeholder?: string
+  searchPlaceholder?: string
 }
 
 function getSelectedAvatarClasses(idCliente: number | null) {
@@ -98,6 +119,8 @@ export default function ClientSelect({
   onSelect,
   onCreateClientRequest,
   tipoDocumentoFilter = null,
+  placeholder = "Selecciona cliente",
+  searchPlaceholder = "Buscar cliente...",
 }: Props) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
@@ -229,7 +252,7 @@ export default function ClientSelect({
       }
 
       const client: Cliente = await response.json()
-      onSelect({ idCliente: client.idCliente, nombre: client.nombres })
+      onSelect(toClientSelection(client))
       handleOpenChange(false)
     } catch {
       setQuickError("No se pudo conectar al servidor")
@@ -253,7 +276,7 @@ export default function ClientSelect({
 
   const handleSelect = useCallback(
     (client: Cliente) => {
-      onSelect({ idCliente: client.idCliente, nombre: client.nombres })
+      onSelect(toClientSelection(client))
       handleOpenChange(false)
     },
     [handleOpenChange, onSelect]
@@ -294,7 +317,9 @@ export default function ClientSelect({
             >
               {selected.idCliente === null ? "G" : getInitials(selected.nombre)}
             </span>
-            <span className="text-left">{selected.nombre}</span>
+            <span className={cn("text-left", selected.idCliente === null && "text-slate-500 dark:text-slate-400")}>
+              {selected.idCliente === null ? placeholder : selected.nombre}
+            </span>
           </span>
           <ChevronUpDownIcon className="h-4 w-4 shrink-0 opacity-50" />
         </Button>
@@ -353,7 +378,7 @@ export default function ClientSelect({
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Buscar cliente..."
+            placeholder={searchPlaceholder}
             className="h-8"
             autoFocus
           />

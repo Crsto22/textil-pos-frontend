@@ -25,13 +25,13 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "KIMENTS - Tienda de Ropa",
+  title: "Kiments",
   description: "Sistema de punto de venta para negocio textil",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "KIMENTS",
+    title: "Kiments",
   },
   icons: {
     icon: [

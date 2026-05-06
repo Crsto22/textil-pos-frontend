@@ -2,6 +2,14 @@ import { useEffect, useState } from "react"
 import { toast } from "sonner"
 
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
   Sheet,
   SheetContent,
   SheetDescription,
@@ -9,6 +17,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
+import { useIsMobile } from "@/lib/hooks/useIsMobile"
 import { authFetch } from "@/lib/auth/auth-fetch"
 
 interface UpdatablePago {
@@ -31,6 +40,7 @@ export function EditCodigoOperacionDialog({
 }: EditCodigoOperacionDialogProps) {
   const [codigoOperacion, setCodigoOperacion] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const isMobile = useIsMobile()
 
   useEffect(() => {
     if (open && pago) {
@@ -81,34 +91,28 @@ export function EditCodigoOperacionDialog({
     }
   }
 
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="flex h-auto max-h-[70dvh] flex-col gap-0 p-0">
-        <SheetHeader className="shrink-0 border-b border-slate-100 px-4 pb-3 pt-4 dark:border-slate-700/60">
-          <SheetTitle className="text-sm">Editar Codigo de Operacion</SheetTitle>
-          <SheetDescription className="text-xs sm:text-sm">
-            Ingrese el nuevo codigo de operacion para el pago.
-          </SheetDescription>
-        </SheetHeader>
-        <form onSubmit={handleSubmit} className="min-h-0 flex flex-1 flex-col">
-          <div className="space-y-4 overflow-y-auto px-4 py-4">
-            <div className="space-y-2">
-            <label htmlFor="codigoOperacion" className="text-sm font-medium">
-              Codigo de Operacion <span className="text-red-500">*</span>
-            </label>
-            <input
-              id="codigoOperacion"
-              type="text"
-              value={codigoOperacion}
-              onChange={(e) => setCodigoOperacion(e.target.value)}
-              disabled={isSubmitting}
-              maxLength={100}
-              placeholder="Ej. 78451236"
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-            />
-          </div>
-          </div>
-          <SheetFooter className="shrink-0 border-t border-slate-100 px-4 py-4 dark:border-slate-700/60">
+  const formContent = (
+    <form onSubmit={handleSubmit} className="min-h-0 flex flex-1 flex-col">
+      <div className="space-y-4 overflow-y-auto px-4 py-4 sm:px-6">
+        <div className="space-y-2">
+          <label htmlFor="codigoOperacion" className="text-sm font-medium">
+            Codigo de Operacion <span className="text-red-500">*</span>
+          </label>
+          <input
+            id="codigoOperacion"
+            type="text"
+            value={codigoOperacion}
+            onChange={(e) => setCodigoOperacion(e.target.value)}
+            disabled={isSubmitting}
+            maxLength={100}
+            placeholder="Ej. 78451236"
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          />
+        </div>
+      </div>
+      <div className="shrink-0 border-t border-slate-100 px-4 py-4 dark:border-slate-700/60 sm:px-6">
+        {isMobile ? (
+          <SheetFooter className="mt-0">
             <button
               type="button"
               onClick={() => onOpenChange(false)}
@@ -125,7 +129,55 @@ export function EditCodigoOperacionDialog({
               {isSubmitting ? "Guardando..." : "Guardar Cambios"}
             </button>
           </SheetFooter>
-        </form>
+        ) : (
+          <DialogFooter className="sm:justify-end">
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              disabled={isSubmitting}
+              className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-transparent px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 disabled:pointer-events-none disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting || !codigoOperacion.trim()}
+              className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-slate-50 transition-colors hover:bg-slate-900/90 disabled:pointer-events-none disabled:opacity-50 dark:bg-slate-50 dark:text-slate-900 dark:hover:bg-slate-50/90"
+            >
+              {isSubmitting ? "Guardando..." : "Guardar Cambios"}
+            </button>
+          </DialogFooter>
+        )}
+      </div>
+    </form>
+  )
+
+  if (!isMobile) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-md">
+          <DialogHeader className="border-b border-slate-100 px-6 pb-4 pt-6 dark:border-slate-700/60">
+            <DialogTitle className="text-sm">Editar Codigo de Operacion</DialogTitle>
+            <DialogDescription className="text-xs sm:text-sm">
+              Ingrese el nuevo codigo de operacion para el pago.
+            </DialogDescription>
+          </DialogHeader>
+          {formContent}
+        </DialogContent>
+      </Dialog>
+    )
+  }
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="bottom" className="flex h-auto max-h-[70dvh] flex-col gap-0 p-0">
+        <SheetHeader className="shrink-0 border-b border-slate-100 px-4 pb-3 pt-4 dark:border-slate-700/60">
+          <SheetTitle className="text-sm">Editar Codigo de Operacion</SheetTitle>
+          <SheetDescription className="text-xs sm:text-sm">
+            Ingrese el nuevo codigo de operacion para el pago.
+          </SheetDescription>
+        </SheetHeader>
+        {formContent}
       </SheetContent>
     </Sheet>
   )

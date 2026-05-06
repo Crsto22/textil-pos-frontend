@@ -1,18 +1,25 @@
 "use client"
 
-import { useState, useCallback, type FormEvent } from "react"
+import { useState, useCallback, type ComponentType, type FormEvent } from "react"
 import {
     BuildingStorefrontIcon,
     CalendarDaysIcon,
     EnvelopeIcon,
     EyeIcon,
     EyeSlashIcon,
+    IdentificationIcon,
     LockClosedIcon,
+    PhoneIcon,
     ShieldCheckIcon,
     UserIcon,
 } from "@heroicons/react/24/outline"
 
-import { ProfilePhotoPickerDialog } from "@/components/configuracion/ProfilePhotoPickerDialog"
+import { CuentaProfileDialog } from "@/components/configuracion/cuenta/CuentaProfileDialog"
+import {
+    formatFechaCompleta,
+    formatMemberSince,
+    getReadOnlyValue,
+} from "@/components/configuracion/cuenta/cuenta.utils"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -26,46 +33,30 @@ import type { AuthUser, ChangePasswordRequest } from "@/lib/auth/types"
 import { validateProfilePhoto } from "@/lib/profile-photo"
 import { toast } from "sonner"
 
-function formatMemberSince(value?: string) {
-    if (!value) return "No disponible"
-    const parsed = new Date(value)
-    if (Number.isNaN(parsed.getTime())) return value
-    return parsed.toLocaleDateString("es-PE", {
-        month: "long",
-        year: "numeric",
-    })
-}
-
-function formatFechaCompleta(value?: string) {
-    if (!value) return "No disponible"
-    const parsed = new Date(value)
-    if (Number.isNaN(parsed.getTime())) return value
-    return parsed.toLocaleString("es-PE", {
-        dateStyle: "medium",
-        timeStyle: "short",
-    })
-}
-
-function getReadOnlyValue(value?: string | number | null) {
-    if (value === null || value === undefined) return "No disponible"
-    if (typeof value === "string" && value.trim().length === 0) return "No disponible"
-    return String(value)
-}
-
 interface ProfileFieldProps {
     label: string
     value: string
+    icon?: ComponentType<{ className?: string }>
 }
 
-function ProfileField({ label, value }: ProfileFieldProps) {
+function ProfileField({ label, value, icon: Icon }: ProfileFieldProps) {
     return (
-        <div className="rounded-2xl border border-slate-200/70 bg-slate-50/80 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/60">
-            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">
-                {label}
-            </p>
-            <p className="mt-2 text-sm font-medium text-slate-900 dark:text-slate-100">
-                {value}
-            </p>
+        <div className="rounded-3xl border border-border bg-card p-4 shadow-sm transition-transform hover:-translate-y-0.5">
+            <div className="flex items-start gap-3">
+                {Icon ? (
+                    <div className="rounded-2xl bg-muted p-2.5 text-primary">
+                        <Icon className="h-4 w-4" />
+                    </div>
+                ) : null}
+                <div className="min-w-0">
+                    <p className="text-muted-foreground text-[11px] font-bold uppercase tracking-[0.2em]">
+                        {label}
+                    </p>
+                    <p className="text-foreground mt-2 break-words text-sm font-medium">
+                        {value}
+                    </p>
+                </div>
+            </div>
         </div>
     )
 }
@@ -131,7 +122,7 @@ export default function ConfigCuentaPage() {
     const [newPw, setNewPw] = useState("")
     const [confirmPw, setConfirmPw] = useState("")
     const [pwErrors, setPwErrors] = useState<PasswordErrors>({})
-    const [isPhotoDialogOpen, setIsPhotoDialogOpen] = useState(false)
+    const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false)
     const [isChangingPassword, setIsChangingPassword] = useState(false)
     const [isUploadingProfilePhoto, setIsUploadingProfilePhoto] = useState(false)
     const [isDeletingProfilePhoto, setIsDeletingProfilePhoto] = useState(false)
@@ -295,78 +286,76 @@ export default function ConfigCuentaPage() {
 
     return (
         <div className="space-y-6">
-            <Card className="overflow-hidden border-0 p-0">
+            <Card className="overflow-hidden border-0 p-0 shadow-sm">
                 <div 
-                    className="relative h-48 bg-cover bg-center sm:h-52"
+                    className="relative h-56 bg-cover bg-center sm:h-64"
                     style={{
                         backgroundImage: `url('/img/portada/portada.webp')`
                     }}
                 >
-                    <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent_0%,rgba(15,23,42,0.24)_100%)]" />
+                    <div className="absolute inset-0 bg-[linear-gradient(135deg,color-mix(in_oklab,var(--primary)_72%,black)_0%,color-mix(in_oklab,var(--primary)_48%,transparent)_48%,color-mix(in_oklab,var(--primary)_28%,white)_100%)]" />
                 </div>
 
                 <CardContent className="relative px-4 pb-6 pt-0 sm:px-6 lg:px-8">
-                    <div className="-mt-16 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-                        <div className="flex min-w-0 flex-col items-center gap-5 sm:flex-row sm:items-end sm:gap-6">
-                            <UserAvatar
-                                nombre={user?.nombre}
-                                apellido={user?.apellido}
-                                fotoPerfilUrl={user?.fotoPerfilUrl}
-                                className="h-24 w-24 border border-slate-100 shadow-inner sm:h-28 sm:w-28 lg:h-32 lg:w-32"
-                                fallbackClassName="bg-gradient-to-br from-indigo-500 to-blue-600 text-white"
-                                textClassName="text-2xl font-bold"
-                            />
+                    <div className="-mt-20 flex flex-col gap-6">
+                        <div className="bg-card/95 rounded-[32px] border border-border p-5 shadow-xl backdrop-blur sm:p-6">
+                            <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+                                <div className="min-w-0">
+                                    <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+                                        <span className="text-primary inline-flex w-fit items-center gap-1.5 rounded-full border border-border bg-muted px-3 py-1 text-xs font-bold uppercase tracking-[0.18em]">
+                                            Cuenta activa
+                                        </span>
+                                        <span className="text-primary inline-flex w-fit items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em]">
+                                            <ShieldCheckIcon className="h-3.5 w-3.5" />
+                                            {getRoleLabel(user?.rol ?? "")}
+                                        </span>
+                                    </div>
 
-                            <div className="min-w-0 mt-20 text-center sm:text-left">
-                                <div className="flex flex-col items-center gap-3 sm:items-start lg:flex-row lg:items-center">
-                                    <h1 className="max-w-full text-3xl font-black tracking-tight text-slate-950 dark:text-white sm:text-4xl">
-                                        {getReadOnlyValue(user?.nombre)}{" "}
-                                        {getReadOnlyValue(user?.apellido)}
-                                    </h1>
-                                    <span className="inline-flex items-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-indigo-700 dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-300">
-                                        <ShieldCheckIcon className="h-3.5 w-3.5" />
-                                        {getRoleLabel(user?.rol ?? "")}
-                                    </span>
+                                    <div className="mt-4 flex items-center gap-4">
+                                        <UserAvatar
+                                            nombre={user?.nombre}
+                                            apellido={user?.apellido}
+                                            fotoPerfilUrl={user?.fotoPerfilUrl}
+                                            className="h-16 w-16 border border-border shadow-sm sm:h-18 sm:w-18"
+                                            fallbackClassName="bg-primary text-primary-foreground"
+                                            textClassName="text-lg font-bold"
+                                        />
+                                        <h1 className="text-foreground max-w-full text-3xl font-black tracking-tight sm:text-4xl">
+                                            {getReadOnlyValue(user?.nombre)}{" "}
+                                            {getReadOnlyValue(user?.apellido)}
+                                        </h1>
+                                    </div>
+                                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                                        <span className="text-muted-foreground inline-flex items-center gap-2 rounded-full border border-border bg-muted px-3 py-1 text-xs font-medium">
+                                            <EnvelopeIcon className="h-3.5 w-3.5" />
+                                            {getReadOnlyValue(user?.correo)}
+                                        </span>
+                                        <span className="text-muted-foreground rounded-full border border-border bg-muted px-3 py-1 text-xs font-medium">
+                                            {getReadOnlyValue(user?.nombreSucursal)}
+                                        </span>
+                                        <span className="text-muted-foreground rounded-full border border-border bg-muted px-3 py-1 text-xs font-medium">
+                                            Miembro desde {formatMemberSince(user?.fechaCreacion)}
+                                        </span>
+                                    </div>
                                 </div>
 
-                                <p className="mt-3 flex items-center justify-center gap-2 text-sm text-slate-500 dark:text-slate-300 sm:justify-start">
-                                    <EnvelopeIcon className="h-4 w-4" />
-                                    <span className="truncate">
-                                        {getReadOnlyValue(user?.correo)}
-                                    </span>
-                                </p>
-
-                                <div className="mt-4 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
-                                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300">
-                                        {getReadOnlyValue(user?.nombreSucursal)}
-                                    </span>
-                                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300">
-                                        Miembro desde {formatMemberSince(user?.fechaCreacion)}
-                                    </span>
-                                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300">
-                                        {hasStoredProfilePhoto
-                                            ? "Foto personalizada activa"
-                                            : "Sin foto personalizada"}
-                                    </span>
+                                <div className="flex flex-col gap-3 sm:flex-row lg:flex-col">
+                                    <Button
+                                        type="button"
+                                        className="rounded-2xl px-5"
+                                        onClick={() => setIsProfileDialogOpen(true)}
+                                    >
+                                        Cambiar foto de perfil
+                                    </Button>
                                 </div>
                             </div>
-                        </div>
-
-                        <div className="flex justify-center lg:justify-end">
-                            <Button
-                                type="button"
-                                className="rounded-xl bg-blue-600 px-5 text-white hover:bg-blue-700"
-                                onClick={() => setIsPhotoDialogOpen(true)}
-                            >
-                                Gestionar avatar
-                            </Button>
                         </div>
                     </div>
                 </CardContent>
             </Card>
 
             <Tabs defaultValue="perfil" className="gap-4">
-                <TabsList className="mx-auto grid w-full max-w-md grid-cols-2">
+                <TabsList className="mx-auto grid w-full max-w-md grid-cols-2 rounded-2xl">
                     <TabsTrigger value="perfil" className="gap-1.5 text-center">
                         <UserIcon className="h-4 w-4" />
                         Perfil
@@ -378,15 +367,15 @@ export default function ConfigCuentaPage() {
                 </TabsList>
 
                 <TabsContent value="perfil">
-                    <div className="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+                    <div className="grid gap-6 xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
                         <Card>
                             <CardContent className="space-y-5">
                                 <div>
                                     <h3 className="text-base font-semibold text-foreground">
-                                        Informacion personal
+                                        Resumen del perfil
                                     </h3>
                                     <p className="text-sm text-muted-foreground">
-                                        Datos del usuario autenticado en modo solo lectura.
+                                        Datos clave del usuario autenticado en un formato rapido de consultar.
                                     </p>
                                 </div>
 
@@ -394,39 +383,64 @@ export default function ConfigCuentaPage() {
                                     <ProfileField
                                         label="Nombre"
                                         value={getReadOnlyValue(user?.nombre)}
+                                        icon={UserIcon}
                                     />
                                     <ProfileField
                                         label="Apellido"
                                         value={getReadOnlyValue(user?.apellido)}
+                                        icon={UserIcon}
                                     />
                                     <ProfileField
                                         label="Correo"
                                         value={getReadOnlyValue(user?.correo)}
+                                        icon={EnvelopeIcon}
                                     />
                                     <ProfileField
                                         label="DNI"
                                         value={getReadOnlyValue(user?.dni)}
+                                        icon={IdentificationIcon}
                                     />
                                     <ProfileField
                                         label="Telefono"
                                         value={getReadOnlyValue(user?.telefono)}
-                                    />
-                                    <ProfileField
-                                        label="Foto de perfil"
-                                        value={hasStoredProfilePhoto ? "Registrada" : "Sin foto"}
+                                        icon={PhoneIcon}
                                     />
                                     <ProfileField
                                         label="Rol"
                                         value={getRoleLabel(user?.rol ?? "")}
+                                        icon={ShieldCheckIcon}
                                     />
                                     <ProfileField
                                         label="Fecha de creacion"
                                         value={formatFechaCompleta(user?.fechaCreacion)}
+                                        icon={CalendarDaysIcon}
                                     />
                                     <ProfileField
                                         label="Sucursal"
                                         value={getReadOnlyValue(user?.nombreSucursal)}
+                                        icon={BuildingStorefrontIcon}
                                     />
+                                </div>
+
+                                <div className="rounded-3xl border border-dashed border-border bg-muted/60 p-4">
+                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                        <div>
+                                            <h4 className="text-foreground text-sm font-semibold">
+                                                Vista detallada de la cuenta
+                                            </h4>
+                                            <p className="text-muted-foreground text-sm">
+                                                Abre la gestion de foto en drawer movil o modal de escritorio.
+                                            </p>
+                                        </div>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            className="rounded-2xl"
+                                            onClick={() => setIsProfileDialogOpen(true)}
+                                        >
+                                            Cambiar foto
+                                        </Button>
+                                    </div>
                                 </div>
                             </CardContent>
                         </Card>
@@ -435,57 +449,53 @@ export default function ConfigCuentaPage() {
                             <CardContent className="space-y-5">
                                 <div>
                                     <h3 className="text-base font-semibold text-foreground">
-                                        Identidad visual
+                                        Estado de la cuenta
                                     </h3>
                                     <p className="text-sm text-muted-foreground">
-                                        Elige uno de los avatares del sistema o sube una
-                                        imagen propia para tu perfil.
+                                        Informacion operativa y de pertenencia dentro del sistema.
                                     </p>
                                 </div>
 
-                                <div className="rounded-3xl border border-slate-200/80 bg-[radial-gradient(circle_at_top,rgba(99,102,241,0.12),transparent_55%),rgba(248,250,252,0.9)] p-5 dark:border-slate-800 dark:bg-[radial-gradient(circle_at_top,rgba(99,102,241,0.14),transparent_55%),rgba(15,23,42,0.55)]">
-                                    <div className="flex items-center gap-4">
-                                        <UserAvatar
-                                            nombre={user?.nombre}
-                                            apellido={user?.apellido}
-                                            fotoPerfilUrl={user?.fotoPerfilUrl}
-                                            className="h-16 w-16 border border-white/70 shadow-md"
-                                            fallbackClassName="bg-gradient-to-br from-indigo-500 to-blue-600 text-white"
-                                            textClassName="text-lg font-bold"
-                                        />
-                                        <div className="min-w-0">
-                                            <p className="text-sm font-semibold text-slate-950 dark:text-white">
-                                                {hasStoredProfilePhoto
-                                                    ? "Avatar personalizado"
-                                                    : "Avatar con iniciales"}
+                                <div className="rounded-[28px] border border-border bg-[linear-gradient(160deg,color-mix(in_oklab,var(--primary)_8%,var(--card)),var(--card))] p-5">
+                                    <div className="grid gap-3">
+                                        <div className="rounded-2xl border border-border bg-card p-4">
+                                            <p className="text-muted-foreground text-[11px] font-bold uppercase tracking-[0.18em]">
+                                                Rol asignado
                                             </p>
-                                            <p className="mt-1 text-sm text-slate-500 dark:text-slate-300">
-                                                Formatos permitidos JPG, PNG y WEBP hasta 3MB.
+                                            <p className="text-foreground mt-2 text-lg font-semibold">
+                                                {getRoleLabel(user?.rol ?? "")}
+                                            </p>
+                                        </div>
+                                        <div className="rounded-2xl border border-border bg-card p-4">
+                                            <p className="text-muted-foreground text-[11px] font-bold uppercase tracking-[0.18em]">
+                                                Sucursal principal
+                                            </p>
+                                            <p className="text-foreground mt-2 text-lg font-semibold">
+                                                {getReadOnlyValue(user?.nombreSucursal)}
+                                            </p>
+                                        </div>
+                                        <div className="rounded-2xl border border-border bg-card p-4">
+                                            <p className="text-muted-foreground text-[11px] font-bold uppercase tracking-[0.18em]">
+                                                Fecha de alta
+                                            </p>
+                                            <p className="text-foreground mt-2 text-lg font-semibold">
+                                                {formatMemberSince(user?.fechaCreacion)}
                                             </p>
                                         </div>
                                     </div>
 
                                     <div className="mt-5 space-y-3">
                                         <div className="flex items-center gap-2.5 text-sm text-muted-foreground">
-                                            <BuildingStorefrontIcon className="h-4 w-4 shrink-0" />
-                                            <span>{getReadOnlyValue(user?.nombreSucursal)}</span>
+                                            <ShieldCheckIcon className="h-4 w-4 shrink-0" />
+                                            <span>Acceso ligado a permisos segun tu rol actual.</span>
                                         </div>
                                         <div className="flex items-center gap-2.5 text-sm text-muted-foreground">
                                             <CalendarDaysIcon className="h-4 w-4 shrink-0" />
                                             <span>
-                                                Perfil creado el{" "}
-                                                {formatFechaCompleta(user?.fechaCreacion)}
+                                                Cuenta creada el {formatFechaCompleta(user?.fechaCreacion)}
                                             </span>
                                         </div>
                                     </div>
-
-                                    <Button
-                                        type="button"
-                                        className="mt-5 w-full rounded-xl bg-blue-600 text-white hover:bg-blue-700"
-                                        onClick={() => setIsPhotoDialogOpen(true)}
-                                    >
-                                        Elegir avatar o subir foto
-                                    </Button>
                                 </div>
                             </CardContent>
                         </Card>
@@ -551,7 +561,7 @@ export default function ConfigCuentaPage() {
                                 <Button
                                     type="submit"
                                     disabled={isChangingPassword}
-                                    className="bg-blue-600 text-white hover:bg-blue-700"
+                                    className="rounded-2xl"
                                 >
                                     {isChangingPassword ? "Guardando..." : "Guardar Cambios"}
                                 </Button>
@@ -561,12 +571,10 @@ export default function ConfigCuentaPage() {
                 </TabsContent>
             </Tabs>
 
-            <ProfilePhotoPickerDialog
-                open={isPhotoDialogOpen}
-                onOpenChange={setIsPhotoDialogOpen}
-                nombre={user?.nombre}
-                apellido={user?.apellido}
-                fotoPerfilUrl={user?.fotoPerfilUrl}
+            <CuentaProfileDialog
+                open={isProfileDialogOpen}
+                onOpenChange={setIsProfileDialogOpen}
+                user={user}
                 isUploading={isUploadingProfilePhoto}
                 isDeleting={isDeletingProfilePhoto}
                 onUpload={handleUploadProfilePhoto}

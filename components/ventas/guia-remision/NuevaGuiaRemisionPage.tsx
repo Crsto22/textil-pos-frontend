@@ -92,6 +92,7 @@ import type { DocumentoRucResponse } from "@/lib/types/documento"
 const DEFAULT_SERIE = "T001"
 const DEFAULT_UNIDAD_PESO = "KGM"
 const DEFAULT_UNIDAD_MEDIDA = "NIU"
+const EMITIR_DIRECTAMENTE_STORAGE_KEY = "guia_remision_emitir_directamente"
 
 function getVariantImageUrl(item: Pick<VarianteResumenItem, "imagenPrincipal">): string | null {
   return item.imagenPrincipal?.url || item.imagenPrincipal?.urlThumb || null
@@ -623,7 +624,9 @@ export function NuevaGuiaRemisionPage() {
     destinatarioTipoDoc: "6",
     destinatarioNroDoc: "",
     destinatarioRazonSocial: "",
-    emitirDirectamente: false,
+    emitirDirectamente:
+      typeof window !== "undefined" &&
+      window.localStorage.getItem(EMITIR_DIRECTAMENTE_STORAGE_KEY) === "1",
   })
 
   const [searchSucursalPartida, setSearchSucursalPartida] = useState("")
@@ -659,6 +662,14 @@ export function NuevaGuiaRemisionPage() {
   const [selectedTransportistas, setSelectedTransportistas] = useState<
     EntitySearchResult<CatalogoTransportista>[]
   >([])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    window.localStorage.setItem(
+      EMITIR_DIRECTAMENTE_STORAGE_KEY,
+      form.emitirDirectamente ? "1" : "0"
+    )
+  }, [form.emitirDirectamente])
 
   const [showConductorDialog, setShowConductorDialog] = useState(false)
   const [showVehiculoDialog, setShowVehiculoDialog] = useState(false)

@@ -19,6 +19,14 @@ function numberOr(value: unknown): number {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
+function parseIgvPorcentaje(value: unknown): number {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return 18
+  if (parsed < 0) return 0
+  if (parsed > 100) return 100
+  return parsed
+}
+
 function booleanOr(value: unknown): boolean {
   return value === true
 }
@@ -28,9 +36,13 @@ export const emptySunatConfigForm: SunatConfigFormValues = {
   usuarioSol: "",
   claveSol: "",
   urlBillService: "",
+  urlConsultaTicket: "",
+  urlApiToken: "",
+  urlApiCpe: "",
   certificadoPassword: "",
   clientId: "",
   clientSecret: "",
+  igvPorcentaje: "18",
   activo: "ACTIVO",
 }
 
@@ -51,12 +63,16 @@ export function normalizeSunatConfig(value: unknown): SunatConfig | null {
     ambiente: stringOr(data.ambiente, "BETA"),
     usuarioSol: stringOr(data.usuarioSol),
     urlBillService: stringOr(data.urlBillService),
+    urlConsultaTicket: stringOr(data.urlConsultaTicket),
+    urlApiToken: stringOr(data.urlApiToken),
+    urlApiCpe: stringOr(data.urlApiCpe),
     certificadoNombreArchivo: stringOrNull(data.certificadoNombreArchivo),
     tieneClaveSol: booleanOr(data.tieneClaveSol),
     tieneCertificado: booleanOr(data.tieneCertificado),
     tieneCertificadoPassword: booleanOr(data.tieneCertificadoPassword),
     tieneClientId: booleanOr(data.tieneClientId),
     tieneClientSecret: booleanOr(data.tieneClientSecret),
+    igvPorcentaje: parseIgvPorcentaje(data.igvPorcentaje),
     activo: stringOr(data.activo, "ACTIVO"),
     modoIntegracion: stringOr(data.modoIntegracion, "DISABLED"),
     createdAt: stringOrNull(data.createdAt),
@@ -97,15 +113,22 @@ export function buildSunatConfigPayload(
     ambiente: values.ambiente,
     usuarioSol: values.usuarioSol.trim(),
     claveSol: values.claveSol,
+    igvPorcentaje: parseIgvPorcentaje(values.igvPorcentaje),
     activo: values.activo,
   }
 
   const urlBillService = values.urlBillService.trim()
+  const urlConsultaTicket = values.urlConsultaTicket.trim()
+  const urlApiToken = values.urlApiToken.trim()
+  const urlApiCpe = values.urlApiCpe.trim()
   const certificadoPassword = values.certificadoPassword.trim()
   const clientId = values.clientId.trim()
   const clientSecret = values.clientSecret.trim()
 
   payload.urlBillService = urlBillService || null
+  payload.urlConsultaTicket = urlConsultaTicket || null
+  payload.urlApiToken = urlApiToken || null
+  payload.urlApiCpe = urlApiCpe || null
   payload.certificadoPassword = certificadoPassword || null
   payload.clientId = clientId || null
   payload.clientSecret = clientSecret || null
@@ -123,9 +146,13 @@ export function mapSunatConfigToForm(
     usuarioSol: config.usuarioSol,
     claveSol: "",
     urlBillService: config.urlBillService,
+    urlConsultaTicket: config.urlConsultaTicket,
+    urlApiToken: config.urlApiToken,
+    urlApiCpe: config.urlApiCpe,
     certificadoPassword: "",
     clientId: "",
     clientSecret: "",
+    igvPorcentaje: String(config.igvPorcentaje),
     activo: config.activo === "INACTIVO" ? "INACTIVO" : "ACTIVO",
   }
 }
