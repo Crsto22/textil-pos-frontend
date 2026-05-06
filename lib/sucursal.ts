@@ -2,6 +2,7 @@ import type {
   ComboboxOption,
   ComboboxOptionAvatarIcon,
 } from "@/components/ui/combobox"
+import { resolveBackendUrl } from "@/lib/resolve-backend-url"
 import type {
   PageResponse,
   Sucursal,
@@ -48,13 +49,16 @@ function normalizeUsuariosDetalle(value: unknown): SucursalUsuarioDetalle[] {
       const nombreCompleto = toTrimmedString(data.nombreCompleto)
       if (idUsuario <= 0 || nombreCompleto.length === 0) return null
 
-      const fotoPerfilUrl = toTrimmedString(data.fotoPerfilUrl)
+      const rawFotoPerfilUrl = toTrimmedString(data.fotoPerfilUrl)
 
       return {
         idUsuario,
         nombreCompleto,
         rol: toTrimmedString(data.rol),
-        fotoPerfilUrl: fotoPerfilUrl.length > 0 ? fotoPerfilUrl : null,
+        fotoPerfilUrl:
+          rawFotoPerfilUrl.length > 0
+            ? resolveBackendUrl(rawFotoPerfilUrl) ?? rawFotoPerfilUrl
+            : null,
       }
     })
     .filter((item): item is SucursalUsuarioDetalle => item !== null)

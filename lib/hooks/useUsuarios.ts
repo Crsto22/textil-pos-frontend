@@ -17,8 +17,11 @@ import {
   SEARCH_DEBOUNCE_MS,
   useDebouncedValue,
 } from "@/lib/hooks/useDebouncedValue"
+import {
+  normalizeUsuario,
+  normalizeUsuarioPageResponse,
+} from "@/lib/usuario"
 import type {
-  PageResponse,
   Usuario,
   UsuarioCreateRequest,
   UsuarioRoleFilter,
@@ -54,11 +57,7 @@ function isAbortError(error: unknown) {
 }
 
 function isUsuarioResponse(data: unknown): data is Usuario {
-  return (
-    !!data &&
-    typeof data === "object" &&
-    typeof (data as { idUsuario?: unknown }).idUsuario === "number"
-  )
+  return normalizeUsuario(data) !== null
 }
 
 export function useUsuarios() {
@@ -128,7 +127,7 @@ export function useUsuarios() {
         return
       }
 
-      const pageData = data as PageResponse<Usuario>
+      const pageData = normalizeUsuarioPageResponse(data)
       setUsuarios(pageData.content)
       setTotalPages(pageData.totalPages)
       setTotalElements(pageData.totalElements)
@@ -194,7 +193,7 @@ export function useUsuarios() {
         return
       }
 
-      const pageData = data as PageResponse<Usuario>
+      const pageData = normalizeUsuarioPageResponse(data)
       setSearchResults(pageData.content)
       setSearchTotals({
         totalPages: pageData.totalPages,
@@ -364,7 +363,9 @@ export function useUsuarios() {
           return null
         }
 
-        const updatedUsuario = isUsuarioResponse(data) ? data : null
+        const updatedUsuario = isUsuarioResponse(data)
+          ? normalizeUsuario(data)
+          : null
         toast.success(
           updatedUsuario
             ? "Usuario actualizado exitosamente"
