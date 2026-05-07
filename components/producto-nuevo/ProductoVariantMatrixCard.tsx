@@ -291,7 +291,6 @@ function StockSucursalAccordion({
   onApplyVariantSucursalStockToAll: (idSucursal: number, value: string, variantKeys?: string[]) => void
 }) {
   const [open, setOpen] = useState(false)
-  const contentRef = useRef<HTMLDivElement>(null)
   const allSelected = selectedSucursalIds.length === allSucursales.length
 
   return (
@@ -314,25 +313,27 @@ function StockSucursalAccordion({
       </button>
 
       {/* Selector de sucursales — siempre visible */}
-      {allSucursales.length > 1 && (
+      {allSucursales.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 border-t px-3 py-2">
           {/* Pill "Todas" */}
-          <button
-            type="button"
-            onClick={onSelectAllSucursales}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-all",
-              allSelected
-                ? "border-slate-400 bg-slate-100 text-slate-700 shadow-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200"
-                : "border-dashed border-slate-300 text-muted-foreground hover:border-slate-400 hover:text-foreground"
-            )}
-          >
-            <span className={cn(
-              "h-1.5 w-1.5 rounded-full",
-              allSelected ? "bg-slate-500 dark:bg-slate-300" : "bg-slate-300"
-            )} />
-            Todas
-          </button>
+          {allSucursales.length > 1 && (
+            <button
+              type="button"
+              onClick={onSelectAllSucursales}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-all",
+                allSelected
+                  ? "border-slate-400 bg-slate-100 text-slate-700 shadow-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200"
+                  : "border-dashed border-slate-300 text-muted-foreground hover:border-slate-400 hover:text-foreground"
+              )}
+            >
+              <span className={cn(
+                "h-1.5 w-1.5 rounded-full",
+                allSelected ? "bg-slate-500 dark:bg-slate-300" : "bg-slate-300"
+              )} />
+              Todas
+            </button>
+          )}
 
           {/* Pills por sucursal */}
           {allSucursales.map((sucursal) => {
@@ -370,12 +371,11 @@ function StockSucursalAccordion({
 
       {/* Inputs bulk — colapsables */}
       <div
-        ref={contentRef}
         className={cn(
           "overflow-hidden transition-all duration-200",
           open ? "opacity-100" : "max-h-0 opacity-0"
         )}
-        style={open ? { maxHeight: contentRef.current?.scrollHeight ?? 9999 } : { maxHeight: 0 }}
+        style={open ? { maxHeight: 9999 } : { maxHeight: 0 }}
       >
         <div className="grid gap-3 px-3 pb-3 pt-2 md:grid-cols-2 xl:grid-cols-3">
           {stockSucursales.map((sucursal) => {
@@ -439,24 +439,36 @@ export function ProductoVariantMatrixCard({
   const [viewMode, setViewMode] = useState<VariantMatrixViewMode>("cards")
   const [filteredTallaIds, setFilteredTallaIds] = useState<number[]>([])
   const [filteredColorIds, setFilteredColorIds] = useState<number[]>([])
-  const [selectedSucursalIds, setSelectedSucursalIds] = useState<number[]>(
-    () => stockSucursales.map((s) => s.idSucursal)
-  )
+  const [selectedSucursalIdsState, setSelectedSucursalIds] = useState<number[]>([])
   // Rastrea sucursales habilitadas manualmente por el usuario (aunque no tengan stock)
   const manuallyEnabledIdsRef = useRef<Set<number>>(new Set())
+  const stockSucursalIds = useMemo(
+    () => stockSucursales.map((s) => s.idSucursal),
+    [stockSucursales]
+  )
+  const stockSucursalIdSet = useMemo(() => new Set(stockSucursalIds), [stockSucursalIds])
+  const selectedSucursalIds = useMemo(() => {
+    if (stockSucursalIds.length === 0) return []
+
+    const validSelectedIds = selectedSucursalIdsState.filter((id) =>
+      stockSucursalIdSet.has(id)
+    )
+
+    return validSelectedIds.length > 0 ? validSelectedIds : stockSucursalIds
+  }, [selectedSucursalIdsState, stockSucursalIdSet, stockSucursalIds])
 
   const handleToggleSucursal = useCallback((idSucursal: number) => {
     setSelectedSucursalIds((prev) => {
-      if (prev.includes(idSucursal)) {
+      if (selectedSucursalIds.includes(idSucursal)) {
         // No deseleccionar si es la única seleccionada
-        if (prev.length === 1) return prev
+        if (selectedSucursalIds.length === 1) return prev
         manuallyEnabledIdsRef.current.delete(idSucursal)
-        return prev.filter((id) => id !== idSucursal)
+        return selectedSucursalIds.filter((id) => id !== idSucursal)
       }
       manuallyEnabledIdsRef.current.add(idSucursal)
-      return [...prev, idSucursal]
+      return [...selectedSucursalIds, idSucursal]
     })
-  }, [])
+  }, [selectedSucursalIds])
 
   const handleSelectAllSucursales = useCallback(() => {
     const allIds = stockSucursales.map((s) => s.idSucursal)

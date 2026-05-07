@@ -183,9 +183,7 @@ export function SucursalEditDialog({
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="grid gap-2">
-              <Label htmlFor="e-telefono-sucursal">
-                Telefono <span className="text-muted-foreground">(opcional)</span>
-              </Label>
+              <Label htmlFor="e-telefono-sucursal">Telefono</Label>
               <Input
                 id="e-telefono-sucursal"
                 maxLength={15}
@@ -203,9 +201,7 @@ export function SucursalEditDialog({
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="e-correo-sucursal">
-                Correo <span className="text-muted-foreground">(opcional)</span>
-              </Label>
+              <Label htmlFor="e-correo-sucursal">Correo</Label>
               <Input
                 id="e-correo-sucursal"
                 type="email"

@@ -160,9 +160,7 @@ export function SucursalCreateDialog({
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="grid gap-2">
-              <Label htmlFor="c-telefono-sucursal">
-                Telefono <span className="text-muted-foreground">(opcional)</span>
-              </Label>
+              <Label htmlFor="c-telefono-sucursal">Telefono</Label>
               <Input
                 id="c-telefono-sucursal"
                 placeholder="014567890"
@@ -181,9 +179,7 @@ export function SucursalCreateDialog({
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="c-correo-sucursal">
-                Correo <span className="text-muted-foreground">(opcional)</span>
-              </Label>
+              <Label htmlFor="c-correo-sucursal">Correo</Label>
               <Input
                 id="c-correo-sucursal"
                 type="email"

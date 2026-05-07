@@ -327,10 +327,6 @@ function clampCartQuantity(cantidad: number, stockDisponible?: number | null) {
   return Math.min(normalizedQuantity, stockLimit)
 }
 
-function sanitizeNumericInput(value: string) {
-  return value.replace(/\D+/g, "")
-}
-
 function toClienteFromSelection(selection: ClientSelection): Cliente | null {
   if (selection.idCliente === null) return null
 
@@ -959,7 +955,7 @@ export default function VentasPage() {
     resolvedSucursalId !== null &&
     selectedComprobante !== null &&
     (!requiresRucClient || selectedClientHasRuc)
-  const hasValidPaymentOperationCode = /^\d+$/.test(paymentOperationCode.trim())
+  const hasValidPaymentOperationCode = paymentOperationCode.trim().length > 0
   const canConfirm =
     canContinueToPayment &&
     selectedPayment !== null &&
@@ -999,11 +995,9 @@ export default function VentasPage() {
     if (selectedPayment === null) return "Selecciona un metodo de pago"
     if (selectedMetodoPago === null) return "Selecciona un metodo de pago valido"
     if (!paymentOperationCode.trim()) return "Ingresa el codigo de operacion"
-    if (!hasValidPaymentOperationCode) return "El codigo de operacion debe contener solo numeros"
     return ""
   }, [
     activeMetodosPago,
-    hasValidPaymentOperationCode,
     paymentOperationCode,
     selectedMetodoPago,
     selectedPayment,
@@ -1439,7 +1433,7 @@ export default function VentasPage() {
 
   const handlePaymentOperationCodeChange = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => {
-      setPaymentOperationCode(sanitizeNumericInput(event.target.value))
+      setPaymentOperationCode(event.target.value)
 
     },
     []
@@ -1524,11 +1518,6 @@ export default function VentasPage() {
 
     if (!paymentOperationCode.trim()) {
       toast.error("Debe ingresar el codigo de operacion.")
-      return
-    }
-
-    if (!hasValidPaymentOperationCode) {
-      toast.error("El codigo de operacion debe contener solo numeros.")
       return
     }
 
@@ -1632,7 +1621,6 @@ export default function VentasPage() {
     router,
     selectedClient.idCliente,
     selectedComprobante,
-    hasValidPaymentOperationCode,
     payloadDiscountType,
     payloadDiscountValue,
     selectedMetodoPago,
@@ -2290,11 +2278,9 @@ export default function VentasPage() {
                       <input
                         id="venta-codigo-operacion"
                         type="text"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
                         value={paymentOperationCode}
                         onChange={handlePaymentOperationCodeChange}
-                        placeholder="Obligatorio. Solo numeros"
+                        placeholder="Obligatorio"
                         className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
                       />
                     </div>

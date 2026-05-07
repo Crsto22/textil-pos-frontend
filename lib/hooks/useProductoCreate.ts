@@ -506,6 +506,33 @@ const activeStockSucursales = useMemo<VariantSucursalStockInput[]>(
             (sucursal.tipo === "VENTA" || sucursal.tipo === "ALMACEN")
         )
 
+      if (!isAdmin && !isMultiSucursalNonAdmin) {
+        const permittedSucursal =
+          (user?.sucursalesPermitidas ?? []).find((s) => s.idSucursal === user?.idSucursal) ??
+          (user?.sucursalesPermitidas ?? [])[0]
+        const userSucursalId = permittedSucursal?.idSucursal ?? user?.idSucursal
+
+        if (typeof userSucursalId === "number" && userSucursalId > 0) {
+          const match = filtered.find((s) => s.idSucursal === userSucursalId)
+
+          return [{
+            idSucursal: userSucursalId,
+            nombreSucursal:
+              match?.nombre ??
+              permittedSucursal?.nombreSucursal ??
+              user?.nombreSucursal ??
+              `Sucursal #${userSucursalId}`,
+            tipoSucursal:
+              match?.tipo ??
+              permittedSucursal?.tipoSucursal ??
+              user?.tipoSucursal ??
+              "VENTA",
+          }]
+        }
+
+        return []
+      }
+
       if (isAdmin) {
         return filtered
           .sort((a, b) => {
@@ -537,21 +564,18 @@ const activeStockSucursales = useMemo<VariantSucursalStockInput[]>(
           }))
       }
 
-      const userSucursalId = user?.idSucursal
-      if (typeof userSucursalId === "number" && userSucursalId > 0) {
-        const match = filtered.find((s) => s.idSucursal === userSucursalId)
-        if (match) {
-          return [{
-            idSucursal: match.idSucursal,
-            nombreSucursal: match.nombre,
-            tipoSucursal: match.tipo,
-          }]
-        }
-      }
-
       return []
     },
-    [sucursales, isAdmin, isMultiSucursalNonAdmin, nonAdminPermittedIds, user?.idSucursal]
+    [
+      sucursales,
+      isAdmin,
+      isMultiSucursalNonAdmin,
+      nonAdminPermittedIds,
+      user?.idSucursal,
+      user?.nombreSucursal,
+      user?.tipoSucursal,
+      user?.sucursalesPermitidas,
+    ]
   )
 
   const categoriaMap = useMemo(
