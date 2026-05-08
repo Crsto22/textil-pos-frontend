@@ -38,7 +38,7 @@ export function Login() {
   const companyLogoUrl = company?.logoUrl?.trim()
 
   // Versión del sistema
-  const systemVersion = "v1.0.0"
+  const systemVersion = "v1.0.1"
 
   // Array de imágenes para el carousel
   const carouselImages = [
