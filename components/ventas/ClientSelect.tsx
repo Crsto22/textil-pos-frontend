@@ -47,6 +47,7 @@ interface Props {
   tipoDocumentoFilter?: TipoDocumento | null
   placeholder?: string
   searchPlaceholder?: string
+  openSignal?: number
 }
 
 function getSelectedAvatarClasses(idCliente: number | null) {
@@ -121,6 +122,7 @@ export default function ClientSelect({
   tipoDocumentoFilter = null,
   placeholder = "Selecciona cliente",
   searchPlaceholder = "Buscar cliente...",
+  openSignal = 0,
 }: Props) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
@@ -137,6 +139,11 @@ export default function ClientSelect({
   const [quickLoading, setQuickLoading] = useState(false)
   const [quickError, setQuickError] = useState<string | null>(null)
   const quickInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (openSignal <= 0) return
+    setOpen(true)
+  }, [openSignal])
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {

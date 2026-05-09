@@ -11,6 +11,7 @@ import {
   ClipboardDocumentListIcon,
   ClockIcon,
   CubeIcon,
+  ExclamationTriangleIcon,
   MagnifyingGlassIcon,
   PencilSquareIcon,
   PlusIcon,
@@ -508,6 +509,8 @@ export default function VentasPage() {
   const [selectedPayment, setSelectedPayment] = useState<PaymentKey | null>(null)
   const [paymentOperationCode, setPaymentOperationCode] = useState("")
   const [selectedClient, setSelectedClient] = useState<ClientSelection>(DEFAULT_CLIENT)
+  const [missingClientDialogOpen, setMissingClientDialogOpen] = useState(false)
+  const [clientSelectOpenSignal, setClientSelectOpenSignal] = useState(0)
   const [editClientTarget, setEditClientTarget] = useState<Cliente | null>(null)
   const [clientCreatePrefill, setClientCreatePrefill] = useState<ClienteCreatePrefill | null>(null)
   const [isClientCreateOpen, setIsClientCreateOpen] = useState(false)
@@ -1489,8 +1492,29 @@ export default function VentasPage() {
 
   }, [])
 
-  const handleFinalizarVenta = useCallback(async () => {
+  const handleChooseClientFromWarning = useCallback(() => {
+    setMissingClientDialogOpen(false)
+
+    const shouldUseMobileSheet =
+      typeof window !== "undefined" &&
+      window.matchMedia("(max-width: 639px)").matches
+
+    if (shouldUseMobileSheet) {
+      setIsPaymentDrawerOpen(false)
+      setClienteSheetOpen(true)
+      return
+    }
+
+    setClientSelectOpenSignal((previous) => previous + 1)
+  }, [])
+
+  const handleFinalizarVenta = useCallback(async (skipMissingClientWarning = false) => {
     if (!canConfirm || submittingVenta || !selectedPayment) return
+
+    if (!skipMissingClientWarning && selectedClient.idCliente === null) {
+      setMissingClientDialogOpen(true)
+      return
+    }
 
     const invalidItem = cart.find(
       (item) => typeof item.varianteId !== "number" || item.varianteId <= 0
@@ -1679,6 +1703,55 @@ export default function VentasPage() {
             </Button>
             <Button variant="destructive" onClick={handleConfirmSucursalChange}>
               Cambiar sucursal
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={missingClientDialogOpen} onOpenChange={setMissingClientDialogOpen}>
+        <DialogContent
+          showCloseButton={false}
+          className="max-w-md gap-0 overflow-hidden rounded-2xl border-amber-100 p-0 shadow-2xl dark:border-amber-500/20"
+        >
+          <div className="border-b border-amber-100 bg-amber-50 px-6 py-5 dark:border-amber-500/20 dark:bg-amber-500/10">
+            <div className="flex items-start gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-300">
+                <ExclamationTriangleIcon className="h-5 w-5" />
+              </span>
+              <DialogHeader className="gap-1 text-left">
+                <DialogTitle>Venta sin cliente asociado</DialogTitle>
+                <DialogDescription className="text-amber-800/80 dark:text-amber-200/80">
+                  Se registrara como Cliente Generico.
+                </DialogDescription>
+              </DialogHeader>
+            </div>
+          </div>
+
+          <div className="px-6 py-4">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-300">
+              Puedes elegir un cliente o continuar sin asociarlo.
+            </div>
+          </div>
+
+          <DialogFooter className="px-6 pb-6">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleChooseClientFromWarning}
+              disabled={submittingVenta}
+            >
+              Elegir cliente
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                setMissingClientDialogOpen(false)
+                void handleFinalizarVenta(true)
+              }}
+              disabled={submittingVenta}
+              className="bg-amber-600 text-white hover:bg-amber-700 dark:bg-amber-500 dark:hover:bg-amber-600"
+            >
+              Registrar sin cliente
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2143,6 +2216,7 @@ export default function VentasPage() {
                   tipoDocumentoFilter={clienteTipoDocumentoFilter}
                   placeholder={clientFieldPlaceholder}
                   searchPlaceholder={clientSearchPlaceholder}
+                  openSignal={clientSelectOpenSignal}
                 />
               </div>
               {selectedClient.idCliente !== null && (
