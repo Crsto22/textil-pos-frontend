@@ -607,6 +607,11 @@ export function VentasHistorialFilters({
             <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex flex-col gap-1">
                 <p className="text-xs text-muted-foreground">Estado se filtra en la pagina actual</p>
+                {showReportePdf && (
+                  <p className="text-xs text-muted-foreground">
+                    En el PDF, la columna HORA usa la fecha de operacion del primer pago.
+                  </p>
+                )}
                 <p className="text-xs text-muted-foreground">
                   Mostrando {totalShown} venta(s) de {pageElements} en la pagina actual ({totalElements} total)
                 </p>
@@ -668,6 +673,11 @@ export function VentasHistorialFilters({
 
             <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50/80 p-3 dark:border-slate-700 dark:bg-slate-900/40">
               <p className="text-xs text-slate-500 dark:text-slate-400">Estado se filtra en la pagina actual</p>
+              {showReportePdf && (
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  En el PDF, la columna HORA usa la fecha de operacion del primer pago.
+                </p>
+              )}
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                 Mostrando {totalShown} venta(s) de {pageElements} en la pagina actual ({totalElements} total)
               </p>

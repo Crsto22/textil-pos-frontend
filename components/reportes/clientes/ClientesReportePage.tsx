@@ -89,7 +89,7 @@ export function ClientesReportePage() {
   const { user } = useAuth()
   const isAdmin = user?.rol === "ADMINISTRADOR"
   const userHasSucursal = hasValidSucursalId(user?.idSucursal)
-  const [activeFilter, setActiveFilter] = useState<ClienteReporteFiltro>("ULT_30_DIAS")
+  const [activeFilter, setActiveFilter] = useState<ClienteReporteFiltro>("HOY")
   const [selectedSucursalId, setSelectedSucursalId] = useState<number | null>(null)
   const {
     sucursalOptions,

@@ -144,7 +144,7 @@ export function AdminDashboardContent({ data }: { data: DashboardAdminData }) {
               Ingresos por metodo de pago
             </h2>
             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-              Participacion de cada metodo sobre el ingreso total emitido.
+              Calculado con la fecha de operacion registrada en cada pago.
             </p>
           </div>
           <ProductDonutChart

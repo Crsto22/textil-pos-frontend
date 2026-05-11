@@ -64,7 +64,7 @@ function UsuarioReporteSkeleton() {
 export function UsuariosReportePage() {
   const { user } = useAuth()
   const isAdmin = user?.rol === "ADMINISTRADOR"
-  const [activeFilter, setActiveFilter] = useState<UsuarioReporteFiltro>("ULT_30_DIAS")
+  const [activeFilter, setActiveFilter] = useState<UsuarioReporteFiltro>("HOY")
   const [selectedSucursalId, setSelectedSucursalId] = useState<number | null>(null)
   const {
     sucursalOptions,

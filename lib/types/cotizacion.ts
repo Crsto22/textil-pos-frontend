@@ -97,6 +97,7 @@ export interface CotizacionConvertirPagoRequest {
   idMetodoPago: number
   monto: number
   codigoOperacion: string | null
+  fecha?: string | null
 }
 
 export interface CotizacionConvertirVentaRequest {
@@ -115,9 +116,12 @@ export interface CotizacionConvertirVentaDetalle {
 }
 
 export interface CotizacionConvertirVentaPago {
+  idPago: number
   idMetodoPago: number
+  metodoPago: string
   monto: number
   codigoOperacion: string | null
+  fecha: string | null
 }
 
 export interface CotizacionConvertirVentaResumen {

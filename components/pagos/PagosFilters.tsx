@@ -228,7 +228,7 @@ function FilterFields({
         </div>
 
         <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">Tipo de fecha</label>
+          <label className="text-xs font-medium text-muted-foreground">Fecha de operacion</label>
           <label className="inline-flex h-11 w-full items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
             <input
               type="checkbox"
@@ -249,7 +249,7 @@ function FilterFields({
           <>
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground" htmlFor="pagos-fecha-desde">
-                Desde
+                Desde operacion
               </label>
               <Input
                 id="pagos-fecha-desde"
@@ -266,7 +266,7 @@ function FilterFields({
             </div>
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground" htmlFor="pagos-fecha-hasta">
-                Hasta
+                Hasta operacion
               </label>
               <Input
                 id="pagos-fecha-hasta"
@@ -285,7 +285,7 @@ function FilterFields({
         ) : filters.periodo === "FECHA" ? (
           <div className="space-y-1 xl:col-span-2">
             <label className="text-xs font-medium text-muted-foreground" htmlFor="pagos-fecha-unica">
-              Fecha
+              Fecha de operacion
             </label>
             <Input
               id="pagos-fecha-unica"
@@ -303,7 +303,7 @@ function FilterFields({
         ) : (
           <div className="flex items-end xl:col-span-2">
             <span className="text-xs text-muted-foreground">
-              El periodo seleccionado aplica filtro automatico
+              El periodo seleccionado aplica sobre la fecha de operacion
             </span>
           </div>
         )}
@@ -502,7 +502,7 @@ export function PagosFilters({
             <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex flex-col gap-1">
                 <p className="text-xs text-muted-foreground">
-                  Los filtros se aplican sobre el listado paginado de pagos.
+                  Los filtros se aplican sobre el listado paginado de pagos y la fecha de operacion.
                 </p>
                 <p className="text-xs text-muted-foreground">
                   Mostrando {numberOfElements} pago(s) en la pagina actual ({totalElements} total)
@@ -535,7 +535,7 @@ export function PagosFilters({
           <SheetHeader className="shrink-0 border-b border-slate-100 px-4 pb-3 pt-4 dark:border-slate-700/60">
             <SheetTitle className="text-sm">Filtros de pagos</SheetTitle>
             <SheetDescription className="text-xs">
-              Ajusta estado, metodo, usuario, sucursal y fechas.
+              Ajusta estado, metodo, usuario, sucursal y fecha de operacion.
             </SheetDescription>
           </SheetHeader>
 

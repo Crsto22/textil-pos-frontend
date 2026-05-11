@@ -203,7 +203,7 @@ export default function PaymentMethod({
 
   if (variant === "drawer") {
     return (
-      <div className="space-y-3">
+      <div className="grid grid-cols-3 gap-2">
         {methods.map((method) => {
           const style = resolveMethodStyle(method.nombre)
           const isActive = selected === method.nombre
@@ -223,7 +223,7 @@ export default function PaymentMethod({
               aria-pressed={isActive}
               className={[
                 buttonVariants({ variant: "outline", size: "lg" }),
-                "h-auto w-full justify-start gap-4 rounded-[24px] px-4 py-4 text-left shadow-none",
+                "relative h-full min-h-[116px] w-full flex-col justify-start gap-2 rounded-2xl px-2.5 py-3 text-center shadow-none",
                 isActive
                   ? "border-blue-300 bg-blue-50 hover:bg-blue-50 dark:border-blue-500/40 dark:bg-blue-500/10 dark:hover:bg-blue-500/10"
                   : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900/60 dark:hover:border-slate-600 dark:hover:bg-slate-800/80",
@@ -231,7 +231,7 @@ export default function PaymentMethod({
             >
               <span
                 className={[
-                  "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl",
+                  "flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl",
                   style.logoSrc ? "" : "border",
                   style.iconWrap,
                 ].join(" ")}
@@ -240,9 +240,9 @@ export default function PaymentMethod({
                   <Image
                     src={style.logoSrc}
                     alt={style.logoAlt ?? `Logo ${style.label}`}
-                    width={28}
-                    height={28}
-                    className="h-7 w-7 object-contain"
+                    width={24}
+                    height={24}
+                    className="h-6 w-6 object-contain"
                   />
                 ) : (
                   style.icon
@@ -250,10 +250,10 @@ export default function PaymentMethod({
               </span>
 
               <span className="min-w-0 flex-1">
-                <span className="block text-base font-semibold text-slate-800 dark:text-slate-100">
+                <span className="block truncate text-sm font-semibold text-slate-800 dark:text-slate-100">
                   {style.label}
                 </span>
-                <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">
+                <span className="mt-0.5 block line-clamp-2 whitespace-normal text-[11px] leading-tight text-slate-500 dark:text-slate-400">
                   {style.description}
                 </span>
                 {renderAccounts(method)}
@@ -261,7 +261,7 @@ export default function PaymentMethod({
 
               <span
                 className={[
-                  "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-all",
+                  "absolute right-2 top-2 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-all",
                   isActive
                     ? "border-blue-500 bg-white dark:border-blue-400 dark:bg-slate-950"
                     : "border-slate-300 bg-white dark:border-slate-600 dark:bg-transparent",
@@ -269,7 +269,7 @@ export default function PaymentMethod({
               >
                 <span
                   className={[
-                    "h-2.5 w-2.5 rounded-full transition-all",
+                    "h-2 w-2 rounded-full transition-all",
                     isActive ? "bg-blue-500 dark:bg-blue-400" : "bg-transparent",
                   ].join(" ")}
                 />

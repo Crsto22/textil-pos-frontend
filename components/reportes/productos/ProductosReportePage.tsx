@@ -109,7 +109,7 @@ export function ProductosReportePage() {
   const { user } = useAuth()
   const isAdmin = user?.rol === "ADMINISTRADOR"
   const userHasSucursal = hasValidSucursalId(user?.idSucursal)
-  const [activeFilter, setActiveFilter] = useState<ProductoReporteFiltro>("ULT_30_DIAS")
+  const [activeFilter, setActiveFilter] = useState<ProductoReporteFiltro>("HOY")
   const [selectedSucursalId, setSelectedSucursalId] = useState<number | null>(null)
   const {
     sucursalOptions,

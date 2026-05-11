@@ -52,3 +52,17 @@ export interface PagoPageResponse {
   last: boolean
   empty: boolean
 }
+
+export interface PagoUpdateRequest {
+  codigoOperacion?: string | null
+  fecha?: string | null
+}
+
+export interface PagoUpdateResponse {
+  idPago: number
+  fecha: string | null
+  monto: number
+  codigoOperacion: string | null
+  idMetodoPago: number | null
+  metodoPago: string
+}

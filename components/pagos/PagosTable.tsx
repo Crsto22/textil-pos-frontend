@@ -57,7 +57,7 @@ function PagosTableComponent({
           <thead>
             <tr className="border-b bg-muted/50">
               <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Fecha
+                Fecha de operacion
               </th>
               <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">
                 Pago
@@ -233,7 +233,7 @@ function PagosTableComponent({
                           Pago #{pago.idPago}
                         </p>
                         <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                          {formatPagoFecha(pago.fecha)}
+                          Fecha de operacion: {formatPagoFecha(pago.fecha)}
                         </p>
                       </div>
                       <span

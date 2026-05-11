@@ -38,6 +38,7 @@ import ProductModal, { type SelectedVariant } from "@/components/ventas/ProductM
 import PaymentMethod, {
   type PaymentKey,
 } from "@/components/ventas/PaymentMethod"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
 import { Switch } from "@/components/ui/switch"
@@ -176,6 +177,12 @@ async function parseJsonSafe(response: Response) {
 function parseDiscountValue(value: string) {
   const parsed = Number(value.replace(",", "."))
   return Number.isFinite(parsed) ? parsed : 0
+}
+
+function normalizePaymentDateTime(value: string) {
+  const trimmedValue = value.trim()
+  if (!trimmedValue) return null
+  return trimmedValue.length === 16 ? `${trimmedValue}:00` : trimmedValue
 }
 
 function getNormalizedDiscountValue(
@@ -508,6 +515,8 @@ export default function VentasPage() {
   const [cart, setCart] = useState<CartItemData[]>([])
   const [selectedPayment, setSelectedPayment] = useState<PaymentKey | null>(null)
   const [paymentOperationCode, setPaymentOperationCode] = useState("")
+  const [paymentDateTime, setPaymentDateTime] = useState("")
+  const [paymentDateTimeError, setPaymentDateTimeError] = useState("")
   const [selectedClient, setSelectedClient] = useState<ClientSelection>(DEFAULT_CLIENT)
   const [missingClientDialogOpen, setMissingClientDialogOpen] = useState(false)
   const [clientSelectOpenSignal, setClientSelectOpenSignal] = useState(0)
@@ -1442,6 +1451,15 @@ export default function VentasPage() {
     []
   )
 
+  const handlePaymentDateTimeChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      setPaymentDateTime(event.target.value)
+      setPaymentDateTimeError("")
+
+    },
+    []
+  )
+
   const commitDiscountDraft = useCallback(() => {
     if (normalizedDiscountDraftValue <= 0) {
       setDiscount(createEmptyDiscountState())
@@ -1466,6 +1484,8 @@ export default function VentasPage() {
       commitDiscountDraft()
     }
 
+    setPaymentDateTimeError("")
+
     setIsPaymentDrawerOpen(true)
 
   }, [
@@ -1484,6 +1504,8 @@ export default function VentasPage() {
     setCart([])
     setSelectedPayment(null)
     setPaymentOperationCode("")
+    setPaymentDateTime("")
+    setPaymentDateTimeError("")
     setSelectedClient(DEFAULT_CLIENT)
     setIsPaymentDrawerOpen(false)
     setDiscount(createEmptyDiscountState())
@@ -1545,6 +1567,13 @@ export default function VentasPage() {
       return
     }
 
+    const normalizedPaymentDateTime = normalizePaymentDateTime(paymentDateTime)
+    if (!normalizedPaymentDateTime) {
+      setPaymentDateTimeError("Debe ingresar la fecha y hora del pago.")
+      toast.error("Debe ingresar la fecha y hora del pago.")
+      return
+    }
+
     setSubmittingVenta(true)
 
     const ventaPromise = (async () => {
@@ -1572,6 +1601,7 @@ export default function VentasPage() {
             idMetodoPago: selectedMetodoPago.idMetodoPago,
             monto: total,
             codigoOperacion: paymentOperationCode.trim(),
+            fecha: normalizedPaymentDateTime,
           },
         ],
       }
@@ -1638,6 +1668,7 @@ export default function VentasPage() {
   }, [
     canConfirm,
     cart,
+    paymentDateTime,
     paymentOperationCode,
     refreshCurrentView,
     resolvedSucursalId,
@@ -1858,6 +1889,7 @@ export default function VentasPage() {
                     colorTotalPages={colorTotalPages}
                     onColorNextPage={handleNextColorPage}
                     onColorPrevPage={handlePrevColorPage}
+                    desktopTwoColumns
                   />
                 </div>
 
@@ -2342,21 +2374,50 @@ export default function VentasPage() {
                       variant="drawer"
                     />
 
-                    <div className="mt-4 space-y-2">
-                      <label
-                        htmlFor="venta-codigo-operacion"
-                        className="text-sm font-medium text-slate-700 dark:text-slate-200"
-                      >
-                        Codigo de operacion
-                      </label>
-                      <input
-                        id="venta-codigo-operacion"
-                        type="text"
-                        value={paymentOperationCode}
-                        onChange={handlePaymentOperationCodeChange}
-                        placeholder="Obligatorio"
-                        className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
-                      />
+                    <div className="mt-4 grid grid-cols-1 gap-3">
+                      <div className="space-y-2">
+                        <label
+                          htmlFor="venta-codigo-operacion"
+                          className="text-sm font-medium text-slate-700 dark:text-slate-200"
+                        >
+                          Codigo de operacion
+                        </label>
+                        <input
+                          id="venta-codigo-operacion"
+                          type="text"
+                          value={paymentOperationCode}
+                          onChange={handlePaymentOperationCodeChange}
+                          placeholder="Obligatorio"
+                          className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label
+                          htmlFor="venta-fecha-pago"
+                          className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200"
+                        >
+                          <span>Fecha y hora del pago de la operación</span>
+                          <Badge
+                            variant="secondary"
+                            className="h-5 px-1.5 text-[10px] uppercase tracking-wide"
+                          >
+                            Nuevo
+                          </Badge>
+                        </label>
+                        <input
+                          id="venta-fecha-pago"
+                          type="datetime-local"
+                          value={paymentDateTime}
+                          onChange={handlePaymentDateTimeChange}
+                          className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
+                        />
+                        {paymentDateTimeError && (
+                          <p className="text-xs font-medium text-red-600 dark:text-red-400">
+                            {paymentDateTimeError}
+                          </p>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </Card>

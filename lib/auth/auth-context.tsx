@@ -78,9 +78,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearAccessToken()
       setUser(null)
       try {
+        window.sessionStorage.setItem("auth:session-expired", "1")
+      } catch {
+        // Continuar con el redirect aunque sessionStorage no este disponible
+      }
+      try {
         await fetch("/api/auth/logout", { method: "POST", credentials: "include" })
       } catch { /* ignorar */ }
-      window.location.href = "/login?session=expired"
+      window.location.href = "/"
     }
 
     window.addEventListener("auth:session-expired", handleSessionExpired)

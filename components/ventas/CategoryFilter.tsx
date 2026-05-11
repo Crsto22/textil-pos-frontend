@@ -27,6 +27,7 @@ interface CategoryFilterProps {
   colorTotalPages: number
   onColorNextPage: () => void
   onColorPrevPage: () => void
+  desktopTwoColumns?: boolean
 }
 
 function normalizeHexColor(value: string | null | undefined): string {
@@ -51,6 +52,7 @@ export default function CategoryFilter({
   colorTotalPages,
   onColorNextPage,
   onColorPrevPage,
+  desktopTwoColumns = false,
 }: CategoryFilterProps) {
   const safeCategoryPage = Math.max(0, categoryPage)
   const safeTotalCategoryPages = Math.max(1, categoryTotalPages)
@@ -63,11 +65,18 @@ export default function CategoryFilter({
   const hasColorPagination = safeTotalColorPages > 1
   const canGoPrevColorPage = safeColorPage > 0
   const canGoNextColorPage = safeColorPage < safeTotalColorPages - 1
+  const useDesktopColumns = desktopTwoColumns && colors.length > 0
 
   return (
-    <div className="space-y-2">
+    <div
+      className={
+        useDesktopColumns
+          ? "space-y-2 lg:grid lg:grid-cols-2 lg:items-start lg:gap-3 lg:space-y-0"
+          : "space-y-2"
+      }
+    >
       {/* ─── Fila categorías — scroll horizontal ─── */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5" style={{ scrollbarWidth: "none" }}>
+      <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto pb-0.5" style={{ scrollbarWidth: "none" }}>
         <button
           onClick={() => onCategoryChange(null)}
           className={[
@@ -124,7 +133,7 @@ export default function CategoryFilter({
 
       {/* ─── Fila colores — scroll horizontal ─── */}
       {colors.length > 0 && (
-        <div className="flex items-center gap-2 overflow-x-auto pb-0.5" style={{ scrollbarWidth: "none" }}>
+        <div className="flex min-w-0 items-center gap-2 overflow-x-auto pb-0.5" style={{ scrollbarWidth: "none" }}>
           <button
             onClick={() => onColorChange(null)}
             className={[

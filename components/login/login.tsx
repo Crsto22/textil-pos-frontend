@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -27,14 +27,18 @@ export function Login() {
   const { login } = useAuth()
   const { company, isLoadingCompany } = useCompany()
   const router = useRouter()
-  const searchParams = useSearchParams()
   const companyName = getEmpresaDisplayName(company) || "Sistema POS Textil"
 
   useEffect(() => {
-    if (searchParams.get("session") === "expired") {
-      toast.warning("Tu sesión expiró. Vuelve a iniciar sesión.")
+    try {
+      if (window.sessionStorage.getItem("auth:session-expired") === "1") {
+        window.sessionStorage.removeItem("auth:session-expired")
+        toast.warning("Tu sesión expiró. Vuelve a iniciar sesión.")
+      }
+    } catch {
+      // Ignorar si sessionStorage no esta disponible
     }
-  }, [searchParams])
+  }, [])
   const companyLogoUrl = company?.logoUrl?.trim()
 
   // Versión del sistema

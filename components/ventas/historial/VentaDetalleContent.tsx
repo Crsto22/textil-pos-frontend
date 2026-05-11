@@ -685,25 +685,30 @@ export function VentaDetalleContent({
                           </span>
 
                           <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-center gap-3">
-                              <span className="text-sm font-semibold text-foreground">
-                                {metodoLabel}
-                              </span>
-                              <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                                Cod. op.: {pago.codigoOperacion || "-"}
+                            <div className="min-w-0 space-y-1">
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm font-semibold text-foreground">
+                                  {metodoLabel}
+                                </p>
                                 <button
                                   type="button"
                                   onClick={() => setEditingPago(pago)}
-                                  className="text-muted-foreground transition-colors hover:text-foreground"
-                                  title="Editar Codigo de Operacion"
+                                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                                  title="Editar codigo y fecha de operacion"
+                                  aria-label="Editar codigo y fecha de operacion"
                                 >
                                   <PencilSquareIcon className="h-4 w-4" />
                                 </button>
-                              </span>
+                              </div>
+                              <p className="text-sm text-muted-foreground">
+                                <span className="font-medium text-foreground">Codigo de operacion:</span>{" "}
+                                {pago.codigoOperacion || "-"}
+                              </p>
+                              <p className="text-sm text-muted-foreground">
+                                <span className="font-medium text-foreground">Hora de la operacion:</span>{" "}
+                                {pago.fecha ? formatFechaHora(pago.fecha) : "Sin fecha registrada"}
+                              </p>
                             </div>
-                            <p className="mt-1 text-sm text-muted-foreground">
-                              {pago.fecha ? formatFechaHora(pago.fecha) : "Sin fecha registrada"}
-                            </p>
                           </div>
                         </div>
 

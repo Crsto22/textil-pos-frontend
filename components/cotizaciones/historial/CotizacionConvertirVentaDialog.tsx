@@ -48,6 +48,12 @@ function sanitizeNumericInput(value: string) {
   return value.replace(/\D+/g, "")
 }
 
+function normalizeDateTimeLocal(value: string) {
+  const trimmedValue = value.trim()
+  if (!trimmedValue) return null
+  return trimmedValue.length === 16 ? `${trimmedValue}:00` : trimmedValue
+}
+
 export function CotizacionConvertirVentaDialog({
   open,
   target,
@@ -59,6 +65,8 @@ export function CotizacionConvertirVentaDialog({
   const [selectedPayment, setSelectedPayment] = useState<PaymentKey | null>(null)
   const [selectedComprobanteId, setSelectedComprobanteId] = useState("")
   const [operationCode, setOperationCode] = useState("")
+  const [operationDateTime, setOperationDateTime] = useState("")
+  const [operationDateTimeError, setOperationDateTimeError] = useState("")
   const [requestError, setRequestError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -79,6 +87,8 @@ export function CotizacionConvertirVentaDialog({
     if (!open) return
     setSelectedPayment(null)
     setOperationCode("")
+    setOperationDateTime("")
+    setOperationDateTimeError("")
     setRequestError(null)
   }, [open, target?.idCotizacion])
 
@@ -138,6 +148,15 @@ export function CotizacionConvertirVentaDialog({
       return
     }
 
+    const normalizedOperationDateTime = normalizeDateTimeLocal(operationDateTime)
+    if (!normalizedOperationDateTime) {
+      const message = "Ingresa la fecha y hora de la operacion."
+      setOperationDateTimeError(message)
+      setRequestError(message)
+      toast.error(message)
+      return
+    }
+
     setSubmitting(true)
     setRequestError(null)
 
@@ -157,6 +176,7 @@ export function CotizacionConvertirVentaDialog({
           idMetodoPago: selectedMetodoPago.idMetodoPago,
           monto: Number(target.total.toFixed(2)),
           codigoOperacion: operationCode.trim(),
+          fecha: normalizedOperationDateTime,
         },
       ],
     }
@@ -295,11 +315,30 @@ export function CotizacionConvertirVentaDialog({
         />
       </div>
 
-      {requestError && (
-        <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-900/60 dark:bg-rose-900/20 dark:text-rose-300">
-          {requestError}
-        </div>
-      )}
+      <div className="space-y-2">
+        <label
+          htmlFor="convertir-venta-fecha-operacion"
+          className="text-sm font-medium text-foreground"
+        >
+          Fecha y hora de la operacion
+        </label>
+        <input
+          id="convertir-venta-fecha-operacion"
+          type="datetime-local"
+          value={operationDateTime}
+          onChange={(event) => {
+            setOperationDateTime(event.target.value)
+            setOperationDateTimeError("")
+            setRequestError(null)
+          }}
+          className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15"
+        />
+        {operationDateTimeError && (
+          <p className="text-xs font-medium text-rose-600 dark:text-rose-400">
+            {operationDateTimeError}
+          </p>
+        )}
+      </div>
     </div>
 )
 

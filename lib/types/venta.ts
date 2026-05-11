@@ -33,6 +33,7 @@ export interface VentaCreatePagoRequest {
   idMetodoPago: number
   monto: number
   codigoOperacion?: string | null
+  fecha?: string | null
 }
 
 export interface VentaCreateRequest {
