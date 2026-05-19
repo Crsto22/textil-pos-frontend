@@ -185,6 +185,27 @@ function normalizePaymentDateTime(value: string) {
   return trimmedValue.length === 16 ? `${trimmedValue}:00` : trimmedValue
 }
 
+function getTodayLocalDate() {
+  const today = new Date()
+  const year = today.getFullYear()
+  const month = String(today.getMonth() + 1).padStart(2, "0")
+  const day = String(today.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
+function buildPaymentDateTime(date: string, time: string) {
+  const trimmedDate = date.trim()
+  const trimmedTime = time.trim()
+  if (!trimmedDate || !trimmedTime) return null
+  return normalizePaymentDateTime(`${trimmedDate}T${trimmedTime}`)
+}
+
+function getPaymentMeridiem(time: string) {
+  const hour = Number(time.split(":")[0])
+  if (!Number.isFinite(hour)) return ""
+  return hour >= 12 ? "PM" : "AM"
+}
+
 function getNormalizedDiscountValue(
   mode: DiscountMode,
   rawValue: number,
@@ -515,8 +536,10 @@ export default function VentasPage() {
   const [cart, setCart] = useState<CartItemData[]>([])
   const [selectedPayment, setSelectedPayment] = useState<PaymentKey | null>(null)
   const [paymentOperationCode, setPaymentOperationCode] = useState("")
-  const [paymentDateTime, setPaymentDateTime] = useState("")
+  const [paymentDate, setPaymentDate] = useState(() => getTodayLocalDate())
+  const [paymentTime, setPaymentTime] = useState("")
   const [paymentDateTimeError, setPaymentDateTimeError] = useState("")
+  const paymentMeridiem = getPaymentMeridiem(paymentTime)
   const [selectedClient, setSelectedClient] = useState<ClientSelection>(DEFAULT_CLIENT)
   const [missingClientDialogOpen, setMissingClientDialogOpen] = useState(false)
   const [clientSelectOpenSignal, setClientSelectOpenSignal] = useState(0)
@@ -968,11 +991,13 @@ export default function VentasPage() {
     selectedComprobante !== null &&
     (!requiresRucClient || selectedClientHasRuc)
   const hasValidPaymentOperationCode = paymentOperationCode.trim().length > 0
+  const hasValidPaymentDateTime = paymentDate.trim().length > 0 && paymentTime.trim().length > 0
   const canConfirm =
     canContinueToPayment &&
     selectedPayment !== null &&
     selectedMetodoPago !== null &&
-    hasValidPaymentOperationCode
+    hasValidPaymentOperationCode &&
+    hasValidPaymentDateTime
 
   const continueHint = useMemo(() => {
     if (cart.length === 0) return "Agrega al menos una variante"
@@ -1007,10 +1032,14 @@ export default function VentasPage() {
     if (selectedPayment === null) return "Selecciona un metodo de pago"
     if (selectedMetodoPago === null) return "Selecciona un metodo de pago valido"
     if (!paymentOperationCode.trim()) return "Ingresa el codigo de operacion"
+    if (!paymentDate.trim()) return "Ingresa la fecha de operacion"
+    if (!paymentTime.trim()) return "Ingresa la hora de operacion"
     return ""
   }, [
     activeMetodosPago,
+    paymentDate,
     paymentOperationCode,
+    paymentTime,
     selectedMetodoPago,
     selectedPayment,
   ])
@@ -1451,9 +1480,18 @@ export default function VentasPage() {
     []
   )
 
-  const handlePaymentDateTimeChange = useCallback(
+  const handlePaymentDateChange = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => {
-      setPaymentDateTime(event.target.value)
+      setPaymentDate(event.target.value)
+      setPaymentDateTimeError("")
+
+    },
+    []
+  )
+
+  const handlePaymentTimeChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      setPaymentTime(event.target.value)
       setPaymentDateTimeError("")
 
     },
@@ -1485,6 +1523,7 @@ export default function VentasPage() {
     }
 
     setPaymentDateTimeError("")
+    setPaymentDate((previous) => previous || getTodayLocalDate())
 
     setIsPaymentDrawerOpen(true)
 
@@ -1504,7 +1543,8 @@ export default function VentasPage() {
     setCart([])
     setSelectedPayment(null)
     setPaymentOperationCode("")
-    setPaymentDateTime("")
+    setPaymentDate(getTodayLocalDate())
+    setPaymentTime("")
     setPaymentDateTimeError("")
     setSelectedClient(DEFAULT_CLIENT)
     setIsPaymentDrawerOpen(false)
@@ -1567,7 +1607,7 @@ export default function VentasPage() {
       return
     }
 
-    const normalizedPaymentDateTime = normalizePaymentDateTime(paymentDateTime)
+    const normalizedPaymentDateTime = buildPaymentDateTime(paymentDate, paymentTime)
     if (!normalizedPaymentDateTime) {
       setPaymentDateTimeError("Debe ingresar la fecha y hora del pago.")
       toast.error("Debe ingresar la fecha y hora del pago.")
@@ -1668,8 +1708,9 @@ export default function VentasPage() {
   }, [
     canConfirm,
     cart,
-    paymentDateTime,
+    paymentDate,
     paymentOperationCode,
+    paymentTime,
     refreshCurrentView,
     resolvedSucursalId,
     resetVentaDraft,
@@ -2393,10 +2434,7 @@ export default function VentasPage() {
                       </div>
 
                       <div className="space-y-2">
-                        <label
-                          htmlFor="venta-fecha-pago"
-                          className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200"
-                        >
+                        <div className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200">
                           <span>Fecha y hora del pago de la operación</span>
                           <Badge
                             variant="secondary"
@@ -2404,14 +2442,44 @@ export default function VentasPage() {
                           >
                             Nuevo
                           </Badge>
-                        </label>
-                        <input
-                          id="venta-fecha-pago"
-                          type="datetime-local"
-                          value={paymentDateTime}
-                          onChange={handlePaymentDateTimeChange}
-                          className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
-                        />
+                        </div>
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                          <div className="space-y-1.5">
+                            <label
+                              htmlFor="venta-fecha-pago"
+                              className="text-xs font-medium text-slate-500 dark:text-slate-400"
+                            >
+                              Fecha
+                            </label>
+                            <input
+                              id="venta-fecha-pago"
+                              type="date"
+                              value={paymentDate}
+                              onChange={handlePaymentDateChange}
+                              className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label
+                              htmlFor="venta-hora-pago"
+                              className="text-xs font-medium text-slate-500 dark:text-slate-400"
+                            >
+                              Hora
+                            </label>
+                            <div className="flex items-center gap-2">
+                              <input
+                                id="venta-hora-pago"
+                                type="time"
+                                value={paymentTime}
+                                onChange={handlePaymentTimeChange}
+                                className="h-10 min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
+                              />
+                              <span className="inline-flex h-10 min-w-12 items-center justify-center rounded-md border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                                {paymentMeridiem || "--"}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
                         {paymentDateTimeError && (
                           <p className="text-xs font-medium text-red-600 dark:text-red-400">
                             {paymentDateTimeError}
