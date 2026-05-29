@@ -376,17 +376,18 @@ export function Header({ onMenuToggle }: HeaderProps) {
                       <div className="space-y-1">
                         {roleNotifications.map((notification) => {
                           const isUnread = !seenNotificationIds.includes(notification.id)
-                          const NotificationItem = notification.href ? "button" : "div"
+                          const notificationHref = notification.href
+                          const NotificationItem = notificationHref ? "button" : "div"
 
                           return (
                             <NotificationItem
                               key={notification.id}
-                              type={notification.href ? "button" : undefined}
+                              type={notificationHref ? "button" : undefined}
                               onClick={
-                                notification.href
+                                notificationHref
                                   ? () => {
                                       setIsNotificationsOpen(false)
-                                      router.push(notification.href)
+                                      router.push(notificationHref)
                                     }
                                   : undefined
                               }
@@ -394,7 +395,7 @@ export function Header({ onMenuToggle }: HeaderProps) {
                                 isUnread
                                   ? "border-blue-200 bg-blue-50/70 dark:border-blue-500/25 dark:bg-blue-500/10"
                                   : "border-transparent hover:bg-slate-50 dark:hover:bg-white/[0.04]"
-                              } ${notification.href ? "w-full cursor-pointer text-left" : ""}`}
+                              } ${notificationHref ? "w-full cursor-pointer text-left" : ""}`}
                             >
                               <div className="flex items-start gap-3">
                                 <span
