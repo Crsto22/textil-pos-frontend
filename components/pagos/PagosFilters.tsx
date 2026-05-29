@@ -37,8 +37,10 @@ interface PagosFiltersProps {
   numberOfElements: number
   totalElements: number
   reportLoading: boolean
+  reportExcelLoading: boolean
   onChange: (next: PagoFilters) => void
   onDownloadReport: () => void
+  onDownloadExcelReport: () => void
   onClear: () => void
 }
 
@@ -317,8 +319,10 @@ export function PagosFilters({
   numberOfElements,
   totalElements,
   reportLoading,
+  reportExcelLoading,
   onChange,
   onDownloadReport,
+  onDownloadExcelReport,
   onClear,
 }: PagosFiltersProps) {
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
@@ -486,14 +490,24 @@ export function PagosFilters({
                 Filtros{activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}
               </button>
             </div>
-            <button
-              type="button"
-              onClick={onDownloadReport}
-              disabled={reportLoading}
-              className="mt-3 inline-flex h-11 w-full items-center justify-center rounded-xl bg-red-700 px-4 text-sm font-semibold text-white transition-colors hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {reportLoading ? "Descargando..." : "Reporte PDF"}
-            </button>
+            <div className="mt-3 grid grid-cols-1 gap-2">
+              <button
+                type="button"
+                onClick={onDownloadReport}
+                disabled={reportLoading}
+                className="inline-flex h-11 w-full items-center justify-center rounded-xl bg-red-700 px-4 text-sm font-semibold text-white transition-colors hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {reportLoading ? "Descargando..." : "Reporte PDF"}
+              </button>
+              <button
+                type="button"
+                onClick={onDownloadExcelReport}
+                disabled={reportExcelLoading}
+                className="inline-flex h-11 w-full items-center justify-center rounded-xl bg-emerald-700 px-4 text-sm font-semibold text-white transition-colors hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {reportExcelLoading ? "Descargando..." : "Reporte Excel"}
+              </button>
+            </div>
           </div>
 
           <div className="hidden sm:block">
@@ -523,6 +537,14 @@ export function PagosFilters({
                   className="inline-flex h-11 items-center justify-center rounded-xl bg-red-700 px-4 text-sm font-semibold text-white transition-colors hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {reportLoading ? "Descargando..." : "Reporte PDF"}
+                </button>
+                <button
+                  type="button"
+                  onClick={onDownloadExcelReport}
+                  disabled={reportExcelLoading}
+                  className="inline-flex h-11 items-center justify-center rounded-xl bg-emerald-700 px-4 text-sm font-semibold text-white transition-colors hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {reportExcelLoading ? "Descargando..." : "Reporte Excel"}
                 </button>
               </div>
             </div>

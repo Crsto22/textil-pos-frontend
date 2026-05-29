@@ -5,6 +5,7 @@ import { useState } from "react"
 import { PagosFilters } from "@/components/pagos/PagosFilters"
 import { PagosTable } from "@/components/pagos/PagosTable"
 import { useAuth } from "@/lib/auth/auth-context"
+import { usePagoReporteExcel } from "@/lib/hooks/usePagoReporteExcel"
 import { usePagoReportePdf } from "@/lib/hooks/usePagoReportePdf"
 import { usePagos } from "@/lib/hooks/usePagos"
 import { createDefaultPagoFilters } from "@/lib/pago-filters"
@@ -17,6 +18,7 @@ export function PagosPage() {
     idSucursal: user?.idSucursal ?? null,
   }))
   const { isExporting, exportReportePdf } = usePagoReportePdf()
+  const { isExportingExcel, exportReporteExcel } = usePagoReporteExcel()
   const {
     pagos,
     page,
@@ -36,9 +38,13 @@ export function PagosPage() {
         numberOfElements={numberOfElements}
         totalElements={totalElements}
         reportLoading={isExporting}
+        reportExcelLoading={isExportingExcel}
         onChange={setFilters}
         onDownloadReport={() => {
           void exportReportePdf(filters)
+        }}
+        onDownloadExcelReport={() => {
+          void exportReporteExcel(filters)
         }}
         onClear={() => setFilters({ ...createDefaultPagoFilters(), idSucursal: user?.idSucursal ?? null })}
       />

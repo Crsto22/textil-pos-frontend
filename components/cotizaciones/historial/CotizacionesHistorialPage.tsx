@@ -295,6 +295,9 @@ export function CotizacionesHistorialPage() {
         onConverted={(payload) => {
           void handleConverted(payload)
         }}
+        onClientUpdated={() => {
+          void refreshCotizaciones()
+        }}
       />
     </div>
   )

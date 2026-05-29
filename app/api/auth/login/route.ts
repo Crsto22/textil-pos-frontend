@@ -69,6 +69,7 @@ export async function POST(request: NextRequest) {
       horaInicioTurno: "horaInicioTurno" in data ? data.horaInicioTurno : null,
       horaFinTurno: "horaFinTurno" in data ? data.horaFinTurno : null,
       diasTurno: "diasTurno" in data ? (data.diasTurno as string[] | null) : null,
+      horariosTurno: "horariosTurno" in data ? data.horariosTurno ?? null : null,
     }
 
     const response = NextResponse.json(

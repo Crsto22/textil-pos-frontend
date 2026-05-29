@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react"
 
+import { getTodayTurnoHorario } from "@/lib/turno-schedule-utils"
+
 export type TurnoFase = "inactivo" | "normal" | "alerta" | "peligro" | "vencido"
 
 interface TurnoCountdown {
@@ -56,17 +58,21 @@ function calcularTiempoRestante(
 
 export function useTurnoCountdown(
   horaInicioTurno?: string | null,
-  horaFinTurno?: string | null
+  horaFinTurno?: string | null,
+  horariosTurno?: Array<{ dia: string; horaInicio: string; horaFin: string }> | null
 ): TurnoCountdown {
   const [tick, setTick] = useState(0)
+  const todayHorario = getTodayTurnoHorario(horaInicioTurno, horaFinTurno, horariosTurno)
+  const horaInicio = todayHorario.horaInicio
+  const horaFin = todayHorario.horaFin
 
   useEffect(() => {
-    if (!horaInicioTurno || !horaFinTurno) return
+    if (!horaInicio || !horaFin) return
     const interval = setInterval(() => setTick((t) => t + 1), 1000)
     return () => clearInterval(interval)
-  }, [horaInicioTurno, horaFinTurno])
+  }, [horaInicio, horaFin])
 
-  if (!horaInicioTurno || !horaFinTurno) {
+  if (!horaInicio || !horaFin) {
     return {
       activo: false,
       tiempoRestante: "Sin turno",
@@ -77,8 +83,8 @@ export function useTurnoCountdown(
   }
 
   const { horas, minutos, segundos, porcentaje, activo } = calcularTiempoRestante(
-    horaInicioTurno,
-    horaFinTurno
+    horaInicio,
+    horaFin
   )
 
   if (!activo && porcentaje === 0) {

@@ -1,5 +1,10 @@
 import { resolveBackendUrl } from "@/lib/resolve-backend-url"
-import type { PageResponse, SucursalPermitida, Usuario } from "@/lib/types/usuario"
+import type {
+  PageResponse,
+  SucursalPermitida,
+  TurnoUsuarioHorario,
+  Usuario,
+} from "@/lib/types/usuario"
 
 function toTrimmedString(value: unknown): string {
   return typeof value === "string" ? value.trim() : ""
@@ -36,6 +41,26 @@ function normalizeSucursalesPermitidas(value: unknown): SucursalPermitida[] {
       }
     })
     .filter((item): item is SucursalPermitida => item !== null)
+}
+
+function normalizeHorariosTurno(value: unknown): TurnoUsuarioHorario[] | null {
+  if (!Array.isArray(value)) return null
+
+  const horarios = value
+    .map((item) => {
+      if (!isRecord(item)) return null
+
+      const dia = toTrimmedString(item.dia)
+      const horaInicio = toTrimmedString(item.horaInicio)
+      const horaFin = toTrimmedString(item.horaFin)
+
+      if (!dia || !horaInicio || !horaFin) return null
+
+      return { dia, horaInicio, horaFin }
+    })
+    .filter((item): item is TurnoUsuarioHorario => item !== null)
+
+  return horarios.length > 0 ? horarios : null
 }
 
 export function normalizeUsuario(value: unknown): Usuario | null {
@@ -77,6 +102,7 @@ export function normalizeUsuario(value: unknown): Usuario | null {
           .map((item) => toTrimmedString(item))
           .filter((item) => item.length > 0)
       : null,
+    horariosTurno: normalizeHorariosTurno(value.horariosTurno),
   }
 }
 

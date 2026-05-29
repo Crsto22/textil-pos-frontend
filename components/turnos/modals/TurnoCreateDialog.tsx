@@ -12,23 +12,18 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { TurnoSpecialSchedules } from "@/components/turnos/TurnoSpecialSchedules"
 import { DIAS_SEMANA, DIA_LABEL, type DiaSemana, type TurnoCreateRequest } from "@/lib/types/turno"
+import {
+  buildHorariosDiasPayload,
+  hasValidTurnoTimeRange,
+  normalizeTurnoTime,
+} from "@/lib/turno-schedule-utils"
 
 interface TurnoCreateDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onCreate: (payload: TurnoCreateRequest) => Promise<boolean>
-}
-
-function normalizeTime(value: string): string {
-  if (!value) return ""
-  return value.length === 5 ? `${value}:00` : value
-}
-
-function toSeconds(value: string): number {
-  const normalized = normalizeTime(value)
-  const [hours = "0", minutes = "0", seconds = "0"] = normalized.split(":")
-  return Number(hours) * 3600 + Number(minutes) * 60 + Number(seconds)
 }
 
 export function TurnoCreateDialog({
@@ -42,6 +37,7 @@ export function TurnoCreateDialog({
       horaInicio: "",
       horaFin: "",
       dias: [],
+      horariosDias: [],
     }),
     []
   )
@@ -55,10 +51,18 @@ export function TurnoCreateDialog({
     form.horaFin.trim() !== "" &&
     form.dias.length > 0
   const hasValidTimeRange =
-    form.horaInicio.trim() === "" ||
-    form.horaFin.trim() === "" ||
-    toSeconds(form.horaFin) > toSeconds(form.horaInicio)
-  const isCreateValid = hasRequiredFields && hasValidTimeRange
+    hasValidTurnoTimeRange(form.horaInicio, form.horaFin)
+  const selectedDias = new Set(form.dias)
+  const activeHorariosDias = (form.horariosDias ?? []).filter((horario) =>
+    selectedDias.has(horario.dia)
+  )
+  const hasValidSpecialSchedules = activeHorariosDias.every(
+    (horario) =>
+      horario.horaInicio.trim() !== "" &&
+      horario.horaFin.trim() !== "" &&
+      hasValidTurnoTimeRange(horario.horaInicio, horario.horaFin)
+  )
+  const isCreateValid = hasRequiredFields && hasValidTimeRange && hasValidSpecialSchedules
 
   useEffect(() => {
     if (!open) return
@@ -78,11 +82,13 @@ export function TurnoCreateDialog({
 
     setIsSaving(true)
     try {
+      const horariosDias = buildHorariosDiasPayload(activeHorariosDias)
       const success = await onCreate({
         nombre: form.nombre.trim(),
-        horaInicio: normalizeTime(form.horaInicio),
-        horaFin: normalizeTime(form.horaFin),
+        horaInicio: normalizeTurnoTime(form.horaInicio),
+        horaFin: normalizeTurnoTime(form.horaFin),
         dias: form.dias,
+        ...(horariosDias.length > 0 ? { horariosDias } : {}),
       })
 
       if (success) {
@@ -95,7 +101,7 @@ export function TurnoCreateDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-[520px]" showCloseButton={!isSaving}>
+      <DialogContent className="sm:max-w-[640px]" showCloseButton={!isSaving}>
         <DialogHeader>
           <DialogTitle>Nuevo Turno</DialogTitle>
           <DialogDescription>
@@ -170,6 +176,9 @@ export function TurnoCreateDialog({
                         dias: selected
                           ? previous.dias.filter((d) => d !== dia)
                           : ([...previous.dias, dia] as DiaSemana[]),
+                        horariosDias: selected
+                          ? (previous.horariosDias ?? []).filter((horario) => horario.dia !== dia)
+                          : previous.horariosDias,
                       }))
                     }
                     className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
@@ -187,6 +196,17 @@ export function TurnoCreateDialog({
               <p className="text-xs text-red-500">Selecciona al menos un día.</p>
             ) : null}
           </div>
+
+          <TurnoSpecialSchedules
+            dias={form.dias}
+            horariosDias={form.horariosDias}
+            onChange={(horariosDias) =>
+              setForm((previous) => ({
+                ...previous,
+                horariosDias,
+              }))
+            }
+          />
         </div>
 
         <DialogFooter>

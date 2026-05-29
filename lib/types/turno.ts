@@ -20,12 +20,19 @@ export const DIA_LABEL: Record<DiaSemana, string> = {
   DOMINGO: "Dom",
 }
 
+export interface TurnoHorarioDia {
+  dia: DiaSemana
+  horaInicio: string
+  horaFin: string
+}
+
 export interface Turno {
   idTurno: number
   nombre: string
   horaInicio: string
   horaFin: string
   dias: DiaSemana[]
+  horariosDias?: TurnoHorarioDia[] | null
   estado: string
   fechaCreacion: string
 }
@@ -35,6 +42,7 @@ export interface TurnoCreateRequest {
   horaInicio: string
   horaFin: string
   dias: DiaSemana[]
+  horariosDias?: TurnoHorarioDia[]
 }
 
 export interface TurnoUpdateRequest extends TurnoCreateRequest {

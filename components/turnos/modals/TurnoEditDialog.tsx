@@ -13,7 +13,20 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import { DIAS_SEMANA, DIA_LABEL, type DiaSemana, type Turno, type TurnoUpdateRequest } from "@/lib/types/turno"
+import { TurnoSpecialSchedules } from "@/components/turnos/TurnoSpecialSchedules"
+import {
+  DIAS_SEMANA,
+  DIA_LABEL,
+  type DiaSemana,
+  type Turno,
+  type TurnoHorarioDia,
+  type TurnoUpdateRequest,
+} from "@/lib/types/turno"
+import {
+  buildHorariosDiasPayload,
+  hasValidTurnoTimeRange,
+  normalizeTurnoTime,
+} from "@/lib/turno-schedule-utils"
 
 interface TurnoEditDialogProps {
   open: boolean
@@ -22,15 +35,13 @@ interface TurnoEditDialogProps {
   onUpdate: (id: number, payload: TurnoUpdateRequest) => Promise<boolean>
 }
 
-function normalizeTime(value: string): string {
-  if (!value) return ""
-  return value.length === 5 ? `${value}:00` : value
-}
+function getSpecialHorarios(turno: Turno): TurnoHorarioDia[] {
+  if (!Array.isArray(turno.horariosDias)) return []
 
-function toSeconds(value: string): number {
-  const normalized = normalizeTime(value)
-  const [hours = "0", minutes = "0", seconds = "0"] = normalized.split(":")
-  return Number(hours) * 3600 + Number(minutes) * 60 + Number(seconds)
+  return turno.horariosDias.filter(
+    (horario) =>
+      horario.horaInicio !== turno.horaInicio || horario.horaFin !== turno.horaFin
+  )
 }
 
 export function TurnoEditDialog({
@@ -44,6 +55,7 @@ export function TurnoEditDialog({
     horaInicio: "",
     horaFin: "",
     dias: [],
+    horariosDias: [],
     estado: "ACTIVO",
   })
   const [isSaving, setIsSaving] = useState(false)
@@ -56,6 +68,7 @@ export function TurnoEditDialog({
       horaInicio: turno.horaInicio,
       horaFin: turno.horaFin,
       dias: Array.isArray(turno.dias) ? [...turno.dias] : [],
+      horariosDias: getSpecialHorarios(turno),
       estado: turno.estado,
     })
   }, [open, turno])
@@ -71,13 +84,27 @@ export function TurnoEditDialog({
 
   const hasValidTimeRange = useMemo(
     () =>
-      form.horaInicio.trim() === "" ||
-      form.horaFin.trim() === "" ||
-      toSeconds(form.horaFin) > toSeconds(form.horaInicio),
+      hasValidTurnoTimeRange(form.horaInicio, form.horaFin),
     [form.horaFin, form.horaInicio]
   )
 
-  const isEditValid = hasRequiredFields && hasValidTimeRange
+  const selectedDias = useMemo(() => new Set(form.dias), [form.dias])
+  const activeHorariosDias = useMemo(
+    () => (form.horariosDias ?? []).filter((horario) => selectedDias.has(horario.dia)),
+    [form.horariosDias, selectedDias]
+  )
+  const hasValidSpecialSchedules = useMemo(
+    () =>
+      activeHorariosDias.every(
+        (horario) =>
+          horario.horaInicio.trim() !== "" &&
+          horario.horaFin.trim() !== "" &&
+          hasValidTurnoTimeRange(horario.horaInicio, horario.horaFin)
+      ),
+    [activeHorariosDias]
+  )
+
+  const isEditValid = hasRequiredFields && hasValidTimeRange && hasValidSpecialSchedules
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (isSaving) return
@@ -89,11 +116,13 @@ export function TurnoEditDialog({
 
     setIsSaving(true)
     try {
+      const horariosDias = buildHorariosDiasPayload(activeHorariosDias)
       const success = await onUpdate(turno.idTurno, {
         nombre: form.nombre.trim(),
-        horaInicio: normalizeTime(form.horaInicio),
-        horaFin: normalizeTime(form.horaFin),
+        horaInicio: normalizeTurnoTime(form.horaInicio),
+        horaFin: normalizeTurnoTime(form.horaFin),
         dias: form.dias,
+        ...(horariosDias.length > 0 ? { horariosDias } : {}),
         estado: form.estado,
       })
       if (success) {
@@ -106,7 +135,7 @@ export function TurnoEditDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-[520px]" showCloseButton={!isSaving}>
+      <DialogContent className="sm:max-w-[640px]" showCloseButton={!isSaving}>
         <DialogHeader>
           <DialogTitle>Editar Turno</DialogTitle>
           <DialogDescription>
@@ -174,6 +203,9 @@ export function TurnoEditDialog({
                         dias: selected
                           ? previous.dias.filter((d) => d !== dia)
                           : ([...previous.dias, dia] as DiaSemana[]),
+                        horariosDias: selected
+                          ? (previous.horariosDias ?? []).filter((horario) => horario.dia !== dia)
+                          : previous.horariosDias,
                       }))
                     }
                     className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
@@ -191,6 +223,17 @@ export function TurnoEditDialog({
               <p className="text-xs text-red-500">Selecciona al menos un día.</p>
             ) : null}
           </div>
+
+          <TurnoSpecialSchedules
+            dias={form.dias}
+            horariosDias={form.horariosDias}
+            onChange={(horariosDias) =>
+              setForm((previous) => ({
+                ...previous,
+                horariosDias,
+              }))
+            }
+          />
 
           <div className="flex items-center justify-between rounded-lg border px-3 py-2">
             <div>

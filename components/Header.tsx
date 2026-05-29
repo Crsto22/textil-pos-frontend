@@ -1,9 +1,10 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import {
   ArrowRightStartOnRectangleIcon,
   Bars3Icon,
+  BellIcon,
   BuildingStorefrontIcon,
   ClockIcon,
   Cog6ToothIcon,
@@ -26,7 +27,9 @@ import {
 import { useAuth } from "@/lib/auth/auth-context"
 import { hasAccess } from "@/lib/auth/permissions"
 import { getRoleLabel } from "@/lib/auth/roles"
+import { getAppNotificationsForRole, type AppNotification } from "@/lib/app-notifications"
 import { useTurnoCountdown, type TurnoFase } from "@/lib/hooks/useTurnoCountdown"
+import { getTodayTurnoHorario, JS_DAY_TO_DIA_SEMANA } from "@/lib/turno-schedule-utils"
 import { navSections } from "@/components/Sidebar"
 
 interface HeaderProps {
@@ -47,6 +50,37 @@ const textColorByFase: Record<TurnoFase, string> = {
   alerta: "text-amber-600 dark:text-amber-400",
   peligro: "text-rose-600 dark:text-rose-400",
   vencido: "text-rose-600 dark:text-rose-400",
+}
+
+const NOTIFICATIONS_STORAGE_KEY = "textil-pos.notifications.seen.v1"
+
+const notificationTypeLabel: Record<AppNotification["type"], string> = {
+  update: "Actualizacion",
+  bugfix: "Correccion",
+  info: "Aviso",
+}
+
+const notificationDotClass: Record<AppNotification["severity"], string> = {
+  info: "bg-blue-500",
+  success: "bg-emerald-500",
+  warning: "bg-amber-500",
+}
+
+const readSeenNotificationsByUser = (): Record<string, string[]> => {
+  if (typeof window === "undefined") return {}
+
+  try {
+    const rawSeenNotifications = window.localStorage.getItem(NOTIFICATIONS_STORAGE_KEY)
+    const parsedSeenNotifications = rawSeenNotifications
+      ? (JSON.parse(rawSeenNotifications) as Record<string, string[]>)
+      : {}
+
+    return parsedSeenNotifications && typeof parsedSeenNotifications === "object"
+      ? parsedSeenNotifications
+      : {}
+  } catch {
+    return {}
+  }
 }
 
 const pageTitles: Record<string, string> = {
@@ -105,12 +139,40 @@ export function Header({ onMenuToggle }: HeaderProps) {
   const pathname = usePathname()
   const router = useRouter()
   const { user, logout } = useAuth()
+  const [seenNotificationsByUser, setSeenNotificationsByUser] = useState<
+    Record<string, string[]>
+  >(readSeenNotificationsByUser)
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
 
-  const turnoCountdown = useTurnoCountdown(user?.horaInicioTurno, user?.horaFinTurno)
+  const turnoCountdown = useTurnoCountdown(
+    user?.horaInicioTurno,
+    user?.horaFinTurno,
+    user?.horariosTurno
+  )
+  const todayTurnoDia = JS_DAY_TO_DIA_SEMANA[new Date().getDay()]
+  const todayTurnoHorario = getTodayTurnoHorario(
+    user?.horaInicioTurno,
+    user?.horaFinTurno,
+    user?.horariosTurno
+  )
+  const hasTodaySpecialSchedule =
+    Array.isArray(user?.horariosTurno) &&
+    user.horariosTurno.some((horario) => horario.dia === todayTurnoDia)
 
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const notificationStorageUserKey = user ? String(user.idUsuario) : null
+  const seenNotificationIds = notificationStorageUserKey
+    ? (seenNotificationsByUser[notificationStorageUserKey] ?? [])
+    : []
+  const roleNotifications = useMemo(
+    () => getAppNotificationsForRole(user?.rol),
+    [user?.rol]
+  )
+  const unreadNotificationsCount = roleNotifications.filter(
+    (notification) => !seenNotificationIds.includes(notification.id)
+  ).length
 
   useEffect(() => {
     if (isSearchOpen) {
@@ -170,6 +232,40 @@ export function Header({ onMenuToggle }: HeaderProps) {
     router.replace("/")
   }
 
+  const markRoleNotificationsAsSeen = () => {
+    if (!notificationStorageUserKey || roleNotifications.length === 0) return
+
+    const nextSeenIds = Array.from(
+      new Set([
+        ...seenNotificationIds,
+        ...roleNotifications.map((notification) => notification.id),
+      ])
+    )
+
+    const nextSeenNotificationsByUser = {
+      ...seenNotificationsByUser,
+      [notificationStorageUserKey]: nextSeenIds,
+    }
+
+    setSeenNotificationsByUser(nextSeenNotificationsByUser)
+
+    try {
+      window.localStorage.setItem(
+        NOTIFICATIONS_STORAGE_KEY,
+        JSON.stringify(nextSeenNotificationsByUser)
+      )
+    } catch {
+      // El contador se actualiza en memoria aunque localStorage no este disponible.
+    }
+  }
+
+  const handleNotificationsOpenChange = (open: boolean) => {
+    setIsNotificationsOpen(open)
+    if (open) {
+      markRoleNotificationsAsSeen()
+    }
+  }
+
   const closeSearch = () => {
     setIsSearchOpen(false)
     setSearchQuery("")
@@ -224,6 +320,115 @@ export function Header({ onMenuToggle }: HeaderProps) {
 
           {user && (
             <>
+              <DropdownMenu
+                open={isNotificationsOpen}
+                onOpenChange={handleNotificationsOpenChange}
+              >
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className="relative inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 outline-none ring-blue-500/40 transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:ring-2 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white"
+                    aria-label="Ver notificaciones"
+                  >
+                    <BellIcon className="h-5 w-5" />
+                    {unreadNotificationsCount > 0 && (
+                      <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold leading-none text-white ring-2 ring-white dark:ring-[oklch(0.13_0_0)]">
+                        {unreadNotificationsCount > 9 ? "9+" : unreadNotificationsCount}
+                      </span>
+                    )}
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="end"
+                  sideOffset={8}
+                  className="w-[min(22rem,calc(100vw-2rem))] overflow-hidden p-0"
+                >
+                  <DropdownMenuLabel className="border-b border-slate-100 bg-slate-50/80 px-4 py-3 font-normal dark:border-white/10 dark:bg-white/[0.03]">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                          Notificaciones
+                        </p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          Avisos de la app para tu rol
+                        </p>
+                      </div>
+                      {roleNotifications.length > 0 && (
+                        <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700 dark:bg-blue-500/15 dark:text-blue-300">
+                          {roleNotifications.length}
+                        </span>
+                      )}
+                    </div>
+                  </DropdownMenuLabel>
+
+                  <div className="max-h-[360px] overflow-y-auto p-2">
+                    {roleNotifications.length === 0 ? (
+                      <div className="px-4 py-8 text-center">
+                        <BellIcon className="mx-auto h-8 w-8 text-slate-300 dark:text-slate-600" />
+                        <p className="mt-2 text-sm font-medium text-slate-700 dark:text-slate-200">
+                          Sin notificaciones
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          No hay avisos nuevos para tu rol.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        {roleNotifications.map((notification) => {
+                          const isUnread = !seenNotificationIds.includes(notification.id)
+                          const NotificationItem = notification.href ? "button" : "div"
+
+                          return (
+                            <NotificationItem
+                              key={notification.id}
+                              type={notification.href ? "button" : undefined}
+                              onClick={
+                                notification.href
+                                  ? () => {
+                                      setIsNotificationsOpen(false)
+                                      router.push(notification.href)
+                                    }
+                                  : undefined
+                              }
+                              className={`rounded-lg border px-3 py-2.5 transition-colors ${
+                                isUnread
+                                  ? "border-blue-200 bg-blue-50/70 dark:border-blue-500/25 dark:bg-blue-500/10"
+                                  : "border-transparent hover:bg-slate-50 dark:hover:bg-white/[0.04]"
+                              } ${notification.href ? "w-full cursor-pointer text-left" : ""}`}
+                            >
+                              <div className="flex items-start gap-3">
+                                <span
+                                  className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${notificationDotClass[notification.severity]}`}
+                                />
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">
+                                      {notification.title}
+                                    </p>
+                                    {isUnread && (
+                                      <span className="shrink-0 rounded-full bg-rose-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-rose-600 dark:bg-rose-500/15 dark:text-rose-300">
+                                        Nuevo
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="mt-1 text-xs leading-5 text-slate-600 dark:text-slate-300">
+                                    {notification.description}
+                                  </p>
+                                  <div className="mt-2 flex items-center justify-between gap-3 text-[10px] text-muted-foreground">
+                                    <span>{notificationTypeLabel[notification.type]}</span>
+                                    <span>{notification.date}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </NotificationItem>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
               <span className="mx-0.5 hidden h-5 w-px bg-slate-200 sm:block dark:bg-white/10" />
 
               <DropdownMenu>
@@ -334,8 +539,13 @@ export function Header({ onMenuToggle }: HeaderProps) {
                           </p>
                         </div>
                         <p className="text-xs font-medium text-slate-700 dark:text-slate-200">
-                          {user.nombreTurno} ({user.horaInicioTurno} - {user.horaFinTurno})
+                          {user.nombreTurno} ({todayTurnoHorario.horaInicio} - {todayTurnoHorario.horaFin})
                         </p>
+                        {hasTodaySpecialSchedule && (
+                          <p className="mt-1 text-[10px] font-medium text-amber-600 dark:text-amber-300">
+                            Horario especial de hoy
+                          </p>
+                        )}
                         {turnoCountdown.activo && (
                           <div className="mt-2">
                             <div className="flex items-center justify-between mb-1">

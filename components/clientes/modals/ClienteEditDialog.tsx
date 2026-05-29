@@ -76,6 +76,7 @@ export function ClienteEditDialog({
     const tipoDocOption = getTipoDocumentoOption(form.tipoDocumento)
     const isSinDoc = form.tipoDocumento === "SIN_DOC"
     const isRuc = form.tipoDocumento === "RUC"
+    const isRuc20 = isRuc && form.nroDocumento.trim().startsWith("20")
     const nroDocMaxLength = tipoDocOption?.maxLength ?? 20
     const nroDocMinLength = tipoDocOption?.minLength ?? 0
     const isAlphanumeric = tipoDocOption?.alphanumeric === true
@@ -106,7 +107,7 @@ export function ClienteEditDialog({
         form.nroDocumento.trim().length > 0 &&
         isNroDocValid
 
-    const hasRequiredDireccion = !isRuc || form.direccion.trim() !== ""
+    const hasRequiredDireccion = !isRuc20 || form.direccion.trim() !== ""
 
     const isEditValid = useMemo(
         () =>
@@ -330,14 +331,14 @@ export function ClienteEditDialog({
 
                     <div className="grid gap-2">
                         <Label htmlFor="ce-direccion">
-                            {isRuc
-                                ? "Direccion (Obligatoria para RUC)"
+                            {isRuc20
+                                ? "Direccion (Obligatoria para RUC 20)"
                                 : "Direccion (Opcional)"}
                         </Label>
                         <Textarea
                             id="ce-direccion"
                             placeholder={
-                                isRuc
+                                isRuc20
                                     ? "Av. Principal 123, Lima"
                                     : "Av. Principal 123, Lima (Opcional)"
                             }
@@ -351,9 +352,9 @@ export function ClienteEditDialog({
                             }
                             className="resize-none"
                         />
-                        {isRuc && form.direccion.trim() === "" && (
+                        {isRuc20 && form.direccion.trim() === "" && (
                             <p className="text-xs text-red-500">
-                                La direccion es obligatoria cuando el tipo de documento es RUC.
+                                La direccion es obligatoria cuando el RUC empieza con 20.
                             </p>
                         )}
                     </div>

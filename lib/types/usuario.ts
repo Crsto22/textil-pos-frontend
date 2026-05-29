@@ -200,6 +200,13 @@ interface UsuarioBaseResponse {
   horaInicioTurno: string | null
   horaFinTurno: string | null
   diasTurno: string[] | null
+  horariosTurno: TurnoUsuarioHorario[] | null
+}
+
+export interface TurnoUsuarioHorario {
+  dia: string
+  horaInicio: string
+  horaFin: string
 }
 
 export interface UsuarioSesionResponse extends UsuarioBaseResponse {
