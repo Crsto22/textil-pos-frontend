@@ -49,6 +49,7 @@ interface GuiaRemisionWritePayload {
   idSucursalPartida?: number
   idSucursalLlegada?: number
   fechaInicioTraslado?: string
+  fechaEntregaTransportista?: string
   modalidadTransporte?: string
   pesoBrutoTotal?: number
   unidadPeso?: string
@@ -426,6 +427,13 @@ export function normalizeGuiaRemisionWritePayload(
       return { ok: false, message: "fechaInicioTraslado es obligatoria" }
     }
     normalized.fechaInicioTraslado = fechaInicioTraslado
+  }
+
+  if (payload.fechaEntregaTransportista !== undefined) {
+    const fechaEntregaTransportista = getTrimmedString(payload.fechaEntregaTransportista)
+    if (fechaEntregaTransportista) {
+      normalized.fechaEntregaTransportista = fechaEntregaTransportista
+    }
   }
 
   if (payload.modalidadTransporte !== undefined || !partial) {

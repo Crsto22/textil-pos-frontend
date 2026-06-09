@@ -93,6 +93,7 @@ export interface GuiaRemisionListItem {
   correlativo: number
   fechaEmision: string | null
   fechaInicioTraslado: string
+  fechaEntregaTransportista?: string | null
   motivoTraslado: MotivoTraslado
   descripcionMotivo?: string | null
   modalidadTransporte: ModalidadTransporte
@@ -183,6 +184,7 @@ export interface GuiaRemisionDetail {
   correlativo: number
   fechaEmision: string | null
   fechaInicioTraslado: string
+  fechaEntregaTransportista?: string | null
   motivoTraslado: MotivoTraslado
   descripcionMotivo?: string | null
   modalidadTransporte: ModalidadTransporte

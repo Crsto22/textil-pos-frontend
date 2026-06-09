@@ -47,6 +47,7 @@ interface VentasHistorialTableProps {
   onOpenTicket: (venta: VentaHistorial) => void
   onGenerarNotaCredito: (venta: VentaHistorial) => void
   onDarDeBaja: (venta: VentaHistorial) => void
+  onConvertirComprobante: (venta: VentaHistorial) => void
   onDownloadXml: (venta: VentaHistorial) => void
   onDownloadCdr: (venta: VentaHistorial) => void
   onDownloadBajaXml: (venta: VentaHistorial) => void
@@ -122,6 +123,7 @@ export function VentasHistorialTable({
   onOpenTicket,
   onGenerarNotaCredito,
   onDarDeBaja,
+  onConvertirComprobante,
   onDownloadXml,
   onDownloadCdr,
   onDownloadBajaXml,
@@ -190,6 +192,11 @@ export function VentasHistorialTable({
                     <div className="flex flex-col">
                       <span className="font-semibold">{venta.tipoComprobante}</span>
                       <span className="text-xs text-muted-foreground">{formatComprobante(venta)}</span>
+                      {venta.conversionOrigen && (
+                        <span className="text-[11px] font-medium text-amber-700 dark:text-amber-300">
+                          Origen: {formatComprobante(venta.conversionOrigen)}
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td className="px-3 py-3 font-medium">{venta.nombreCliente || "Sin cliente"}</td>
@@ -241,6 +248,7 @@ export function VentasHistorialTable({
                       onOpenTicket={onOpenTicket}
                       onGenerarNotaCredito={onGenerarNotaCredito}
                       onDarDeBaja={onDarDeBaja}
+                      onConvertirComprobante={onConvertirComprobante}
                       onDownloadXml={onDownloadXml}
                       onDownloadCdr={onDownloadCdr}
                       onDownloadBajaXml={onDownloadBajaXml}
@@ -313,6 +321,11 @@ export function VentasHistorialTable({
                   <p className="mt-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
                     {formatComprobante(venta)}
                   </p>
+                  {venta.conversionOrigen && (
+                    <p className="mt-1 text-[11px] font-medium text-amber-700 dark:text-amber-300">
+                      Origen: {formatComprobante(venta.conversionOrigen)}
+                    </p>
+                  )}
                 </div>
                 <div className="rounded-xl border border-slate-200/70 bg-white px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/80">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
@@ -385,6 +398,7 @@ export function VentasHistorialTable({
                   onOpenTicket={onOpenTicket}
                   onGenerarNotaCredito={onGenerarNotaCredito}
                   onDarDeBaja={onDarDeBaja}
+                  onConvertirComprobante={onConvertirComprobante}
                   onDownloadXml={onDownloadXml}
                   onDownloadCdr={onDownloadCdr}
                   onDownloadBajaXml={onDownloadBajaXml}
@@ -440,6 +454,7 @@ interface ActionButtonsProps {
   onOpenTicket: (venta: VentaHistorial) => void
   onGenerarNotaCredito: (venta: VentaHistorial) => void
   onDarDeBaja: (venta: VentaHistorial) => void
+  onConvertirComprobante: (venta: VentaHistorial) => void
   onDownloadXml: (venta: VentaHistorial) => void
   onDownloadCdr: (venta: VentaHistorial) => void
   onDownloadBajaXml: (venta: VentaHistorial) => void
@@ -462,6 +477,7 @@ function ActionButtons({
   onOpenTicket,
   onGenerarNotaCredito,
   onDarDeBaja,
+  onConvertirComprobante,
   onDownloadXml,
   onDownloadCdr,
   onDownloadBajaXml,
@@ -487,6 +503,8 @@ function ActionButtons({
   const canDarDeBajaInternal =
     isNotaVenta && normalizedEstado === "EMITIDA" && !ventaActionBlocked
   const canDarDeBaja = canDarDeBajaSunat || canDarDeBajaInternal
+  const canConvertirComprobante =
+    isNotaVenta && normalizedEstado === "EMITIDA" && !ventaActionBlocked
   const showDarDeBajaAction = isSunat || isNotaVenta
 
   const canDownloadBajaXml = !hideSunat && normalizedSunatBajaEstado !== ""
@@ -538,6 +556,19 @@ function ActionButtons({
           >
             <DocumentTextIcon className="mr-2 h-4 w-4" />
             Generar nota de credito
+          </DropdownMenuItem>
+        )}
+
+        {isNotaVenta && (
+          <DropdownMenuItem
+            onClick={() => {
+              if (canConvertirComprobante) onConvertirComprobante(venta)
+            }}
+            disabled={!canConvertirComprobante}
+            className="text-emerald-700 focus:text-emerald-700 dark:text-emerald-400"
+          >
+            <DocumentTextIcon className="mr-2 h-4 w-4" />
+            Convertir a factura/boleta
           </DropdownMenuItem>
         )}
 

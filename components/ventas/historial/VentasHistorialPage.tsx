@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 
 import { AnularVentaDialog } from "@/components/ventas/historial/AnularVentaDialog"
+import { ConvertirComprobanteDialog } from "@/components/ventas/historial/ConvertirComprobanteDialog"
 import { VentasHistorialFilters } from "@/components/ventas/historial/VentasHistorialFilters"
 import { VentasHistorialTable } from "@/components/ventas/historial/VentasHistorialTable"
 import { authFetch } from "@/lib/auth/auth-fetch"
@@ -75,6 +76,8 @@ export function VentasHistorialPage({ lockedTipos, hideSunat = false, showReport
   const [darDeBajaVentaInfo, setDarDeBajaVentaInfo] = useState<VentaBajaInfo | null>(null)
   const [darDeBajaDialogOpen, setDarDeBajaDialogOpen] = useState(false)
   const [enviandoBaja, setEnviandoBaja] = useState(false)
+  const [convertirVentaTarget, setConvertirVentaTarget] = useState<VentaHistorial | null>(null)
+  const [convertirDialogOpen, setConvertirDialogOpen] = useState(false)
   const {
     ventas,
     page,
@@ -302,6 +305,11 @@ export function VentasHistorialPage({ lockedTipos, hideSunat = false, showReport
     setDarDeBajaDialogOpen(true)
   }
 
+  const handleConvertirComprobante = (venta: VentaHistorial) => {
+    setConvertirVentaTarget(venta)
+    setConvertirDialogOpen(true)
+  }
+
   const handleConfirmDarDeBaja = async (payload: VentaAnularRequest): Promise<VentaAnularResult> => {
     if (!darDeBajaVentaInfo) {
       return { ok: false, message: "No hay venta seleccionada", response: null }
@@ -432,6 +440,7 @@ export function VentasHistorialPage({ lockedTipos, hideSunat = false, showReport
           router.push(`/ventas/nota-credito/nueva?idVenta=${venta.idVenta}`)
         }}
         onDarDeBaja={handleDarDeBaja}
+        onConvertirComprobante={handleConvertirComprobante}
         onDownloadXml={(venta) => {
           void handleDownloadXml(venta.idVenta)
         }}
@@ -461,6 +470,17 @@ export function VentasHistorialPage({ lockedTipos, hideSunat = false, showReport
           if (!open) setDarDeBajaVentaInfo(null)
         }}
         onConfirm={handleConfirmDarDeBaja}
+      />
+      <ConvertirComprobanteDialog
+        open={convertirDialogOpen}
+        venta={convertirVentaTarget}
+        onOpenChange={(open) => {
+          setConvertirDialogOpen(open)
+          if (!open) setConvertirVentaTarget(null)
+        }}
+        onConverted={() => {
+          void refreshVentas()
+        }}
       />
     </div>
   )

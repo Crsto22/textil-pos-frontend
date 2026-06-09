@@ -46,6 +46,7 @@ import type {
 } from "@/lib/types/venta"
 
 import { AnularVentaDialog } from "./AnularVentaDialog"
+import { ConvertirComprobanteDialog } from "./ConvertirComprobanteDialog"
 import { EditCodigoOperacionDialog } from "./EditCodigoOperacionDialog"
 
 interface VentaDetalleContentProps {
@@ -129,6 +130,7 @@ export function VentaDetalleContent({
   const [expandedSunatMetaVentaId, setExpandedSunatMetaVentaId] = useState<number | null>(null)
   const [editingPago, setEditingPago] = useState<NonNullable<VentaDetalleResponse>["pagos"][0] | null>(null)
   const [anularDialogOpen, setAnularDialogOpen] = useState(false)
+  const [convertirDialogOpen, setConvertirDialogOpen] = useState(false)
   const isCurrentSunatMetaExpanded =
     detalle !== null && expandedSunatMetaVentaId === detalle.idVenta
 
@@ -192,6 +194,7 @@ export function VentaDetalleContent({
   const normalizedTipoComprobante = detalle?.tipoComprobante.trim().toUpperCase() ?? ""
   const normalizedEstadoVenta = detalle?.estado.trim().toUpperCase() ?? ""
   const isSunatBaja = ["BOLETA", "FACTURA"].includes(normalizedTipoComprobante)
+  const isNotaVenta = normalizedTipoComprobante === "NOTA DE VENTA"
   const showNotaCreditoButton = isSunatBaja
   const sunatBajaActive = detalle?.sunatBajaEstado
     ? ["PENDIENTE_ENVIO", "PENDIENTE_CDR", "ACEPTADO"].includes(
@@ -201,6 +204,9 @@ export function VentaDetalleContent({
   const disableVentaActions =
     ["ANULADA", "ANULACION_PENDIENTE", "NC_EMITIDA"].includes(normalizedEstadoVenta) ||
     sunatBajaActive
+  const showConvertirComprobanteButton = isNotaVenta
+  const canConvertirComprobante =
+    isNotaVenta && normalizedEstadoVenta === "EMITIDA" && !disableVentaActions
 
   const montoBruto = detalle?.detalles.reduce(
     (acc, item) => acc + item.cantidad * item.precioUnitario,
@@ -263,6 +269,12 @@ export function VentaDetalleContent({
                         {formatComprobante(detalle)}
                       </span>
                     </h3>
+                    {detalle.conversionOrigen && (
+                      <p className="mt-2 text-xs font-semibold text-amber-700 dark:text-amber-300 sm:text-sm">
+                        Convertido desde {detalle.conversionOrigen.tipoComprobante}{" "}
+                        {formatComprobante(detalle.conversionOrigen)}
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -739,6 +751,17 @@ export function VentaDetalleContent({
                     GENERAR NOTA DE CREDITO
                   </button>
                 )}
+                {showConvertirComprobanteButton && (
+                  <button
+                    type="button"
+                    onClick={() => { setConvertirDialogOpen(true) }}
+                    disabled={!canConvertirComprobante || anulandoVenta}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-500 px-3 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:py-1.5 sm:text-sm"
+                  >
+                    <DocumentTextIcon className="h-4 w-4 shrink-0" />
+                    CONVERTIR A FACTURA O BOLETA
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => { setAnularDialogOpen(true) }}
@@ -770,6 +793,13 @@ export function VentaDetalleContent({
         isSubmitting={anulandoVenta}
         onOpenChange={setAnularDialogOpen}
         onConfirm={onAnularVenta}
+      />
+
+      <ConvertirComprobanteDialog
+        open={convertirDialogOpen}
+        venta={detalle}
+        onOpenChange={setConvertirDialogOpen}
+        onConverted={onRetry}
       />
     </>
   )

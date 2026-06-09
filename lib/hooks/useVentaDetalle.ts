@@ -7,6 +7,7 @@ import type {
   VentaAnularRequest,
   VentaAnularResponse,
   VentaAnularResult,
+  VentaConversionOrigen,
   VentaDetalleItem,
   VentaDetallePago,
   VentaDetalleResponse,
@@ -151,8 +152,27 @@ function parseVentaDetalle(value: unknown): VentaDetalleResponse | null {
     nombreCanalVenta: stringOrNull(payload.nombreCanalVenta),
     plataformaCanalVenta: stringOrNull(payload.plataformaCanalVenta),
     formaPago: stringOrNull(payload.formaPago),
+    conversionOrigen: parseConversionOrigen(payload.conversionOrigen),
     detalles: parseDetalleItems(payload.detalles),
     pagos: parseDetallePagos(payload.pagos),
+  }
+}
+
+function parseConversionOrigen(value: unknown): VentaConversionOrigen | null {
+  const payload = asRecord(value)
+  if (!payload) return null
+
+  const serie = stringOr(payload.serie)
+  const correlativo = numberOr(payload.correlativo)
+  if (!serie || correlativo <= 0) return null
+
+  return {
+    tipoComprobante: stringOr(payload.tipoComprobante, "NOTA DE VENTA"),
+    serie,
+    correlativo,
+    convertidoAt: stringOrNull(payload.convertidoAt),
+    idUsuario: nullableNumber(payload.idUsuario),
+    usuario: stringOrNull(payload.usuario),
   }
 }
 

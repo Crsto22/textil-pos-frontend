@@ -49,6 +49,7 @@ import {
     getClienteAutofillFromDni,
     getClienteAutofillFromRuc,
 } from "@/lib/utils/cliente-documento"
+import { isDireccionObligatoriaParaCliente } from "@/lib/utils/cliente-validacion"
 
 interface ClienteCreateDialogProps {
     open: boolean
@@ -124,7 +125,10 @@ export function ClienteCreateDialog({
 
     const tipoDocOption = getTipoDocumentoOption(form.tipoDocumento)
     const isSinDoc = form.tipoDocumento === "SIN_DOC"
-    const isRuc = form.tipoDocumento === "RUC"
+    const isDireccionObligatoria = isDireccionObligatoriaParaCliente(
+        form.tipoDocumento,
+        form.nroDocumento
+    )
     const nroDocMaxLength = tipoDocOption?.maxLength ?? 20
     const nroDocMinLength = tipoDocOption?.minLength ?? 0
     const isAlphanumeric = tipoDocOption?.alphanumeric === true
@@ -140,7 +144,8 @@ export function ClienteCreateDialog({
         form.nroDocumento.trim().length > 0 &&
         isNroDocValid
 
-    const hasRequiredDireccion = !isRuc || form.direccion.trim() !== ""
+    const hasRequiredDireccion =
+        !isDireccionObligatoria || form.direccion.trim() !== ""
 
     const isCreateValid = useMemo(
         () =>
@@ -411,14 +416,14 @@ export function ClienteCreateDialog({
 
             <div className="grid gap-2">
                 <Label htmlFor="cc-direccion">
-                    {isRuc
-                        ? "Direccion (Obligatoria para RUC)"
+                    {isDireccionObligatoria
+                        ? "Direccion (Obligatoria)"
                         : "Direccion (Opcional)"}
                 </Label>
                 <Textarea
                     id="cc-direccion"
                     placeholder={
-                        isRuc
+                        isDireccionObligatoria
                             ? "Av. Principal 123, Lima"
                             : "Av. Principal 123, Lima (Opcional)"
                     }
@@ -432,9 +437,9 @@ export function ClienteCreateDialog({
                     }
                     className="resize-none"
                 />
-                {isRuc && form.direccion.trim() === "" && (
+                {isDireccionObligatoria && form.direccion.trim() === "" && (
                     <p className="text-xs text-red-500">
-                        La direccion es obligatoria cuando el tipo de documento es RUC.
+                        La direccion es obligatoria para RUC que no empiezan con 10.
                     </p>
                 )}
             </div>

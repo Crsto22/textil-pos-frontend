@@ -69,6 +69,15 @@ export interface VentaInsertResponse {
   pagos?: VentaInsertPagoResponse[]
 }
 
+export interface VentaConversionOrigen {
+  tipoComprobante: TipoComprobante
+  serie: string
+  correlativo: number
+  convertidoAt: string | null
+  idUsuario: number | null
+  usuario: string | null
+}
+
 export interface VentaHistorial {
   idVenta: number
   fecha: string
@@ -89,6 +98,7 @@ export interface VentaHistorial {
   idCanalVenta: number | null
   nombreCanalVenta: string | null
   plataformaCanalVenta: string | null
+  conversionOrigen: VentaConversionOrigen | null
   items: number
   pagos: number
 }
@@ -178,6 +188,7 @@ export interface VentaDetalleResponse {
   nombreCanalVenta: string | null
   plataformaCanalVenta: string | null
   formaPago: FormaPagoVenta | null
+  conversionOrigen: VentaConversionOrigen | null
   detalles: VentaDetalleItem[]
   pagos: VentaDetallePago[]
 }

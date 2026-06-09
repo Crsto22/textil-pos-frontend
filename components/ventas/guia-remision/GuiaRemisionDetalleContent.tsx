@@ -341,6 +341,13 @@ export function GuiaRemisionDetalleContent({
                   label="Modalidad"
                   value={MODALIDAD_TRANSPORTE_LABELS[detail.modalidadTransporte] || detail.modalidadTransporte}
                 />
+                {!isPrivado && detail.fechaEntregaTransportista ? (
+                  <MetaCard
+                    icon={CalendarDaysIcon}
+                    label="Fecha entrega transportista"
+                    value={formatFechaSolo(detail.fechaEntregaTransportista)}
+                  />
+                ) : null}
                 {conductor ? (
                   <MetaCard
                     icon={UserIcon}

@@ -10,6 +10,7 @@ import {
   useDebouncedValue,
 } from "@/lib/hooks/useDebouncedValue"
 import type {
+  VentaConversionOrigen,
   VentaHistorial,
   VentaHistorialFilters,
   VentaHistorialPageResponse,
@@ -68,8 +69,28 @@ function normalizeVenta(value: unknown): VentaHistorial | null {
     idCanalVenta: Number.isFinite(Number(item.idCanalVenta)) ? Number(item.idCanalVenta) : null,
     nombreCanalVenta: typeof item.nombreCanalVenta === "string" ? item.nombreCanalVenta : null,
     plataformaCanalVenta: typeof item.plataformaCanalVenta === "string" ? item.plataformaCanalVenta : null,
+    conversionOrigen: normalizeConversionOrigen(item.conversionOrigen),
     items: Number(item.items) || 0,
     pagos: Number(item.pagos) || 0,
+  }
+}
+
+function normalizeConversionOrigen(value: unknown): VentaConversionOrigen | null {
+  if (!value || typeof value !== "object") return null
+  const item = value as Record<string, unknown>
+
+  const serie = typeof item.serie === "string" ? item.serie : ""
+  const correlativo = Number(item.correlativo)
+  if (!serie || !Number.isFinite(correlativo) || correlativo <= 0) return null
+
+  return {
+    tipoComprobante:
+      typeof item.tipoComprobante === "string" ? item.tipoComprobante : "NOTA DE VENTA",
+    serie,
+    correlativo,
+    convertidoAt: typeof item.convertidoAt === "string" ? item.convertidoAt : null,
+    idUsuario: Number.isFinite(Number(item.idUsuario)) ? Number(item.idUsuario) : null,
+    usuario: typeof item.usuario === "string" && item.usuario.trim() ? item.usuario : null,
   }
 }
 
@@ -259,6 +280,7 @@ export function useVentasHistorial(filters: VentaHistorialFilters, lockedTipos?:
   }, [
     debouncedSearch,
     filters,
+    lockedTipos,
   ])
 
   useEffect(() => {

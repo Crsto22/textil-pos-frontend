@@ -143,6 +143,7 @@ type NuevaGuiaForm = {
   motivoTraslado: MotivoTraslado
   descripcionMotivo: string
   fechaInicioTraslado: string
+  fechaEntregaTransportista: string
   modalidadTransporte: ModalidadTransporte
   pesoBrutoTotal: string
   unidadPeso: string
@@ -365,11 +366,22 @@ function parseTransportistaResult(
 
 function buildTransportValidationMessage(
   modalidad: ModalidadTransporte,
+  fechaInicioTraslado: string,
+  fechaEntregaTransportista: string,
   conductores: EntitySearchResult<CatalogoConductor>[],
   vehiculos: EntitySearchResult<CatalogoVehiculo>[],
   transportistas: EntitySearchResult<CatalogoTransportista>[]
 ) {
   if (modalidad === "01") {
+    if (!fechaEntregaTransportista) {
+      return "Ingresa la fecha de entrega de bienes al transportista."
+    }
+    if (fechaEntregaTransportista < getTodayLocalDate()) {
+      return "La fecha de entrega al transportista no puede ser anterior a hoy."
+    }
+    if (fechaInicioTraslado && fechaInicioTraslado < fechaEntregaTransportista) {
+      return "La fecha de inicio debe ser mayor o igual a la entrega al transportista."
+    }
     return transportistas.length === 0
       ? "Selecciona al menos un transportista para transporte publico."
       : null
@@ -604,6 +616,7 @@ export function NuevaGuiaRemisionPage() {
     motivoTraslado: "04",
     descripcionMotivo: "",
     fechaInicioTraslado: getTodayLocalDate(),
+    fechaEntregaTransportista: "",
     modalidadTransporte: "02",
     pesoBrutoTotal: "",
     unidadPeso: DEFAULT_UNIDAD_PESO,
@@ -952,11 +965,20 @@ export function NuevaGuiaRemisionPage() {
     () =>
       buildTransportValidationMessage(
         form.modalidadTransporte,
+        form.fechaInicioTraslado,
+        form.fechaEntregaTransportista,
         selectedConductores,
         selectedVehiculos,
         selectedTransportistas
       ),
-    [form.modalidadTransporte, selectedConductores, selectedTransportistas, selectedVehiculos]
+    [
+      form.fechaEntregaTransportista,
+      form.fechaInicioTraslado,
+      form.modalidadTransporte,
+      selectedConductores,
+      selectedTransportistas,
+      selectedVehiculos,
+    ]
   )
 
   const invalidDetailMessage = useMemo(() => {
@@ -1396,6 +1418,9 @@ export function NuevaGuiaRemisionPage() {
             }
           : {}),
         fechaInicioTraslado: form.fechaInicioTraslado,
+        ...(form.modalidadTransporte === "01"
+          ? { fechaEntregaTransportista: form.fechaEntregaTransportista }
+          : {}),
         modalidadTransporte: form.modalidadTransporte,
         pesoBrutoTotal,
         unidadPeso: form.unidadPeso.trim().toUpperCase() || DEFAULT_UNIDAD_PESO,
@@ -1934,7 +1959,14 @@ export function NuevaGuiaRemisionPage() {
                     <div className="grid grid-cols-2 gap-3">
                       <button
                         type="button"
-                        onClick={() => setField("modalidadTransporte", "01")}
+                        onClick={() =>
+                          setForm((current) => ({
+                            ...current,
+                            modalidadTransporte: "01",
+                            fechaEntregaTransportista:
+                              current.fechaEntregaTransportista || current.fechaInicioTraslado,
+                          }))
+                        }
                         className={`flex flex-col items-center gap-1.5 rounded-xl border p-3.5 text-center transition-all ${
                           form.modalidadTransporte === "01"
                             ? "border-amber-400 bg-amber-50 shadow-sm dark:border-amber-500/60 dark:bg-amber-950/30"
@@ -1964,7 +1996,13 @@ export function NuevaGuiaRemisionPage() {
 
                       <button
                         type="button"
-                        onClick={() => setField("modalidadTransporte", "02")}
+                        onClick={() =>
+                          setForm((current) => ({
+                            ...current,
+                            modalidadTransporte: "02",
+                            fechaEntregaTransportista: "",
+                          }))
+                        }
                         className={`flex flex-col items-center gap-1.5 rounded-xl border p-3.5 text-center transition-all ${
                           form.modalidadTransporte === "02"
                             ? "border-amber-400 bg-amber-50 shadow-sm dark:border-amber-500/60 dark:bg-amber-950/30"
@@ -1995,20 +2033,39 @@ export function NuevaGuiaRemisionPage() {
 
                     {/* Dynamic transport fields */}
                     {form.modalidadTransporte === "01" ? (
-                      <EntitySmartSearch<CatalogoTransportista>
-                        label="Transportista"
-                        placeholder="Haz click para ver disponibles o escribe para buscar..."
-                        searchEndpoint="/api/guia-remision/catalogos/transportistas"
-                        parseResult={parseTransportistaResult}
-                        onSelect={handleSelectTransportista}
-                        onAddNew={() => setShowTransportistaDialog(true)}
-                        selectedItems={selectedTransportistas}
-                        onRemoveItem={(id) =>
-                          removeSelectedById(setSelectedTransportistas, id)
-                        }
-                        disabled={saving}
-                        eagerLoad
-                      />
+                      <div className="space-y-4">
+                        <div className="grid gap-1.5">
+                          <label className="text-sm font-medium">
+                            Fecha entrega al transportista
+                          </label>
+                          <Input
+                            type="date"
+                            value={form.fechaEntregaTransportista}
+                            onChange={(e) =>
+                              setField("fechaEntregaTransportista", e.target.value)
+                            }
+                            min={getTodayLocalDate()}
+                            max={form.fechaInicioTraslado || undefined}
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Fecha en que entregas los bienes a la empresa de transporte.
+                          </p>
+                        </div>
+                        <EntitySmartSearch<CatalogoTransportista>
+                          label="Transportista"
+                          placeholder="Haz click para ver disponibles o escribe para buscar..."
+                          searchEndpoint="/api/guia-remision/catalogos/transportistas"
+                          parseResult={parseTransportistaResult}
+                          onSelect={handleSelectTransportista}
+                          onAddNew={() => setShowTransportistaDialog(true)}
+                          selectedItems={selectedTransportistas}
+                          onRemoveItem={(id) =>
+                            removeSelectedById(setSelectedTransportistas, id)
+                          }
+                          disabled={saving}
+                          eagerLoad
+                        />
+                      </div>
                     ) : (
                       <div className="space-y-4">
                         <EntitySmartSearch<CatalogoConductor>

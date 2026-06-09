@@ -48,6 +48,7 @@ import {
     getClienteAutofillFromDni,
     getClienteAutofillFromRuc,
 } from "@/lib/utils/cliente-documento"
+import { isDireccionObligatoriaParaCliente } from "@/lib/utils/cliente-validacion"
 
 interface ClienteEditDialogProps {
     open: boolean
@@ -75,8 +76,10 @@ export function ClienteEditDialog({
 
     const tipoDocOption = getTipoDocumentoOption(form.tipoDocumento)
     const isSinDoc = form.tipoDocumento === "SIN_DOC"
-    const isRuc = form.tipoDocumento === "RUC"
-    const isRuc20 = isRuc && form.nroDocumento.trim().startsWith("20")
+    const isDireccionObligatoria = isDireccionObligatoriaParaCliente(
+        form.tipoDocumento,
+        form.nroDocumento
+    )
     const nroDocMaxLength = tipoDocOption?.maxLength ?? 20
     const nroDocMinLength = tipoDocOption?.minLength ?? 0
     const isAlphanumeric = tipoDocOption?.alphanumeric === true
@@ -107,7 +110,8 @@ export function ClienteEditDialog({
         form.nroDocumento.trim().length > 0 &&
         isNroDocValid
 
-    const hasRequiredDireccion = !isRuc20 || form.direccion.trim() !== ""
+    const hasRequiredDireccion =
+        !isDireccionObligatoria || form.direccion.trim() !== ""
 
     const isEditValid = useMemo(
         () =>
@@ -331,14 +335,14 @@ export function ClienteEditDialog({
 
                     <div className="grid gap-2">
                         <Label htmlFor="ce-direccion">
-                            {isRuc20
-                                ? "Direccion (Obligatoria para RUC 20)"
+                            {isDireccionObligatoria
+                                ? "Direccion (Obligatoria)"
                                 : "Direccion (Opcional)"}
                         </Label>
                         <Textarea
                             id="ce-direccion"
                             placeholder={
-                                isRuc20
+                                isDireccionObligatoria
                                     ? "Av. Principal 123, Lima"
                                     : "Av. Principal 123, Lima (Opcional)"
                             }
@@ -352,9 +356,9 @@ export function ClienteEditDialog({
                             }
                             className="resize-none"
                         />
-                        {isRuc20 && form.direccion.trim() === "" && (
+                        {isDireccionObligatoria && form.direccion.trim() === "" && (
                             <p className="text-xs text-red-500">
-                                La direccion es obligatoria cuando el RUC empieza con 20.
+                                La direccion es obligatoria para RUC que no empiezan con 10.
                             </p>
                         )}
                     </div>
