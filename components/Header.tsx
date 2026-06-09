@@ -10,12 +10,21 @@ import {
   Cog6ToothIcon,
   ExclamationTriangleIcon,
   MagnifyingGlassIcon,
+  PhotoIcon,
 } from "@heroicons/react/24/outline"
+import Image from "next/image"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 
 import { ThemeToggle } from "@/components/theme-toggle"
 import { UserAvatar } from "@/components/ui/user-avatar"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,7 +36,11 @@ import {
 import { useAuth } from "@/lib/auth/auth-context"
 import { hasAccess } from "@/lib/auth/permissions"
 import { getRoleLabel } from "@/lib/auth/roles"
-import { getAppNotificationsForRole, type AppNotification } from "@/lib/app-notifications"
+import {
+  CURRENT_NOTIFICATION_BADGE_IDS,
+  getAppNotificationsForRole,
+  type AppNotification,
+} from "@/lib/app-notifications"
 import { useTurnoCountdown, type TurnoFase } from "@/lib/hooks/useTurnoCountdown"
 import { getTodayTurnoHorario, JS_DAY_TO_DIA_SEMANA } from "@/lib/turno-schedule-utils"
 import { navSections } from "@/components/Sidebar"
@@ -53,6 +66,31 @@ const textColorByFase: Record<TurnoFase, string> = {
 }
 
 const NOTIFICATIONS_STORAGE_KEY = "textil-pos.notifications.seen.v1"
+const NOTA_VENTA_CONVERSION_NOTIFICATION_ID =
+  "nota-venta-conversion-comprobante-2026-06-06"
+const notaVentaConversionGuideSteps = [
+  {
+    step: "1",
+    title: "Historial de ventas",
+    description:
+      "Desde el historial puedes abrir el menu de la nota de venta y seleccionar Convertir a factura/boleta.",
+    imageSrc: "/img/guias/pantalla1.png",
+  },
+  {
+    step: "2",
+    title: "Detalle de venta",
+    description:
+      "Tambien puedes convertir la nota desde el detalle de la venta con el boton Convertir a factura o boleta.",
+    imageSrc: "/img/guias/pantalla2.png",
+  },
+  {
+    step: "3",
+    title: "Configurar comprobante",
+    description:
+      "Elige si el comprobante destino sera boleta o factura, revisa el cliente y confirma la conversion.",
+    imageSrc: "/img/guias/pantalla3.png",
+  },
+]
 
 const notificationTypeLabel: Record<AppNotification["type"], string> = {
   update: "Actualizacion",
@@ -143,6 +181,7 @@ export function Header({ onMenuToggle }: HeaderProps) {
     Record<string, string[]>
   >(readSeenNotificationsByUser)
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
+  const [isNotaVentaGuideOpen, setIsNotaVentaGuideOpen] = useState(false)
 
   const turnoCountdown = useTurnoCountdown(
     user?.horaInicioTurno,
@@ -171,7 +210,9 @@ export function Header({ onMenuToggle }: HeaderProps) {
     [user?.rol]
   )
   const unreadNotificationsCount = roleNotifications.filter(
-    (notification) => !seenNotificationIds.includes(notification.id)
+    (notification) =>
+      CURRENT_NOTIFICATION_BADGE_IDS.includes(notification.id) &&
+      !seenNotificationIds.includes(notification.id)
   ).length
 
   useEffect(() => {
@@ -271,8 +312,75 @@ export function Header({ onMenuToggle }: HeaderProps) {
     setSearchQuery("")
   }
 
+  const openNotification = (notification: AppNotification) => {
+    setIsNotificationsOpen(false)
+
+    if (notification.id === NOTA_VENTA_CONVERSION_NOTIFICATION_ID) {
+      setIsNotaVentaGuideOpen(true)
+      return
+    }
+
+    if (notification.href) {
+      router.push(notification.href)
+    }
+  }
+
   return (
     <>
+    <Dialog open={isNotaVentaGuideOpen} onOpenChange={setIsNotaVentaGuideOpen}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>Convertir nota de venta a comprobante</DialogTitle>
+          <DialogDescription>
+            Guia visual para convertir una nota de venta en boleta o factura.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid gap-4 sm:grid-cols-3">
+          {notaVentaConversionGuideSteps.map((item) => (
+            <div
+              key={item.step}
+              className="overflow-hidden rounded-lg border border-slate-200 bg-white dark:border-white/10 dark:bg-white/[0.03]"
+            >
+              <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-slate-100 text-slate-400 dark:bg-white/5 dark:text-slate-500">
+                <Image
+                  src={item.imageSrc}
+                  alt={`${item.step}. ${item.title}`}
+                  fill
+                  sizes="(min-width: 640px) 33vw, 100vw"
+                  className="object-cover"
+                  onError={(event) => {
+                    event.currentTarget.classList.add("hidden")
+                    event.currentTarget.nextElementSibling?.classList.remove("hidden")
+                  }}
+                />
+                <div className="hidden flex-col items-center gap-2 px-4 text-center">
+                  <PhotoIcon className="h-8 w-8" />
+                  <span className="text-xs font-medium">Imagen {item.step}</span>
+                  <span className="break-all text-[10px] text-slate-400">
+                    {item.imageSrc}
+                  </span>
+                </div>
+              </div>
+              <div className="p-3">
+                <div className="mb-2 flex items-center gap-2">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">
+                    {item.step}
+                  </span>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                    {item.title}
+                  </p>
+                </div>
+                <p className="text-xs leading-5 text-slate-600 dark:text-slate-300">
+                  {item.description}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </DialogContent>
+    </Dialog>
+
     <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/95 backdrop-blur-xl dark:border-white/[0.06] dark:bg-[oklch(0.13_0_0/.95)]">
       <div className="flex h-16 items-center justify-between gap-4 px-4 sm:px-6">
 
@@ -377,25 +485,25 @@ export function Header({ onMenuToggle }: HeaderProps) {
                         {roleNotifications.map((notification) => {
                           const isUnread = !seenNotificationIds.includes(notification.id)
                           const notificationHref = notification.href
-                          const NotificationItem = notificationHref ? "button" : "div"
+                          const hasNotificationAction =
+                            notificationHref ||
+                            notification.id === NOTA_VENTA_CONVERSION_NOTIFICATION_ID
+                          const NotificationItem = hasNotificationAction ? "button" : "div"
 
                           return (
                             <NotificationItem
                               key={notification.id}
-                              type={notificationHref ? "button" : undefined}
+                              type={hasNotificationAction ? "button" : undefined}
                               onClick={
-                                notificationHref
-                                  ? () => {
-                                      setIsNotificationsOpen(false)
-                                      router.push(notificationHref)
-                                    }
+                                hasNotificationAction
+                                  ? () => openNotification(notification)
                                   : undefined
                               }
                               className={`rounded-lg border px-3 py-2.5 transition-colors ${
                                 isUnread
                                   ? "border-blue-200 bg-blue-50/70 dark:border-blue-500/25 dark:bg-blue-500/10"
                                   : "border-transparent hover:bg-slate-50 dark:hover:bg-white/[0.04]"
-                              } ${notificationHref ? "w-full cursor-pointer text-left" : ""}`}
+                              } ${hasNotificationAction ? "w-full cursor-pointer text-left" : ""}`}
                             >
                               <div className="flex items-start gap-3">
                                 <span

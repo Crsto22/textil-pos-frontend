@@ -18,7 +18,21 @@ export interface AppNotification {
   href?: string
 }
 
+export const CURRENT_NOTIFICATION_BADGE_IDS = [
+  "nota-venta-conversion-comprobante-2026-06-06",
+]
+
 export const APP_NOTIFICATIONS: AppNotification[] = [
+  {
+    id: "nota-venta-conversion-comprobante-2026-06-06",
+    title: "Nota de venta convertible",
+    description:
+      "Ya puedes convertir una nota de venta emitida a boleta o factura desde el historial de ventas, conservando el origen del comprobante.",
+    type: "update",
+    date: "2026-06-06",
+    roles: ["ADMINISTRADOR", "VENTAS", "VENTAS_ALMACEN", "VENDEDOR", "SISTEMA"],
+    severity: "success",
+  },
   {
     id: "admin-turnos-horarios-2026-05-29",
     title: "Turnos con horarios especificos",
