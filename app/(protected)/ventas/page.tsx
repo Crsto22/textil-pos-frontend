@@ -468,22 +468,15 @@ export default function VentasPage() {
         ? user?.idSucursal ?? null
         : null
 
-  // Sincronizar filtro "Solo disponibles" con localStorage
-  const [initialSoloDisponibles] = useState(
-    () => typeof window !== "undefined" ? localStorage.getItem("pos_solo_disponibles") !== "0" : true
-  )
-
   const {
     search: searchProductos,
     setSearch: setSearchProductos,
     idCategoriaFilter: idCategoriaFilterProductos,
     idColorFilter: idColorFilterProductos,
     conOfertaFilter: conOfertaFilterProductos,
-    soloDisponiblesFilter: soloDisponiblesFilterProductos,
     setIdCategoriaFilter: setIdCategoriaFilterProductos,
     setIdColorFilter: setIdColorFilterProductos,
     setConOfertaFilter: setConOfertaFilterProductos,
-    setSoloDisponiblesFilter: setSoloDisponiblesFilterProductos,
     displayedProductos,
     displayedTotalElements: displayedTotalElementsProductos,
     displayedTotalPages: displayedTotalPagesProductos,
@@ -492,18 +485,16 @@ export default function VentasPage() {
     setDisplayedPage: setDisplayedPageProductos,
     error: errorProductosListado,
     refreshCurrentView: refreshProductosView,
-  } = useProductos(!isVariantView && resolvedSucursalId !== null, resolvedSucursalId, initialSoloDisponibles, true)
+  } = useProductos(!isVariantView && resolvedSucursalId !== null, resolvedSucursalId, true, true)
   const {
     search: searchVariantes,
     setSearch: setSearchVariantes,
     idCategoriaFilter: idCategoriaFilterVariantes,
     idColorFilter: idColorFilterVariantes,
     conOfertaFilter: conOfertaFilterVariantes,
-    soloDisponiblesFilter: soloDisponiblesFilterVariantes,
     setIdCategoriaFilter: setIdCategoriaFilterVariantes,
     setIdColorFilter: setIdColorFilterVariantes,
     setConOfertaFilter: setConOfertaFilterVariantes,
-    setSoloDisponiblesFilter: setSoloDisponiblesFilterVariantes,
     displayedCatalogVariants,
     displayedTotalElements: displayedTotalElementsVariantes,
     displayedTotalPages: displayedTotalPagesVariantes,
@@ -512,18 +503,16 @@ export default function VentasPage() {
     setDisplayedPage: setDisplayedPageVariantes,
     error: errorVariantesListado,
     refreshCurrentView: refreshVariantesView,
-  } = useCatalogoVariantes(isVariantView && resolvedSucursalId !== null, resolvedSucursalId, initialSoloDisponibles, true)
+  } = useCatalogoVariantes(isVariantView && resolvedSucursalId !== null, resolvedSucursalId, true, true)
   const {
     search: sheetSearch,
     setSearch: setSheetSearch,
     idCategoriaFilter: sheetIdCategoriaFilter,
     idColorFilter: sheetIdColorFilter,
     conOfertaFilter: sheetConOfertaFilter,
-    soloDisponiblesFilter: sheetSoloDisponiblesFilter,
     setIdCategoriaFilter: setSheetIdCategoriaFilter,
     setIdColorFilter: setSheetIdColorFilter,
     setConOfertaFilter: setSheetConOfertaFilter,
-    setSoloDisponiblesFilter: setSheetSoloDisponiblesFilter,
     displayedCatalogVariants: sheetCatalogVariants,
     displayedTotalElements: sheetTotalElements,
     displayedTotalPages: sheetTotalPages,
@@ -532,7 +521,7 @@ export default function VentasPage() {
     setDisplayedPage: setSheetPage,
     error: sheetError,
     refreshCurrentView: refreshSheetView,
-  } = useCatalogoVariantes(addProductSheetOpen && resolvedSucursalId !== null, resolvedSucursalId, initialSoloDisponibles, true)
+  } = useCatalogoVariantes(addProductSheetOpen && resolvedSucursalId !== null, resolvedSucursalId, true, true)
   const [cart, setCart] = useState<CartItemData[]>([])
   const [selectedPayment, setSelectedPayment] = useState<PaymentKey | null>(null)
   const [paymentOperationCode, setPaymentOperationCode] = useState("")
@@ -886,7 +875,6 @@ export default function VentasPage() {
   const idCategoriaFilter = isVariantView ? idCategoriaFilterVariantes : idCategoriaFilterProductos
   const idColorFilter = isVariantView ? idColorFilterVariantes : idColorFilterProductos
   const conOfertaFilter = isVariantView ? conOfertaFilterVariantes : conOfertaFilterProductos
-  const soloDisponiblesFilter = isVariantView ? soloDisponiblesFilterVariantes : soloDisponiblesFilterProductos
   const shouldShowCatalogFilters = resolvedSucursalId !== null
   const displayedTotalElements = isVariantView
     ? displayedTotalElementsVariantes
@@ -1131,20 +1119,6 @@ export default function VentasPage() {
       setConOfertaFilterProductos(value)
     },
     [isVariantView, setConOfertaFilterProductos, setConOfertaFilterVariantes]
-  )
-
-  const handleSoloDisponiblesFilterChange = useCallback(
-    (value: boolean) => {
-      if (typeof window !== "undefined") {
-        localStorage.setItem("pos_solo_disponibles", value ? "1" : "0")
-      }
-      if (isVariantView) {
-        setSoloDisponiblesFilterVariantes(value)
-        return
-      }
-      setSoloDisponiblesFilterProductos(value)
-    },
-    [isVariantView, setSoloDisponiblesFilterProductos, setSoloDisponiblesFilterVariantes]
   )
 
   const handleDisplayedPageChange = useCallback(
@@ -1862,20 +1836,6 @@ export default function VentasPage() {
                 >
                   <TagIcon className="h-4 w-4" />
                   {conOfertaFilter ? "Ofertas activas" : "Solo ofertas"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSoloDisponiblesFilterChange(!soloDisponiblesFilter)}
-                  className={`inline-flex h-11 items-center gap-2 rounded-xl border px-3 text-xs font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/20 ${
-                    soloDisponiblesFilter
-                      ? "border-emerald-500 bg-emerald-50 text-emerald-700 dark:border-emerald-500/70 dark:bg-emerald-500/10 dark:text-emerald-200"
-                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700/70"
-                  }`}
-                  title="Mostrar solo productos con stock disponible"
-                  aria-pressed={soloDisponiblesFilter}
-                >
-                  <CheckCircleIcon className="h-4 w-4" />
-                  {soloDisponiblesFilter ? "Disponibles" : "Disponible"}
                 </button>
                 <button
                   type="button"
@@ -2928,19 +2888,6 @@ export default function VentasPage() {
                 {sheetConOfertaFilter ? "Ofertas activas" : "Solo ofertas"}
               </button>
 
-              <button
-                type="button"
-                onClick={() => setSheetSoloDisponiblesFilter(!sheetSoloDisponiblesFilter)}
-                className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold transition-all ${
-                  sheetSoloDisponiblesFilter
-                    ? "border-emerald-500 bg-emerald-50 text-emerald-700 dark:border-emerald-500/70 dark:bg-emerald-500/10 dark:text-emerald-200"
-                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
-                }`}
-                aria-pressed={sheetSoloDisponiblesFilter}
-              >
-                <CheckCircleIcon className="h-3.5 w-3.5" />
-                {sheetSoloDisponiblesFilter ? "Disponibles" : "Disponible"}
-              </button>
             </div>
 
             {/* Filtros de categoría/color */}
