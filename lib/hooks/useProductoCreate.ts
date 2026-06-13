@@ -32,9 +32,11 @@ import {
   type VariantValues,
 } from "@/lib/types/producto-create"
 import type {
+  Producto,
   ProductoActualizarCompletoResponse,
   ProductoDetalleResponse,
   ProductoDetalleImagen,
+  ProductoImagenGlobalUploadResponse,
   ProductoImagenCreateRequest,
   ProductoImagenesUploadResponse,
   ProductoInsertarCompletoRequest,
@@ -104,6 +106,18 @@ function isProductoImagenesUploadResponse(
   )
 }
 
+function isProductoImagenGlobalUploadResponse(
+  payload: unknown
+): payload is ProductoImagenGlobalUploadResponse {
+  if (!payload || typeof payload !== "object") return false
+  return (
+    "url" in payload &&
+    "urlThumb" in payload &&
+    typeof payload.url === "string" &&
+    typeof payload.urlThumb === "string"
+  )
+}
+
 function isProductoDetalleResponse(payload: unknown): payload is ProductoDetalleResponse {
   if (!payload || typeof payload !== "object") return false
   if (!("producto" in payload) || !("variantes" in payload) || !("imagenes" in payload)) {
@@ -162,6 +176,34 @@ function toMediaItemFromDetalleImagen(image: ProductoDetalleImagen): MediaItem {
     url: resolvedUrl,
     urlThumb: resolvedThumbUrl,
     idColorImagen: image.idColorImagen,
+  }
+}
+
+function toGlobalMediaItemFromProducto(producto: Producto): MediaItem | null {
+  const rawUrl = producto.imagenGlobalUrl ?? ""
+  const rawThumbUrl = producto.imagenGlobalThumbUrl ?? ""
+  if (rawUrl.trim() === "" && rawThumbUrl.trim() === "") return null
+
+  const resolvedUrl = resolveBackendUrl(rawUrl) ?? rawUrl
+  const resolvedThumbUrl = resolveBackendUrl(rawThumbUrl) ?? rawThumbUrl
+  const previewUrl = resolvedUrl || resolvedThumbUrl
+
+  const fallbackFileName = (() => {
+    try {
+      const url = new URL(previewUrl)
+      return url.pathname.split("/").pop() || "imagen-global.webp"
+    } catch {
+      return "imagen-global.webp"
+    }
+  })()
+
+  return {
+    id: "global-persisted",
+    file: null,
+    fileName: fallbackFileName,
+    previewUrl,
+    url: resolvedUrl,
+    urlThumb: resolvedThumbUrl,
   }
 }
 
@@ -429,6 +471,7 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
     idCategoria: null,
     nombre: "",
     descripcion: "",
+    publicarEcommerce: false,
   })
   const [loadingDetalle, setLoadingDetalle] = useState(isEditing)
   const [errorDetalle, setErrorDetalle] = useState<string | null>(null)
@@ -651,15 +694,25 @@ const activeStockSucursales = useMemo<VariantSucursalStockInput[]>(
   )
 
   const [mediaByColor, setMediaByColor] = useState<Record<number, MediaItem[]>>({})
+  const [globalMedia, setGlobalMedia] = useState<MediaItem | null>(null)
   const mediaRef = useRef<Record<number, MediaItem[]>>(mediaByColor)
+  const globalMediaRef = useRef<MediaItem | null>(globalMedia)
 
   useEffect(() => {
     mediaRef.current = mediaByColor
   }, [mediaByColor])
 
   useEffect(() => {
+    globalMediaRef.current = globalMedia
+  }, [globalMedia])
+
+  useEffect(() => {
     return () => {
       Object.values(mediaRef.current).forEach((media) => revokeMedia(media))
+      const currentGlobalMedia = globalMediaRef.current
+      if (currentGlobalMedia?.file) {
+        URL.revokeObjectURL(currentGlobalMedia.previewUrl)
+      }
     }
   }, [])
 
@@ -711,6 +764,18 @@ const activeStockSucursales = useMemo<VariantSucursalStockInput[]>(
     },
     [selectedColorIds]
   )
+
+  const replaceGlobalMedia = useCallback((nextGlobalMedia: MediaItem | null) => {
+    setGlobalMedia((previous) => {
+      if (
+        previous?.file &&
+        previous.previewUrl !== nextGlobalMedia?.previewUrl
+      ) {
+        URL.revokeObjectURL(previous.previewUrl)
+      }
+      return nextGlobalMedia
+    })
+  }, [])
 
   const handleCreateColor = useCallback(
     async (payload: ColorCreateRequest) => {
@@ -925,6 +990,7 @@ const activeStockSucursales = useMemo<VariantSucursalStockInput[]>(
           idCategoria: payload.producto.idCategoria ?? null,
           nombre: payload.producto.nombre ?? "",
           descripcion: payload.producto.descripcion ?? "",
+          publicarEcommerce: payload.producto.publicarEcommerce === true,
         }))
         setSelectedColorCatalog((previous) => ({ ...previous, ...detailColorCatalog }))
         setSelectedTallaCatalog((previous) => ({ ...previous, ...detailTallaCatalog }))
@@ -937,6 +1003,12 @@ const activeStockSucursales = useMemo<VariantSucursalStockInput[]>(
         setMediaByColor((previous) => {
           Object.values(previous).forEach((media) => revokeMedia(media))
           return nextMediaByColor
+        })
+        setGlobalMedia((previous) => {
+          if (previous?.file) {
+            URL.revokeObjectURL(previous.previewUrl)
+          }
+          return toGlobalMediaItemFromProducto(payload.producto)
         })
         setFocusedColorId(nextSelectedColorIds[0] ?? null)
         setErrorDetalle(null)
@@ -1446,8 +1518,8 @@ const activeStockSucursales = useMemo<VariantSucursalStockInput[]>(
       selectedColorIds.reduce(
         (accumulator, colorId) => accumulator + (mediaByColor[colorId]?.length ?? 0),
         0
-      ),
-    [mediaByColor, selectedColorIds]
+      ) + (globalMedia ? 1 : 0),
+    [globalMedia, mediaByColor, selectedColorIds]
   )
 
   const handleCategoriaChange = useCallback((value: string) => {
@@ -1464,6 +1536,10 @@ const activeStockSucursales = useMemo<VariantSucursalStockInput[]>(
 
   const handleDescripcionChange = useCallback((value: string) => {
     setForm((previous) => ({ ...previous, descripcion: value }))
+  }, [])
+
+  const handlePublicarEcommerceChange = useCallback((value: boolean) => {
+    setForm((previous) => ({ ...previous, publicarEcommerce: value }))
   }, [])
 
   const handleCreateCategoria = useCallback(
@@ -1707,6 +1783,46 @@ const activeStockSucursales = useMemo<VariantSucursalStockInput[]>(
     setIsSaving(true)
 
     try {
+      let imagenGlobalUrl: string | null = null
+      let imagenGlobalThumbUrl: string | null = null
+
+      if (globalMedia) {
+        if (isLocalMedia(globalMedia)) {
+          const uploadFormData = new FormData()
+          if (hasValidId(productoId)) {
+            uploadFormData.append("productoId", String(productoId))
+          }
+          uploadFormData.append("file", globalMedia.file, globalMedia.file.name)
+
+          const uploadResponse = await authFetch("/api/producto/imagen-global", {
+            method: "POST",
+            body: uploadFormData,
+          })
+          const uploadPayload = await parseJsonSafe(uploadResponse)
+
+          if (!uploadResponse.ok) {
+            throw new Error(
+              getResponseMessage(
+                uploadPayload,
+                "No se pudo subir la imagen global del producto"
+              )
+            )
+          }
+
+          if (!isProductoImagenGlobalUploadResponse(uploadPayload)) {
+            throw new Error("La respuesta de imagen global no tiene el formato esperado")
+          }
+
+          imagenGlobalUrl = uploadPayload.url
+          imagenGlobalThumbUrl = uploadPayload.urlThumb
+        } else if (isRemoteMedia(globalMedia)) {
+          imagenGlobalUrl = globalMedia.url
+          imagenGlobalThumbUrl = globalMedia.urlThumb
+        } else {
+          throw new Error("Se detecto una imagen global invalida")
+        }
+      }
+
       const imagenesByColor = await Promise.all(
         selectedColors.map(async (color): Promise<ProductoImagenCreateRequest[]> => {
           const media = (mediaByColor[color.idColor] ?? []).slice(0, MAX_MEDIA_PER_COLOR)
@@ -1804,6 +1920,9 @@ const activeStockSucursales = useMemo<VariantSucursalStockInput[]>(
         nombre,
         variantes,
         imagenes,
+        imagenGlobalUrl,
+        imagenGlobalThumbUrl,
+        publicarEcommerce: form.publicarEcommerce,
         ...(descripcion !== "" ? { descripcion } : {}),
       }
 
@@ -1850,10 +1969,12 @@ const activeStockSucursales = useMemo<VariantSucursalStockInput[]>(
     form.descripcion,
     form.idCategoria,
     form.nombre,
+    form.publicarEcommerce,
     isEditing,
     isAutoSkuEnabled,
     isSaving,
     loadNextAutoSkuSequence,
+    globalMedia,
     mediaByColor,
     productoId,
     selectedColors,
@@ -1938,7 +2059,9 @@ const activeStockSucursales = useMemo<VariantSucursalStockInput[]>(
     selectedTallas,
     focusedColorId,
     mediaByColor,
+    globalMedia,
     replaceMediaByColor,
+    replaceGlobalMedia,
     variantRows,
     deletingVariantKeys,
     isAutoSkuEnabled,
@@ -1948,6 +2071,7 @@ const activeStockSucursales = useMemo<VariantSucursalStockInput[]>(
     handleCategoriaChange,
     handleNombreChange,
     handleDescripcionChange,
+    handlePublicarEcommerceChange,
     handleCreateCategoria,
     handleCreateColor,
     handleCreateTalla,

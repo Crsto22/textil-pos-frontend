@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
+import { GlobeAltIcon } from "@heroicons/react/24/outline"
 
 import {
   Dialog,
@@ -19,6 +20,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import { useEmpresaOptions } from "@/lib/hooks/useEmpresaOptions"
 import {
   emptyCreate,
@@ -65,6 +67,7 @@ export function SucursalCreateDialog({
   const telefono = form.telefono ?? ""
   const correo = form.correo ?? ""
   const codigoCodigo = form.codigoEstablecimientoSunat ?? ""
+  const canUseForEcommerce = form.tipo === "VENTA"
 
   const isCreateValid = useMemo(
     () =>
@@ -249,6 +252,8 @@ export function SucursalCreateDialog({
                   setForm((previous) => ({
                     ...previous,
                     tipo: value as TipoSucursal,
+                    publicarEcommerce:
+                      value === "VENTA" ? previous.publicarEcommerce : false,
                   }))
                 }
               >
@@ -310,6 +315,40 @@ export function SucursalCreateDialog({
                 </Select>
               )}
             </div>
+          </div>
+
+          <div className="grid gap-2 rounded-lg border bg-muted/20 p-3">
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <Label
+                  htmlFor="c-ecommerce-sucursal"
+                  className="inline-flex items-center gap-1.5 text-sky-700 dark:text-sky-300"
+                >
+                  <GlobeAltIcon className="h-4 w-4" />
+                  Usar como sucursal ecommerce
+                </Label>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Al activarla reemplazara a la sucursal ecommerce anterior.
+                </p>
+              </div>
+              <Switch
+                id="c-ecommerce-sucursal"
+                checked={form.publicarEcommerce}
+                disabled={!canUseForEcommerce}
+                onCheckedChange={(checked) =>
+                  setForm((previous) => ({
+                    ...previous,
+                    publicarEcommerce: checked,
+                  }))
+                }
+                aria-label="Usar como sucursal ecommerce"
+              />
+            </div>
+            {!canUseForEcommerce && (
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                Solo una sucursal de tipo Venta puede usarse para ecommerce.
+              </p>
+            )}
           </div>
         </div>
 

@@ -4,6 +4,7 @@ import {
   ArchiveBoxIcon,
   BuildingStorefrontIcon,
   EnvelopeIcon,
+  GlobeAltIcon,
   IdentificationIcon,
   MapPinIcon,
   PencilSquareIcon,
@@ -228,6 +229,12 @@ function SucursalesCardsComponent({
                         <Icon className="h-3 w-3" />
                         {tipoTheme.badgeText}
                       </span>
+                      {sucursal.publicarEcommerce && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 px-2.5 py-0.5 text-[11px] font-semibold text-sky-700 dark:bg-sky-900/40 dark:text-sky-300">
+                          <GlobeAltIcon className="h-3.5 w-3.5" />
+                          Ecommerce
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>

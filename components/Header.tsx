@@ -124,6 +124,7 @@ const readSeenNotificationsByUser = (): Record<string, string[]> => {
 const pageTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
   "/ventas": "Ventas POS",
+  "/ventas/pedidos": "Pedidos",
   "/ventas/cotizacion": "Cotizaciones",
   "/ventas/cotizacion/historial": "Historial de Cotizaciones",
   "/ventas/historial": "Comprobantes",

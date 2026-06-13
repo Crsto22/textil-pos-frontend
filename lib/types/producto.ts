@@ -5,6 +5,9 @@ export interface Producto {
   sku: string
   nombre: string
   descripcion: string
+  imagenGlobalUrl: string | null
+  imagenGlobalThumbUrl: string | null
+  publicarEcommerce: boolean
   estado: string
   fechaCreacion: string
   idCategoria: number | null
@@ -73,6 +76,9 @@ export interface ProductoCreateRequest {
   idCategoria: number | null
   nombre: string
   descripcion: string
+  imagenGlobalUrl?: string | null
+  imagenGlobalThumbUrl?: string | null
+  publicarEcommerce?: boolean
 }
 
 export interface ProductoVarianteCreateRequest {
@@ -102,6 +108,9 @@ export interface ProductoInsertarCompletoRequest {
   idCategoria: number
   nombre: string
   descripcion?: string
+  imagenGlobalUrl?: string | null
+  imagenGlobalThumbUrl?: string | null
+  publicarEcommerce?: boolean
   variantes: ProductoVarianteCreateRequest[]
   imagenes: ProductoImagenCreateRequest[]
 }
@@ -115,6 +124,11 @@ export interface ProductoImagenUploadResponseItem {
 export interface ProductoImagenesUploadResponse {
   colorId: number
   imagenes: ProductoImagenUploadResponseItem[]
+}
+
+export interface ProductoImagenGlobalUploadResponse {
+  url: string
+  urlThumb: string
 }
 
 export interface ProductoImportResponse {
@@ -238,6 +252,9 @@ export interface ProductoUpdateRequest {
   idCategoria: number | null
   nombre: string
   descripcion: string
+  imagenGlobalUrl?: string | null
+  imagenGlobalThumbUrl?: string | null
+  publicarEcommerce?: boolean
 }
 
 export interface ProductoDeleteResponse {

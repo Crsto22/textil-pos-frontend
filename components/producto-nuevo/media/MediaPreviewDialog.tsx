@@ -24,16 +24,16 @@ export function MediaPreviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90dvh] max-w-4xl p-4 sm:p-6">
-        <DialogHeader>
-          <DialogTitle>Vista previa de imagen</DialogTitle>
-          <DialogDescription>
+      <DialogContent className="z-[90] flex max-h-[calc(100dvh-2rem)] w-[min(960px,calc(100vw-2rem))] max-w-none grid-rows-none flex-col gap-3 overflow-hidden rounded-2xl p-4 sm:p-5">
+        <DialogHeader className="min-w-0 pr-8 text-left">
+          <DialogTitle className="text-base sm:text-lg">Vista previa de imagen</DialogTitle>
+          <DialogDescription className="truncate text-xs sm:text-sm">
             {media?.fileName || "Imagen seleccionada"}
           </DialogDescription>
         </DialogHeader>
 
         {media ? (
-          <div className="relative h-[65dvh] w-full overflow-hidden rounded-lg border bg-muted/20">
+          <div className="relative min-h-[260px] flex-1 overflow-hidden rounded-xl border bg-muted/20 sm:min-h-[420px]">
             <Image
               src={media.previewUrl}
               alt={`Vista previa de ${media.fileName}`}

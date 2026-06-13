@@ -1,10 +1,13 @@
 "use client"
 
+import { GlobeAltIcon } from "@heroicons/react/24/outline"
+
 import { Card, CardContent } from "@/components/ui/card"
 import { ProductoLabelPreview } from "@/components/producto-nuevo/ProductoLabelPreview"
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import type { Color } from "@/lib/types/color"
 import type { Talla } from "@/lib/types/talla"
@@ -34,6 +37,7 @@ interface ProductoGeneralInfoCardProps {
   onSearchCategoriaChange: (value: string) => void
   onNombreChange: (value: string) => void
   onDescripcionChange: (value: string) => void
+  onPublicarEcommerceChange: (value: boolean) => void
   canCreateCategoria: boolean
   categoriaCreateDisabledReason?: string | null
 }
@@ -66,6 +70,7 @@ export function ProductoGeneralInfoCard({
   onSearchCategoriaChange,
   onNombreChange,
   onDescripcionChange,
+  onPublicarEcommerceChange,
   canCreateCategoria,
   categoriaCreateDisabledReason,
 }: ProductoGeneralInfoCardProps) {
@@ -148,6 +153,27 @@ export function ProductoGeneralInfoCard({
             value={form.descripcion}
             onChange={(event) => onDescripcionChange(event.target.value)}
             className="min-h-[116px] resize-none rounded-2xl shadow-none"
+          />
+        </div>
+
+        <div className="flex items-center justify-between gap-4 rounded-2xl border bg-background/80 px-4 py-3">
+          <div className="min-w-0">
+            <Label
+              htmlFor="producto-create-page-ecommerce"
+              className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-sky-700 dark:text-sky-300"
+            >
+              <GlobeAltIcon className="h-4 w-4" />
+              Mostrar en ecommerce
+            </Label>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Quedara visible cuando exista stock en la sucursal ecommerce activa.
+            </p>
+          </div>
+          <Switch
+            id="producto-create-page-ecommerce"
+            checked={form.publicarEcommerce}
+            onCheckedChange={onPublicarEcommerceChange}
+            aria-label="Mostrar producto en ecommerce"
           />
         </div>
 

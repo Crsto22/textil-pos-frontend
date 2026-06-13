@@ -1,6 +1,7 @@
 import { memo, useEffect, useState } from "react"
 import {
   ExclamationTriangleIcon,
+  GlobeAltIcon,
   NoSymbolIcon,
   PencilSquareIcon,
   PhotoIcon,
@@ -161,16 +162,24 @@ function ProductoCard({
         )}
 
         {/* Badge estado - top left */}
-        <span
-          className={cn(
-            "absolute left-2 top-2 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase",
-            estadoActivo
-              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-              : "bg-gray-100 text-gray-600 dark:bg-gray-800/50 dark:text-gray-400"
+        <div className="absolute left-2 top-2 flex flex-col items-start gap-1">
+          <span
+            className={cn(
+              "inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase",
+              estadoActivo
+                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                : "bg-gray-100 text-gray-600 dark:bg-gray-800/50 dark:text-gray-400"
+            )}
+          >
+            {estadoActivo ? "Activo" : "Inactivo"}
+          </span>
+          {producto.publicarEcommerce && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">
+              <GlobeAltIcon className="h-3 w-3" />
+              Ecommerce
+            </span>
           )}
-        >
-          {estadoActivo ? "Activo" : "Inactivo"}
-        </span>
+        </div>
 
         {/* Banda inferior — estado de stock */}
         {(noStock || noStockRegistered) && (

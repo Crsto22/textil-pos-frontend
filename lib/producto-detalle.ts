@@ -90,6 +90,9 @@ function parseProducto(value: unknown): Producto | null {
     sku: pickString(payload, ["sku"]),
     nombre: pickString(payload, ["nombre"], "Producto"),
     descripcion: pickString(payload, ["descripcion"]),
+    imagenGlobalUrl: pickNullableString(payload, ["imagenGlobalUrl"]),
+    imagenGlobalThumbUrl: pickNullableString(payload, ["imagenGlobalThumbUrl"]),
+    publicarEcommerce: payload?.publicarEcommerce === true,
     estado: pickString(payload, ["estado"], "ACTIVO"),
     fechaCreacion: pickString(payload, ["fechaCreacion", "createdAt"]),
     idCategoria:

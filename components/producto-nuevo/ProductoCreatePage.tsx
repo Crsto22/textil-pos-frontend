@@ -65,7 +65,9 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
     selectedTallas,
     focusedColorId,
     mediaByColor,
+    globalMedia,
     replaceMediaByColor,
+    replaceGlobalMedia,
     variantRows,
     deletingVariantKeys,
     isAutoSkuEnabled,
@@ -76,6 +78,7 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
     setSearchCategoria,
     handleNombreChange,
     handleDescripcionChange,
+    handlePublicarEcommerceChange,
     handleCreateCategoria,
     handleCreateColor,
     handleCreateTalla,
@@ -98,8 +101,8 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
       : (selectedColors[0]?.idColor ?? null)
 
   const activePreviewImageUrl = activePreviewColorId
-    ? (mediaByColor[activePreviewColorId]?.at(-1)?.previewUrl ?? null)
-    : null
+    ? (globalMedia?.previewUrl ?? mediaByColor[activePreviewColorId]?.at(-1)?.previewUrl ?? null)
+    : (globalMedia?.previewUrl ?? null)
 
   const canCreateCategoria = true
 
@@ -113,9 +116,9 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
     const hasAttributesSelected =
       selectedColorIds.length > 0 || selectedTallaIds.length > 0
 
-    const hasMediaSelected = Object.values(mediaByColor).some(
-      (media) => media.length > 0
-    )
+    const hasMediaSelected =
+      Boolean(globalMedia) ||
+      Object.values(mediaByColor).some((media) => media.length > 0)
 
     const hasVariantValues = variantRows.some(
       (variant) =>
@@ -136,6 +139,7 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
     form.descripcion,
     form.idCategoria,
     form.nombre,
+    globalMedia,
     mediaByColor,
     selectedColorIds.length,
     selectedTallaIds.length,
@@ -228,6 +232,7 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
             onSearchCategoriaChange={setSearchCategoria}
             onNombreChange={handleNombreChange}
             onDescripcionChange={handleDescripcionChange}
+            onPublicarEcommerceChange={handlePublicarEcommerceChange}
             canCreateCategoria={canCreateCategoria}
           />
         </div>
@@ -297,10 +302,12 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
         key={`producto-media-sidebar-${mediaSidebarSession}`}
         open={isMediaSidebarOpen}
         selectedColors={selectedColors}
+        globalMedia={globalMedia}
         mediaByColor={mediaByColor}
         focusedColorId={focusedColorId}
         onOpenChange={setIsMediaSidebarOpen}
         onFocusedColorChange={setFocusedColorId}
+        onSaveGlobalMedia={replaceGlobalMedia}
         onSaveMediaByColor={replaceMediaByColor}
       />
 

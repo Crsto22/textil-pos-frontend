@@ -14,6 +14,7 @@ import { toast } from "sonner"
 import { MediaColorSection } from "@/components/producto-nuevo/media/MediaColorSection"
 import { MediaPreviewDialog } from "@/components/producto-nuevo/media/MediaPreviewDialog"
 import { MediaSelectionConfirmDialog } from "@/components/producto-nuevo/media/MediaSelectionConfirmDialog"
+import { MediaUploadSlot } from "@/components/producto-nuevo/media/MediaUploadSlot"
 import { Button } from "@/components/ui/button"
 import {
   Sheet,
@@ -32,10 +33,12 @@ import {
 interface ProductoMediaSidebarProps {
   open: boolean
   selectedColors: Color[]
+  globalMedia: MediaItem | null
   mediaByColor: Record<number, MediaItem[]>
   focusedColorId: number | null
   onOpenChange: (open: boolean) => void
   onFocusedColorChange: (idColor: number) => void
+  onSaveGlobalMedia: (nextGlobalMedia: MediaItem | null) => void
   onSaveMediaByColor: (nextMediaByColor: Record<number, MediaItem[]>) => void
 }
 
@@ -89,6 +92,10 @@ function areMediaByColorEqual(
   return true
 }
 
+function areMediaItemsEqual(previous: MediaItem | null, next: MediaItem | null) {
+  return previous?.id === next?.id
+}
+
 function getDraftAddedMedia(
   committed: Record<number, MediaItem[]>,
   draft: Record<number, MediaItem[]>
@@ -113,12 +120,17 @@ function revokePendingMediaCandidates(candidates: PendingMediaCandidate[]) {
 export function ProductoMediaSidebar({
   open,
   selectedColors,
+  globalMedia,
   mediaByColor,
   focusedColorId,
   onOpenChange,
   onFocusedColorChange,
+  onSaveGlobalMedia,
   onSaveMediaByColor,
 }: ProductoMediaSidebarProps) {
+  const [draftGlobalMedia, setDraftGlobalMedia] = useState<MediaItem | null>(
+    () => globalMedia
+  )
   const [draftMediaByColor, setDraftMediaByColor] = useState<Record<number, MediaItem[]>>(
     () => cloneMediaByColor(mediaByColor)
   )
@@ -127,6 +139,7 @@ export function ProductoMediaSidebar({
     PendingMediaCandidate[]
   >([])
   const fileInputRefs = useRef<Record<number, HTMLInputElement | null>>({})
+  const globalFileInputRef = useRef<HTMLInputElement | null>(null)
   const pendingMediaCandidatesRef = useRef<PendingMediaCandidate[]>(pendingMediaCandidates)
 
   useEffect(() => {
@@ -146,8 +159,10 @@ export function ProductoMediaSidebar({
   const committedMediaIds = useMemo(() => collectMediaIds(mediaByColor), [mediaByColor])
 
   const hasDraftChanges = useMemo(
-    () => !areMediaByColorEqual(mediaByColor, draftMediaByColor),
-    [draftMediaByColor, mediaByColor]
+    () =>
+      !areMediaItemsEqual(globalMedia, draftGlobalMedia) ||
+      !areMediaByColorEqual(mediaByColor, draftMediaByColor),
+    [draftGlobalMedia, draftMediaByColor, globalMedia, mediaByColor]
   )
 
   const handleRegisterFileInput = useCallback(
@@ -161,9 +176,47 @@ export function ProductoMediaSidebar({
     fileInputRefs.current[idColor]?.click()
   }, [])
 
+  const handleOpenGlobalMediaPicker = useCallback(() => {
+    globalFileInputRef.current?.click()
+  }, [])
+
   const handlePreviewMedia = useCallback((media: MediaItem) => {
     setPreviewMedia(media)
   }, [])
+
+  const handleAddGlobalMedia = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0] ?? null
+      if (!file) return
+
+      if (!isValidImageFile(file)) {
+        toast.error("Solo se permiten archivos de imagen")
+        event.target.value = ""
+        return
+      }
+
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        toast.error("La imagen debe pesar como maximo 10MB")
+        event.target.value = ""
+        return
+      }
+
+      setDraftGlobalMedia((previous) => {
+        if (previous?.file && previous.id !== globalMedia?.id) {
+          URL.revokeObjectURL(previous.previewUrl)
+        }
+
+        return {
+          id: `global-${crypto.randomUUID()}`,
+          file,
+          fileName: file.name,
+          previewUrl: URL.createObjectURL(file),
+        }
+      })
+      event.target.value = ""
+    },
+    [globalMedia?.id]
+  )
 
   const handleAddMedia = useCallback(
     (idColor: number, event: ChangeEvent<HTMLInputElement>) => {
@@ -269,17 +322,31 @@ export function ProductoMediaSidebar({
     [committedMediaIds]
   )
 
+  const handleRemoveGlobalMedia = useCallback(() => {
+    setPreviewMedia((current) => (current?.id === draftGlobalMedia?.id ? null : current))
+    setDraftGlobalMedia((previous) => {
+      if (previous?.file && previous.id !== globalMedia?.id) {
+        URL.revokeObjectURL(previous.previewUrl)
+      }
+      return null
+    })
+  }, [draftGlobalMedia?.id, globalMedia?.id])
+
   const handleDiscardChanges = useCallback(() => {
     const addedMedia = getDraftAddedMedia(mediaByColor, draftMediaByColor)
     addedMedia.forEach((item) => {
       URL.revokeObjectURL(item.previewUrl)
     })
+    if (draftGlobalMedia?.file && draftGlobalMedia.id !== globalMedia?.id) {
+      URL.revokeObjectURL(draftGlobalMedia.previewUrl)
+    }
     revokePendingMediaCandidates(pendingMediaCandidatesRef.current)
 
     setPreviewMedia(null)
     setPendingMediaCandidates([])
+    setDraftGlobalMedia(globalMedia)
     setDraftMediaByColor(cloneMediaByColor(mediaByColor))
-  }, [draftMediaByColor, mediaByColor])
+  }, [draftGlobalMedia, draftMediaByColor, globalMedia, mediaByColor])
 
   const handleSheetOpenChange = useCallback(
     (nextOpen: boolean) => {
@@ -298,11 +365,19 @@ export function ProductoMediaSidebar({
       return
     }
 
+    onSaveGlobalMedia(draftGlobalMedia)
     onSaveMediaByColor(cloneMediaByColor(draftMediaByColor))
     setPreviewMedia(null)
     toast.success("Imagenes actualizadas")
     onOpenChange(false)
-  }, [draftMediaByColor, onOpenChange, onSaveMediaByColor, pendingMediaCandidates.length])
+  }, [
+    draftGlobalMedia,
+    draftMediaByColor,
+    onOpenChange,
+    onSaveGlobalMedia,
+    onSaveMediaByColor,
+    pendingMediaCandidates.length,
+  ])
 
   return (
     <Sheet open={open} onOpenChange={handleSheetOpenChange}>
@@ -317,11 +392,55 @@ export function ProductoMediaSidebar({
               Multimedia
             </SheetTitle>
             <SheetDescription>
-              Opcional: sube imagenes por cada color seleccionado (max. 5 por color).
+              Opcional: sube una imagen global del producto y hasta 5 imagenes por color.
             </SheetDescription>
           </SheetHeader>
 
           <div className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
+            <section className="rounded-2xl border bg-background p-4 shadow-sm">
+              <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground">
+                    Imagen global del producto
+                  </h3>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Foto principal opcional, independiente de colores o variantes.
+                  </p>
+                </div>
+                {draftGlobalMedia ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleOpenGlobalMediaPicker}
+                  >
+                    Reemplazar
+                  </Button>
+                ) : null}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <MediaUploadSlot
+                  media={draftGlobalMedia ?? undefined}
+                  onSelect={() => {
+                    if (draftGlobalMedia) {
+                      handlePreviewMedia(draftGlobalMedia)
+                      return
+                    }
+                    handleOpenGlobalMediaPicker()
+                  }}
+                  onRemove={draftGlobalMedia ? handleRemoveGlobalMedia : undefined}
+                />
+                <input
+                  ref={globalFileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleAddGlobalMedia}
+                />
+              </div>
+            </section>
+
             {selectedColors.length === 0 ? (
               <div className="rounded-xl border border-dashed bg-muted/20 p-5 text-sm text-muted-foreground">
                 Escoge colores para este producto y luego agrega las imagenes.
@@ -355,7 +474,6 @@ export function ProductoMediaSidebar({
               className="w-full sm:w-auto"
               onClick={handleSaveChanges}
               disabled={
-                selectedColors.length === 0 ||
                 !hasDraftChanges ||
                 pendingMediaCandidates.length > 0
               }

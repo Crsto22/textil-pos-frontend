@@ -134,6 +134,7 @@ export function normalizeSucursal(value: unknown): Sucursal | null {
     telefono: toTrimmedString(data.telefono),
     correo: toTrimmedString(data.correo),
     tipo: (toTrimmedString(data.tipo) || "VENTA") as "VENTA" | "ALMACEN",
+    publicarEcommerce: data.publicarEcommerce === true,
     ubigeo: ubigeo.length > 0 ? ubigeo : null,
     codigoEstablecimientoSunat: codigoEstablecimientoSunat.length > 0 ? codigoEstablecimientoSunat : null,
     estado: toTrimmedString(data.estado) || "ACTIVO",

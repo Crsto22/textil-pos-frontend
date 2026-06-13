@@ -9,6 +9,7 @@ export interface SucursalBase {
   telefono: string
   correo: string
   tipo: TipoSucursal
+  publicarEcommerce: boolean
   idEmpresa: number
 }
 
@@ -53,6 +54,7 @@ export const emptyCreate: SucursalCreateRequest = {
   telefono: "",
   correo: "",
   tipo: "VENTA",
+  publicarEcommerce: false,
   ubigeo: "",
   codigoEstablecimientoSunat: "",
   idEmpresa: 1,
@@ -65,6 +67,7 @@ export const emptyUpdate: SucursalUpdateRequest = {
   telefono: "",
   correo: "",
   tipo: "VENTA",
+  publicarEcommerce: false,
   estado: "ACTIVO",
   ubigeo: "",
   codigoEstablecimientoSunat: "",

@@ -39,6 +39,7 @@ import {
     PresentationChartLineIcon,
     ArchiveBoxIcon,
     ArrowsRightLeftIcon,
+    ShoppingBagIcon,
 } from "@heroicons/react/24/outline"
 import {
     BanknotesIcon as BanknotesIconSolid,
@@ -66,6 +67,7 @@ import {
     PresentationChartLineIcon as PresentationChartLineIconSolid,
     ArchiveBoxIcon as ArchiveBoxIconSolid,
     ArrowsRightLeftIcon as ArrowsRightLeftIconSolid,
+    ShoppingBagIcon as ShoppingBagIconSolid,
 } from "@heroicons/react/24/solid"
 
 interface SidebarProps {
@@ -80,6 +82,7 @@ export interface SidebarItem {
     href: string
     icon: ComponentType<{ className?: string }>
     iconActive: ComponentType<{ className?: string }>
+    badge?: string
     disabled?: boolean
 }
 
@@ -99,6 +102,7 @@ export const navSections: SidebarSection[] = [
         subtitle: "Operaciones",
         items: [
             { label: "Ventas POS", href: "/ventas", icon: ShoppingCartIcon, iconActive: ShoppingCartIconSolid },
+            { label: "Pedidos", href: "/ventas/pedidos", icon: ShoppingBagIcon, iconActive: ShoppingBagIconSolid, badge: "Nuevo" },
             { label: "Cotizaciones", href: "/ventas/cotizacion", icon: DocumentTextIcon, iconActive: DocumentTextIconSolid },
             { label: "Clientes", href: "/clientes", icon: UsersIcon, iconActive: UsersIconSolid },
         ],
@@ -312,7 +316,22 @@ export function Sidebar({ isOpen, collapsed, onClose, onToggleCollapse }: Sideba
                         }`}
                     />
                     <Icon className={`h-5 w-5 shrink-0 ${active ? "text-blue-600" : ""}`} />
-                    {!collapsed && <span className="truncate">{item.label}</span>}
+                    {!collapsed && (
+                        <>
+                            <span className="min-w-0 flex-1 truncate text-left">{item.label}</span>
+                            {item.badge && (
+                                <span
+                                    className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ${
+                                        active
+                                            ? "bg-emerald-100 text-emerald-700 ring-emerald-300"
+                                            : "bg-emerald-400/15 text-emerald-300 ring-emerald-400/25"
+                                    }`}
+                                >
+                                    {item.badge}
+                                </span>
+                            )}
+                        </>
+                    )}
                 </button>
             </div>
         )

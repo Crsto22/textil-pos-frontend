@@ -1,5 +1,10 @@
 import { memo, useEffect, useState } from "react"
-import { PencilSquareIcon, PhotoIcon, TrashIcon } from "@heroicons/react/24/outline"
+import {
+  GlobeAltIcon,
+  PencilSquareIcon,
+  PhotoIcon,
+  TrashIcon,
+} from "@heroicons/react/24/outline"
 import { LoaderSpinner } from "@/components/ui/loader-spinner"
 
 import { formatMonedaPen, formatRangoPrecioPen } from "@/components/productos/productos.utils"
@@ -143,9 +148,17 @@ function ProductoRow({
           </div>
           <div className="min-w-0">
             <p className="truncate font-semibold text-foreground">{producto.nombre}</p>
-            <p className="text-xs text-muted-foreground">
-              SKU: {producto.sku || "-"} &middot; {totalSkus} variante{totalSkus !== 1 ? "s" : ""}
-            </p>
+            <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+              <span>
+                SKU: {producto.sku || "-"} &middot; {totalSkus} variante{totalSkus !== 1 ? "s" : ""}
+              </span>
+              {producto.publicarEcommerce && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">
+                  <GlobeAltIcon className="h-3 w-3" />
+                  Ecommerce
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </td>

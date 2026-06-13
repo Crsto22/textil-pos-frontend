@@ -9,6 +9,7 @@ export interface ProductoCreateFormState {
   idCategoria: number | null
   nombre: string
   descripcion: string
+  publicarEcommerce: boolean
 }
 
 export interface VariantSucursalStockInput {

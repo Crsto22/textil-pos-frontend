@@ -138,6 +138,7 @@ function normalizeProductoResumen(producto: Producto | ProductoResumen): Product
       typeof producto.nombreSucursal === "string" && producto.nombreSucursal.trim() !== ""
         ? producto.nombreSucursal
         : null,
+    publicarEcommerce: producto.publicarEcommerce === true,
     precioMin: typeof resumen.precioMin === "number" ? resumen.precioMin : null,
     precioMax: typeof resumen.precioMax === "number" ? resumen.precioMax : null,
     colores: normalizedColores,
@@ -401,11 +402,29 @@ export function useProductos(
             idCategoria: payload.idCategoria,
             nombre: payload.nombre.trim(),
             descripcion: payload.descripcion.trim(),
+            ...(payload.imagenGlobalUrl !== undefined
+              ? { imagenGlobalUrl: payload.imagenGlobalUrl }
+              : {}),
+            ...(payload.imagenGlobalThumbUrl !== undefined
+              ? { imagenGlobalThumbUrl: payload.imagenGlobalThumbUrl }
+              : {}),
+            ...(payload.publicarEcommerce !== undefined
+              ? { publicarEcommerce: payload.publicarEcommerce === true }
+              : {}),
           }
         : {
             idCategoria: payload.idCategoria,
             nombre: payload.nombre.trim(),
             descripcion: payload.descripcion.trim(),
+            ...(payload.imagenGlobalUrl !== undefined
+              ? { imagenGlobalUrl: payload.imagenGlobalUrl }
+              : {}),
+            ...(payload.imagenGlobalThumbUrl !== undefined
+              ? { imagenGlobalThumbUrl: payload.imagenGlobalThumbUrl }
+              : {}),
+            ...(payload.publicarEcommerce !== undefined
+              ? { publicarEcommerce: payload.publicarEcommerce === true }
+              : {}),
           }
 
       if (isAdmin && !hasValidSucursalId(normalizedPayload.idSucursal)) {
@@ -462,11 +481,29 @@ export function useProductos(
             idCategoria: payload.idCategoria,
             nombre: payload.nombre.trim(),
             descripcion: payload.descripcion.trim(),
+            ...(payload.imagenGlobalUrl !== undefined
+              ? { imagenGlobalUrl: payload.imagenGlobalUrl }
+              : {}),
+            ...(payload.imagenGlobalThumbUrl !== undefined
+              ? { imagenGlobalThumbUrl: payload.imagenGlobalThumbUrl }
+              : {}),
+            ...(payload.publicarEcommerce !== undefined
+              ? { publicarEcommerce: payload.publicarEcommerce === true }
+              : {}),
           }
         : {
             idCategoria: payload.idCategoria,
             nombre: payload.nombre.trim(),
             descripcion: payload.descripcion.trim(),
+            ...(payload.imagenGlobalUrl !== undefined
+              ? { imagenGlobalUrl: payload.imagenGlobalUrl }
+              : {}),
+            ...(payload.imagenGlobalThumbUrl !== undefined
+              ? { imagenGlobalThumbUrl: payload.imagenGlobalThumbUrl }
+              : {}),
+            ...(payload.publicarEcommerce !== undefined
+              ? { publicarEcommerce: payload.publicarEcommerce === true }
+              : {}),
           }
 
       try {
