@@ -7,6 +7,7 @@ import { toast } from "sonner"
 
 import { ClienteEditDialog } from "@/components/clientes/modals/ClienteEditDialog"
 import PaymentMethod, { type PaymentKey } from "@/components/ventas/PaymentMethod"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Combobox } from "@/components/ui/combobox"
 import {
@@ -58,6 +59,21 @@ function normalizeDateTimeLocal(value: string) {
   return trimmedValue.length === 16 ? `${trimmedValue}:00` : trimmedValue
 }
 
+function getTodayLocalDate() {
+  const today = new Date()
+  const year = today.getFullYear()
+  const month = String(today.getMonth() + 1).padStart(2, "0")
+  const day = String(today.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
+function buildPaymentDateTime(date: string, time: string) {
+  const trimmedDate = date.trim()
+  const trimmedTime = time.trim()
+  if (!trimmedDate || !trimmedTime) return null
+  return normalizeDateTimeLocal(`${trimmedDate}T${trimmedTime}`)
+}
+
 export function CotizacionConvertirVentaDialog({
   open,
   target,
@@ -70,13 +86,14 @@ export function CotizacionConvertirVentaDialog({
   const [selectedPayment, setSelectedPayment] = useState<PaymentKey | null>(null)
   const [selectedComprobanteId, setSelectedComprobanteId] = useState("")
   const [operationCode, setOperationCode] = useState("")
-  const [operationDateTime, setOperationDateTime] = useState("")
-  const [operationDateTimeError, setOperationDateTimeError] = useState("")
+  const [paymentDate, setPaymentDate] = useState(() => getTodayLocalDate())
+  const [paymentTime, setPaymentTime] = useState("")
+  const [paymentDateTimeError, setPaymentDateTimeError] = useState("")
   const [requestError, setRequestError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [clientEditOpen, setClientEditOpen] = useState(false)
 
-  const { methods, loading, error: methodsError } = useMetodosPagoActivos({ enabled: open })
+  const { methods, loading, error: methodsError } = useMetodosPagoActivos({ enabled: open, idSucursal: target?.idSucursal ?? undefined })
   const {
     clienteId: loadedClienteId,
     detalle: clienteDetalle,
@@ -112,8 +129,9 @@ export function CotizacionConvertirVentaDialog({
     if (!open) return
     setSelectedPayment(null)
     setOperationCode("")
-    setOperationDateTime("")
-    setOperationDateTimeError("")
+    setPaymentDate(getTodayLocalDate())
+    setPaymentTime("")
+    setPaymentDateTimeError("")
     setRequestError(null)
     setClientEditOpen(false)
   }, [open, target?.idCotizacion])
@@ -148,7 +166,13 @@ export function CotizacionConvertirVentaDialog({
     if (!selectedPayment || !methods) return null
     return methods.find((method) => method.nombre === selectedPayment) ?? null
   }, [methods, selectedPayment])
+  const requiresOperationCode = selectedMetodoPago?.requiereCodigoOperacion === true
+  const requiresPaymentDate = selectedMetodoPago?.requiereFechaPago === true
+  const requiresPaymentTime = selectedMetodoPago?.requiereHoraPago === true
+  const requiresPaymentDateTime = requiresPaymentDate || requiresPaymentTime
   const hasValidOperationCode = /^\d+$/.test(operationCode.trim())
+  const hasValidPaymentDate = paymentDate.trim().length > 0
+  const hasValidPaymentTime = paymentTime.trim().length > 0
   const selectedTipoComprobante = selectedComprobante?.tipoComprobante.trim().toUpperCase() ?? ""
   const isFacturaSelected = selectedTipoComprobante === "FACTURA"
   const clienteHasRuc =
@@ -164,7 +188,9 @@ export function CotizacionConvertirVentaDialog({
   const canConvert =
     !submitting &&
     Boolean(selectedMetodoPago) &&
-    hasValidOperationCode &&
+    (!requiresOperationCode || hasValidOperationCode) &&
+    (!requiresPaymentDateTime || hasValidPaymentDate) &&
+    (!requiresPaymentTime || hasValidPaymentTime) &&
     !facturaClientMessage
 
   const handleOpenChange = (nextOpen: boolean) => {
@@ -228,18 +254,20 @@ export function CotizacionConvertirVentaDialog({
       return
     }
 
-    if (!operationCode.trim()) {
-      const message = "Ingresa el codigo de operacion."
-      setRequestError(message)
-      toast.error(message)
-      return
-    }
+    if (requiresOperationCode) {
+      if (!operationCode.trim()) {
+        const message = "Ingresa el codigo de operacion."
+        setRequestError(message)
+        toast.error(message)
+        return
+      }
 
-    if (!hasValidOperationCode) {
-      const message = "El codigo de operacion debe contener solo numeros."
-      setRequestError(message)
-      toast.error(message)
-      return
+      if (!hasValidOperationCode) {
+        const message = "El codigo de operacion debe contener solo numeros."
+        setRequestError(message)
+        toast.error(message)
+        return
+      }
     }
 
     if (facturaClientMessage) {
@@ -248,13 +276,24 @@ export function CotizacionConvertirVentaDialog({
       return
     }
 
-    const normalizedOperationDateTime = normalizeDateTimeLocal(operationDateTime)
-    if (!normalizedOperationDateTime) {
-      const message = "Ingresa la fecha y hora de la operacion."
-      setOperationDateTimeError(message)
-      setRequestError(message)
-      toast.error(message)
-      return
+    let normalizedPaymentDateTime: string | null = null
+    if (requiresPaymentDateTime) {
+      const effectivePaymentTime = requiresPaymentTime ? paymentTime : paymentTime || "00:00"
+      normalizedPaymentDateTime = buildPaymentDateTime(paymentDate, effectivePaymentTime)
+      if (!normalizedPaymentDateTime) {
+        const message = "Ingresa la fecha de la operacion."
+        setPaymentDateTimeError(message)
+        setRequestError(message)
+        toast.error(message)
+        return
+      }
+      if (requiresPaymentTime && !paymentTime.trim()) {
+        const message = "Ingresa la hora de la operacion."
+        setPaymentDateTimeError(message)
+        setRequestError(message)
+        toast.error(message)
+        return
+      }
     }
 
     setSubmitting(true)
@@ -275,8 +314,8 @@ export function CotizacionConvertirVentaDialog({
         {
           idMetodoPago: selectedMetodoPago.idMetodoPago,
           monto: Number(target.total.toFixed(2)),
-          codigoOperacion: operationCode.trim(),
-          fecha: normalizedOperationDateTime,
+          codigoOperacion: requiresOperationCode ? operationCode.trim() : null,
+          fecha: normalizedPaymentDateTime,
         },
       ],
     }
@@ -421,49 +460,93 @@ export function CotizacionConvertirVentaDialog({
         )}
       </div>
 
-      <div className="space-y-2">
-        <label
-          htmlFor="convertir-venta-codigo-operacion"
-          className="text-sm font-medium text-foreground"
-        >
-          Codigo de operacion
-        </label>
-        <input
-          id="convertir-venta-codigo-operacion"
-          type="text"
-          inputMode="numeric"
-          pattern="[0-9]*"
-          value={operationCode}
-          onChange={(event) => setOperationCode(sanitizeNumericInput(event.target.value))}
-          placeholder="Obligatorio. Solo numeros"
-          className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15"
-        />
-      </div>
+      {requiresOperationCode && (
+        <div className="space-y-2">
+          <label
+            htmlFor="convertir-venta-codigo-operacion"
+            className="text-sm font-medium text-foreground"
+          >
+            Codigo de operacion
+          </label>
+          <input
+            id="convertir-venta-codigo-operacion"
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            value={operationCode}
+            onChange={(event) => {
+              setOperationCode(sanitizeNumericInput(event.target.value))
+              setRequestError(null)
+            }}
+            placeholder="Obligatorio. Solo numeros"
+            className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15"
+          />
+        </div>
+      )}
 
-      <div className="space-y-2">
-        <label
-          htmlFor="convertir-venta-fecha-operacion"
-          className="text-sm font-medium text-foreground"
-        >
-          Fecha y hora de la operacion
-        </label>
-        <input
-          id="convertir-venta-fecha-operacion"
-          type="datetime-local"
-          value={operationDateTime}
-          onChange={(event) => {
-            setOperationDateTime(event.target.value)
-            setOperationDateTimeError("")
-            setRequestError(null)
-          }}
-          className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15"
-        />
-        {operationDateTimeError && (
-          <p className="text-xs font-medium text-rose-600 dark:text-rose-400">
-            {operationDateTimeError}
-          </p>
-        )}
-      </div>
+      {requiresPaymentDateTime && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-foreground">
+              Fecha y hora de la operacion
+            </span>
+            <Badge variant="secondary" className="text-[10px]">Obligatorio</Badge>
+          </div>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label
+                htmlFor="convertir-venta-fecha-pago"
+                className="text-xs font-medium text-muted-foreground"
+              >
+                Fecha
+              </label>
+              <input
+                id="convertir-venta-fecha-pago"
+                type="date"
+                value={paymentDate}
+                onChange={(event) => {
+                  setPaymentDate(event.target.value)
+                  setPaymentDateTimeError("")
+                  setRequestError(null)
+                }}
+                className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15"
+              />
+            </div>
+            {requiresPaymentTime && (
+              <div className="space-y-1.5">
+                <label
+                  htmlFor="convertir-venta-hora-pago"
+                  className="text-xs font-medium text-muted-foreground"
+                >
+                  Hora
+                </label>
+                <input
+                  id="convertir-venta-hora-pago"
+                  type="time"
+                  value={paymentTime}
+                  onChange={(event) => {
+                    setPaymentTime(event.target.value)
+                    setPaymentDateTimeError("")
+                    setRequestError(null)
+                  }}
+                  className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15"
+                />
+              </div>
+            )}
+          </div>
+          {paymentDateTimeError && (
+            <p className="text-xs font-medium text-rose-600 dark:text-rose-400">
+              {paymentDateTimeError}
+            </p>
+          )}
+        </div>
+      )}
+
+      {selectedMetodoPago && !requiresOperationCode && !requiresPaymentDateTime && (
+        <p className="rounded-xl border border-emerald-100 bg-emerald-50/50 px-4 py-3 text-xs text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
+          Este metodo no requiere datos adicionales para esta sucursal.
+        </p>
+      )}
 
       {requestError && (
         <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300">
