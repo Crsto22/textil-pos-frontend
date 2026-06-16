@@ -4,9 +4,9 @@ import { useEffect, useState, type ComponentType } from "react"
 import Image from "next/image"
 import { usePathname, useRouter } from "next/navigation"
 import { useCompany } from "@/lib/company/company-context"
-import { getEmpresaDisplayName } from "@/lib/empresa"
 import { useAuth } from "@/lib/auth/auth-context"
 import { hasAccess } from "@/lib/auth/permissions"
+import { KimentsLogo } from "@/components/KimentsLogo"
 
 import {
     BanknotesIcon,
@@ -222,8 +222,7 @@ export function Sidebar({ isOpen, collapsed, onClose, onToggleCollapse }: Sideba
     const pathname = usePathname()
     const router = useRouter()
     const { user } = useAuth()
-    const { company, isLoadingCompany } = useCompany()
-    const companyDisplayName = getEmpresaDisplayName(company)
+    const { company } = useCompany()
     const [searchTerm, setSearchTerm] = useState("")
     const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(getStoredExpandedSections)
     useEffect(() => {
@@ -344,7 +343,7 @@ export function Sidebar({ isOpen, collapsed, onClose, onToggleCollapse }: Sideba
                             {company?.logoUrl ? (
                                 <Image
                                     src={company.logoUrl}
-                                    alt={`Logo ${companyDisplayName}`}
+                                    alt="Logo empresa"
                                     width={32}
                                     height={32}
                                     className="h-8 w-8 rounded-xl object-contain"
@@ -356,9 +355,7 @@ export function Sidebar({ isOpen, collapsed, onClose, onToggleCollapse }: Sideba
                         </div>
                         {!collapsed && (
                             <div className="min-w-0">
-                                <p className="truncate text-sm font-semibold tracking-tight text-white">
-                                    {isLoadingCompany ? "Cargando empresa..." : companyDisplayName}
-                                </p>
+                                <KimentsLogo size="sm" className="!text-white" />
                             </div>
                         )}
                     </div>

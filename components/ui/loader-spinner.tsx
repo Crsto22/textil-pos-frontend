@@ -1,17 +1,16 @@
 "use client"
 
-import Image from "next/image"
-import { useCompany } from "@/lib/company/company-context"
+import { KimentsLogo } from "@/components/KimentsLogo"
 import { cn } from "@/lib/utils"
 
 type SpinnerSize = "xs" | "sm" | "md" | "lg"
 
-const SIZE = {
-  xs: { wrap: "h-5 w-5",  logo: "h-3 w-3",  ring: "border-2",    text: "text-xs" },
-  sm: { wrap: "h-8 w-8",  logo: "h-5 w-5",  ring: "border-2",    text: "text-xs" },
-  md: { wrap: "h-12 w-12",logo: "h-7 w-7",  ring: "border-[3px]",text: "text-sm" },
-  lg: { wrap: "h-16 w-16",logo: "h-10 w-10",ring: "border-[3px]",text: "text-sm" },
-} as const
+const SIZE: Record<SpinnerSize, { dot: string; gap: string }> = {
+  xs: { dot: "h-1.5 w-1.5", gap: "gap-1" },
+  sm: { dot: "h-2 w-2",     gap: "gap-1" },
+  md: { dot: "h-2.5 w-2.5", gap: "gap-1.5" },
+  lg: { dot: "h-3 w-3",     gap: "gap-1.5" },
+}
 
 interface LoaderSpinnerProps {
   size?: SpinnerSize
@@ -19,49 +18,34 @@ interface LoaderSpinnerProps {
   className?: string
 }
 
-export function LoaderSpinner({ size = "md", text = "Cargando...", className }: LoaderSpinnerProps) {
-  const { company } = useCompany()
-  const logoUrl = company?.logoUrl?.trim() || null
+export function LoaderSpinner({ size = "md", className, text: _text }: LoaderSpinnerProps) {
   const cfg = SIZE[size]
 
   return (
-    <div className={cn("flex flex-col items-center justify-center gap-2", className)}>
+    <div className={cn("flex flex-col items-center justify-center gap-3", className)}>
       <style>{`
-        @keyframes ls-spin  { to { transform: rotate(360deg); } }
-        @keyframes ls-pulse { 0%,100%{ transform:scale(1);opacity:1; } 50%{ transform:scale(1.14);opacity:.8; } }
+        @keyframes ls-dot {
+          0%, 100% { opacity: 0.25; transform: scale(0.8); }
+          50%       { opacity: 1;    transform: scale(1.1); }
+        }
       `}</style>
 
-      {/* Ring + Logo */}
-      <div className={cn("relative flex items-center justify-center", cfg.wrap)}>
-        <div
-          className={cn(
-            "absolute inset-0 rounded-full border-gray-200 border-t-blue-500 dark:border-white/10 dark:border-t-blue-400",
-            cfg.ring
-          )}
-          style={{ animation: "ls-spin 0.9s linear infinite", borderStyle: "solid" }}
-        />
-        <div
-          className={cn("flex items-center justify-center overflow-hidden rounded-md", cfg.logo)}
-          style={{ animation: "ls-pulse 1.6s ease-in-out infinite" }}
-        >
-          {logoUrl ? (
-            <Image
-              src={logoUrl}
-              alt="Cargando"
-              width={40}
-              height={40}
-              className="h-full w-full object-contain"
-              unoptimized
-            />
-          ) : (
-            <div className="h-full w-full rounded bg-blue-500/20 dark:bg-blue-400/20" />
-          )}
-        </div>
-      </div>
+      <KimentsLogo size="sm" />
 
-      {text && (
-        <span className={cn("text-muted-foreground", cfg.text)}>{text}</span>
-      )}
+      <div className={cn("flex items-center", cfg.gap)} aria-hidden="true">
+        <span
+          className={cn("block rounded-full bg-blue-500 dark:bg-blue-400", cfg.dot)}
+          style={{ animation: "ls-dot 1.2s ease-in-out infinite" }}
+        />
+        <span
+          className={cn("block rounded-full bg-blue-500 dark:bg-blue-400", cfg.dot)}
+          style={{ animation: "ls-dot 1.2s ease-in-out 0.2s infinite" }}
+        />
+        <span
+          className={cn("block rounded-full bg-blue-500 dark:bg-blue-400", cfg.dot)}
+          style={{ animation: "ls-dot 1.2s ease-in-out 0.4s infinite" }}
+        />
+      </div>
     </div>
   )
 }

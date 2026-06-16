@@ -1,76 +1,48 @@
 "use client"
 
-import Image from "next/image"
-
-import { useCompany } from "@/lib/company/company-context"
-import { getEmpresaDisplayName } from "@/lib/empresa"
+import { KimentsLogo } from "@/components/KimentsLogo"
 import { cn } from "@/lib/utils"
 
 interface LoaderOverlayProps {
   className?: string
-  message?: string
 }
 
 export function LoaderOverlay({
   className,
-  message = "Cargando...",
 }: LoaderOverlayProps) {
-  const { company, isLoadingCompany } = useCompany()
-  const companyName = getEmpresaDisplayName(company)
-  const logoUrl = company?.logoUrl?.trim() || null
-
   return (
     <div
       className={cn(
         "fixed inset-0 z-[100] flex items-center justify-center bg-white/70 backdrop-blur-sm dark:bg-black/60",
-        className
+        className,
       )}
       role="status"
       aria-live="polite"
       aria-busy="true"
     >
       <style>{`
-        @keyframes logo-beat {
-          0%, 100% { transform: scale(1); }
-          50%       { transform: scale(1.08); }
+        @keyframes lo-dot {
+          0%, 100% { opacity: 0.25; transform: scale(0.8); }
+          50%       { opacity: 1;    transform: scale(1.1); }
         }
       `}</style>
 
-      {/* Content */}
-      <div className="flex flex-col items-center gap-5 px-10 py-9">
+      <div className="flex flex-col items-center gap-6 px-10 py-9">
+        <KimentsLogo size="lg" />
 
-        {/* Spinner + Logo */}
-        <div className="relative flex h-32 w-32 items-center justify-center">
-          {/* Spinning ring */}
-          <div className="absolute inset-0 rounded-full border-4 border-gray-100 border-t-blue-500 animate-spin dark:border-white/10 dark:border-t-blue-400" />
-
-          {/* Logo */}
-          <div
-            className="flex h-16 w-16 items-center justify-center overflow-hidden"
-            style={{ animation: "logo-beat 1.8s ease-in-out infinite" }}
-          >
-            {logoUrl ? (
-              <Image
-                src={logoUrl}
-                alt={`Logo ${companyName}`}
-                width={64}
-                height={64}
-                className="h-full w-full object-contain p-2 rounded-2xl"
-                unoptimized
-                priority
-              />
-            ) : (
-              <div className="h-8 w-8 rounded-lg bg-gray-200 dark:bg-white/20" />
-            )}
-          </div>
-        </div>
-
-        {/* Text */}
-        <div className="space-y-1 text-center">
-          <p className="text-sm font-bold text-gray-900 dark:text-white">
-            {isLoadingCompany && !company ? "Cargando empresa" : companyName}
-          </p>
-          <p className="text-xs text-gray-400 dark:text-white/40">{message}</p>
+        <div className="flex items-center gap-1.5" aria-hidden="true">
+          <span
+            className="block h-2 w-2 rounded-full bg-blue-500 dark:bg-blue-400"
+            style={{ animation: "lo-dot 1.2s ease-in-out infinite" }}
+          />
+          <span
+            className="block h-2 w-2 rounded-full bg-blue-500 dark:bg-blue-400"
+            style={{ animation: "lo-dot 1.2s ease-in-out 0.2s infinite" }}
+          />
+          <span
+            className="block h-2 w-2 rounded-full bg-blue-500 dark:bg-blue-400"
+            style={{ animation: "lo-dot 1.2s ease-in-out 0.4s infinite" }}
+          />
         </div>
       </div>
     </div>

@@ -4,13 +4,13 @@ import { useEffect, useMemo, useState } from "react"
 import Image from "next/image"
 import {
   ArrowPathIcon,
-  CubeIcon,
   MinusIcon,
   PlusIcon,
   ShoppingBagIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline"
 
+import { KimentsLogo } from "@/components/KimentsLogo"
 import { formatMonedaPen } from "@/components/productos/productos.utils"
 import { Button } from "@/components/ui/button"
 import {
@@ -612,8 +612,8 @@ export default function ProductModal({
               className="object-contain p-6"
             />
           ) : (
-            <div className="flex h-full w-full items-center justify-center text-slate-500 dark:text-slate-400">
-              <CubeIcon className="h-11 w-11" />
+            <div className="flex h-full w-full items-center justify-center">
+              <KimentsLogo size="md" />
             </div>
           )}
 

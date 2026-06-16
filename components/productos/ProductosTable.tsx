@@ -1,6 +1,7 @@
 import { memo, useEffect, useState } from "react"
-import { PencilSquareIcon, PhotoIcon, TrashIcon } from "@heroicons/react/24/outline"
+import { PencilSquareIcon, TrashIcon } from "@heroicons/react/24/outline"
 import { LoaderSpinner } from "@/components/ui/loader-spinner"
+import { KimentsLogo } from "@/components/KimentsLogo"
 
 import { formatMonedaPen, formatRangoPrecioPen } from "@/components/productos/productos.utils"
 import type { ProductoResumen, ProductoResumenColor } from "@/lib/types/producto"
@@ -136,8 +137,8 @@ function ProductoRow({
                 }}
               />
             ) : (
-              <div className="flex h-full w-full items-center justify-center text-muted-foreground">
-                <PhotoIcon className="h-5 w-5" />
+              <div className="flex h-full w-full items-center justify-center">
+                <KimentsLogo size="sm" />
               </div>
             )}
           </div>
