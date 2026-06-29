@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 
 import { authFetch } from "@/lib/auth/auth-fetch"
-import type { MetodoPagoActivo } from "@/lib/types/metodo-pago"
+import type { MetodoPagoActivo, SucursalMetodoPagoConfig } from "@/lib/types/metodo-pago"
 
 interface UseMetodosPagoActivosParams {
   enabled?: boolean
+  idSucursal?: number | null
 }
 
 function isAbortError(error: unknown) {
@@ -56,7 +57,7 @@ function normalizeCuentas(value: unknown) {
     .filter((item): item is NonNullable<typeof item> => item !== null)
 }
 
-function normalizeMetodoPago(value: unknown): MetodoPagoActivo | null {
+function normalizeMetodoPago(value: unknown): SucursalMetodoPagoConfig | null {
   const item = typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null
   if (!item) return null
 
@@ -68,11 +69,42 @@ function normalizeMetodoPago(value: unknown): MetodoPagoActivo | null {
   if (estado !== undefined && !isEstadoActivo(estado)) return null
   if (!Number.isFinite(idMetodoPago) || idMetodoPago <= 0 || nombre.length === 0) return null
 
-  return { idMetodoPago, nombre, cuentas }
+  return {
+    idMetodoPago,
+    nombre,
+    cuentas,
+    activo: true,
+    requiereCodigoOperacion: item.requiereCodigoOperacion === true,
+    requiereFechaPago: item.requiereFechaPago === true,
+    requiereHoraPago: item.requiereHoraPago === true,
+  }
 }
 
-export function useMetodosPagoActivos({ enabled = true }: UseMetodosPagoActivosParams = {}) {
-  const [methods, setMethods] = useState<MetodoPagoActivo[] | undefined>(enabled ? undefined : [])
+function normalizeSucursalMetodoPago(value: unknown): SucursalMetodoPagoConfig | null {
+  const item = typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null
+  if (!item) return null
+
+  const idMetodoPago = Number(item.idMetodoPago ?? item.id_metodo_pago ?? item.id)
+  const nombre = typeof item.nombre === "string" ? item.nombre.trim() : ""
+  if (!Number.isFinite(idMetodoPago) || idMetodoPago <= 0 || nombre.length === 0) return null
+
+  return {
+    idMetodoPago,
+    nombre,
+    cuentas: normalizeCuentas(item.cuentas),
+    activo: item.activo === true,
+    requiereCodigoOperacion: item.requiereCodigoOperacion === true,
+    requiereFechaPago: item.requiereFechaPago === true,
+    requiereHoraPago: item.requiereHoraPago === true,
+  }
+}
+
+function buildAccountMap(methods: SucursalMetodoPagoConfig[]) {
+  return new Map(methods.map((method) => [method.idMetodoPago, method.cuentas ?? []]))
+}
+
+export function useMetodosPagoActivos({ enabled = true, idSucursal = null }: UseMetodosPagoActivosParams = {}) {
+  const [methods, setMethods] = useState<SucursalMetodoPagoConfig[] | undefined>(enabled ? undefined : [])
   const [loading, setLoading] = useState(enabled)
   const [error, setError] = useState<string | null>(null)
 
@@ -95,11 +127,37 @@ export function useMetodosPagoActivos({ enabled = true }: UseMetodosPagoActivosP
     setError(null)
 
     try {
-      const response = await authFetch("/api/config/metodos-pago", {
-        signal: controller.signal,
-      })
+      const hasSucursal = typeof idSucursal === "number" && idSucursal > 0
+      const response = await authFetch(
+        hasSucursal ? `/api/config/sucursales/${idSucursal}/metodos-pago` : "/api/config/metodos-pago",
+        {
+          signal: controller.signal,
+        }
+      )
+
+      const accountResponsePromise = hasSucursal
+        ? authFetch("/api/config/metodos-pago", {
+            signal: controller.signal,
+          })
+        : Promise.resolve(null)
+
       const payload = await parseJsonSafe(response)
+      const accountResponse = await accountResponsePromise
+      const accountPayload = accountResponse ? await parseJsonSafe(accountResponse) : null
       if (controller.signal.aborted) return
+
+      if (accountResponse && !accountResponse.ok) {
+        const message =
+          accountPayload &&
+          typeof accountPayload === "object" &&
+          "message" in accountPayload &&
+          typeof accountPayload.message === "string"
+            ? accountPayload.message
+            : "Error al cargar cuentas de metodos de pago"
+        setMethods([])
+        setError(message)
+        return
+      }
 
       if (!response.ok) {
         const message =
@@ -114,9 +172,22 @@ export function useMetodosPagoActivos({ enabled = true }: UseMetodosPagoActivosP
         return
       }
 
+      const accountMap = accountPayload
+        ? buildAccountMap(
+            toArray(accountPayload)
+              .map((item) => normalizeMetodoPago(item))
+              .filter((item): item is SucursalMetodoPagoConfig => item !== null)
+          )
+        : new Map<number, MetodoPagoActivo["cuentas"]>()
+
       const normalized = toArray(payload)
-        .map((item) => normalizeMetodoPago(item))
-        .filter((item): item is MetodoPagoActivo => item !== null)
+        .map((item) => (hasSucursal ? normalizeSucursalMetodoPago(item) : normalizeMetodoPago(item)))
+        .filter((item): item is SucursalMetodoPagoConfig => item !== null)
+        .filter((item) => item.activo)
+        .map((item) => ({
+          ...item,
+          cuentas: item.cuentas?.length ? item.cuentas : accountMap.get(item.idMetodoPago) ?? [],
+        }))
 
       setMethods(normalized)
     } catch (requestError) {
@@ -128,7 +199,7 @@ export function useMetodosPagoActivos({ enabled = true }: UseMetodosPagoActivosP
         setLoading(false)
       }
     }
-  }, [enabled])
+  }, [enabled, idSucursal])
 
   useEffect(() => {
     void fetchMethods()

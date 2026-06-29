@@ -4,10 +4,10 @@ import {
   GlobeAltIcon,
   NoSymbolIcon,
   PencilSquareIcon,
-  PhotoIcon,
   TrashIcon,
 } from "@heroicons/react/24/outline"
 
+import { KimentsLogo } from "@/components/KimentsLogo"
 import { ProductosCardsSkeleton } from "@/components/productos/ProductosCardsSkeleton"
 import { formatMonedaPen, formatRangoPrecioPen } from "@/components/productos/productos.utils"
 import type { ProductoResumen, ProductoResumenColor } from "@/lib/types/producto"
@@ -156,8 +156,8 @@ function ProductoCard({
             }}
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center text-muted-foreground">
-            <PhotoIcon className="h-10 w-10" />
+          <div className="flex h-full w-full items-center justify-center">
+            <KimentsLogo size="sm" />
           </div>
         )}
 

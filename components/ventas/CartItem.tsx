@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react"
 import Image from "next/image"
-import { CheckIcon, CubeIcon, MinusIcon, PlusIcon, TrashIcon, XMarkIcon } from "@heroicons/react/24/outline"
+import { CheckIcon, MinusIcon, PhotoIcon, PlusIcon, TrashIcon, XMarkIcon } from "@heroicons/react/24/outline"
 
 import { formatMonedaPen } from "@/components/productos/productos.utils"
 import { PriceSelectorDropdown } from "@/components/ventas/PriceSelectorDropdown"
@@ -132,7 +132,7 @@ export default function CartItem({
                     />
                 ) : (
                     <div className="flex h-full w-full items-center justify-center text-slate-400 dark:text-slate-500">
-                        <CubeIcon className="h-5 w-5" />
+                        <PhotoIcon className="h-5 w-5" />
                     </div>
                 )}
             </div>

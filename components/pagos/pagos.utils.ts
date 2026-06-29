@@ -17,6 +17,10 @@ const PAGO_METHOD_LABELS: Record<string, string> = {
 }
 
 const PAGO_METHOD_LOGOS: Record<string, { src: string; alt: string }> = {
+  EFECTIVO: {
+    src: "/img/efectivo.png",
+    alt: "Efectivo",
+  },
   YAPE: {
     src: "/img/yape-app-seeklogo.png",
     alt: "Logo de Yape",

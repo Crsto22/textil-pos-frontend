@@ -2,8 +2,9 @@
 
 import { useMemo, useState } from "react"
 import Image from "next/image"
-import { NoSymbolIcon, PhotoIcon, PlusCircleIcon } from "@heroicons/react/24/outline"
+import { NoSymbolIcon, PlusCircleIcon } from "@heroicons/react/24/outline"
 
+import { KimentsLogo } from "@/components/KimentsLogo"
 import { formatMonedaPen, formatRangoPrecioPen } from "@/components/productos/productos.utils"
 import type { CatalogVariantItem } from "@/lib/catalog-view"
 import { ofertaEstaVigente, obtenerPrecioAplicadoOferta, tienePrecioOfertaValido } from "@/lib/oferta-utils"
@@ -173,8 +174,8 @@ export default function ProductCard({ product, onAdd, variantItem, onAddStock, c
             className="object-contain p-4"
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center text-muted-foreground">
-            <PhotoIcon className="h-10 w-10" />
+          <div className="flex h-full w-full items-center justify-center">
+            <KimentsLogo size="sm" />
           </div>
         )}
 

@@ -8,3 +8,10 @@ export interface MetodoPagoActivo {
   nombre: string
   cuentas?: MetodoPagoCuentaActiva[]
 }
+
+export interface SucursalMetodoPagoConfig extends MetodoPagoActivo {
+  activo: boolean
+  requiereCodigoOperacion: boolean
+  requiereFechaPago: boolean
+  requiereHoraPago: boolean
+}

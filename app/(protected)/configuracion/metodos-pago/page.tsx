@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import Image from "next/image"
 import {
     BanknotesIcon,
@@ -8,7 +8,7 @@ import {
     CreditCardIcon,
     BuildingLibraryIcon,
 } from "@heroicons/react/24/outline"
-import { Pencil, Plus, Trash2, X, Loader2 } from "lucide-react"
+import { Pencil, Plus, Trash2, X, Loader2, Save } from "lucide-react"
 import { toast } from "sonner"
 
 import { LoaderSpinner } from "@/components/ui/loader-spinner"
@@ -17,6 +17,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
+import { Combobox } from "@/components/ui/combobox"
+import { Switch } from "@/components/ui/switch"
+import { useSucursalOptions } from "@/lib/hooks/useSucursalOptions"
 import {
     Dialog,
     DialogContent,
@@ -26,6 +29,7 @@ import {
     DialogDescription,
     DialogClose,
 } from "@/components/ui/dialog"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { ComponentType, SVGProps } from "react"
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -39,6 +43,7 @@ const ICON_MAP: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
 }
 
 const PAYMENT_LOGOS: Record<string, { src: string; alt: string }> = {
+    EFECTIVO: { src: "/img/efectivo.png", alt: "Efectivo" },
     YAPE: { src: "/img/yape-app-seeklogo.png", alt: "Yape" },
     PLIN: { src: "/img/plin-seeklogo.png", alt: "Plin" },
 }
@@ -56,6 +61,15 @@ interface MetodoPago {
     descripcion: string | null
     estado: "ACTIVO" | "INACTIVO"
     cuentas: MetodoPagoCuenta[]
+}
+
+interface SucursalMetodoPagoConfig {
+    idMetodoPago: number
+    nombre: string
+    activo: boolean
+    requiereCodigoOperacion: boolean
+    requiereFechaPago: boolean
+    requiereHoraPago: boolean
 }
 
 // ── Normalizers ───────────────────────────────────────────────────────────────
@@ -96,6 +110,29 @@ function normalizeMethods(data: unknown): MetodoPago[] {
             }
         })
         .filter((item): item is MetodoPago => item !== null)
+        .sort((a, b) => a.nombre.localeCompare(b.nombre))
+}
+
+function normalizeSucursalMetodoPagoConfigs(data: unknown): SucursalMetodoPagoConfig[] {
+    const raw = Array.isArray(data) ? data : []
+    return raw
+        .map((value): SucursalMetodoPagoConfig | null => {
+            if (!value || typeof value !== "object") return null
+            const item = value as Record<string, unknown>
+            const idMetodoPago = Number(item.idMetodoPago)
+            const nombre = typeof item.nombre === "string" ? item.nombre.trim() : ""
+            if (!Number.isFinite(idMetodoPago) || idMetodoPago <= 0 || !nombre) return null
+
+            return {
+                idMetodoPago,
+                nombre,
+                activo: item.activo === true,
+                requiereCodigoOperacion: item.requiereCodigoOperacion === true,
+                requiereFechaPago: item.requiereFechaPago === true,
+                requiereHoraPago: item.requiereHoraPago === true,
+            }
+        })
+        .filter((item): item is SucursalMetodoPagoConfig => item !== null)
         .sort((a, b) => a.nombre.localeCompare(b.nombre))
 }
 
@@ -353,6 +390,19 @@ export default function MetodosPagoPage() {
     const [formOpen, setFormOpen] = useState(false)
     const [editingMethod, setEditingMethod] = useState<MetodoPago | null>(null)
     const [deleteTarget, setDeleteTarget] = useState<MetodoPago | null>(null)
+    const [selectedSucursalId, setSelectedSucursalId] = useState<number | null>(null)
+    const [branchConfigs, setBranchConfigs] = useState<SucursalMetodoPagoConfig[]>([])
+    const [branchLoading, setBranchLoading] = useState(false)
+    const [branchSaving, setBranchSaving] = useState(false)
+    const [branchError, setBranchError] = useState<string | null>(null)
+    const [branchDirty, setBranchDirty] = useState(false)
+    const {
+        sucursalOptions,
+        loadingSucursales,
+        errorSucursales,
+        searchSucursal,
+        setSearchSucursal,
+    } = useSucursalOptions(true, "VENTA")
 
     const loadMethods = useCallback(async () => {
         setLoading(true)
@@ -373,6 +423,101 @@ export default function MetodosPagoPage() {
     }, [])
 
     useEffect(() => { loadMethods() }, [loadMethods])
+
+    useEffect(() => {
+        if (selectedSucursalId !== null || sucursalOptions.length === 0) return
+        const firstSucursalId = Number(sucursalOptions[0]?.value)
+        if (Number.isFinite(firstSucursalId) && firstSucursalId > 0) {
+            setSelectedSucursalId(firstSucursalId)
+        }
+    }, [selectedSucursalId, sucursalOptions])
+
+    const loadBranchConfigs = useCallback(async (idSucursal: number) => {
+        setBranchLoading(true)
+        setBranchError(null)
+        try {
+            const res = await authFetch(`/api/config/sucursales/${idSucursal}/metodos-pago`, {
+                cache: "no-store",
+            })
+            const data = await res.json().catch(() => null)
+            if (!res.ok) {
+                throw new Error(data?.message ?? "Error al cargar configuracion de la sucursal")
+            }
+            setBranchConfigs(normalizeSucursalMetodoPagoConfigs(data))
+            setBranchDirty(false)
+        } catch (e) {
+            setBranchConfigs([])
+            setBranchError(e instanceof Error ? e.message : "Error inesperado")
+        } finally {
+            setBranchLoading(false)
+        }
+    }, [])
+
+    useEffect(() => {
+        if (selectedSucursalId === null) {
+            setBranchConfigs([])
+            setBranchDirty(false)
+            setBranchError(null)
+            return
+        }
+        void loadBranchConfigs(selectedSucursalId)
+    }, [loadBranchConfigs, selectedSucursalId])
+
+    const selectedSucursalValue = selectedSucursalId === null ? "" : String(selectedSucursalId)
+    const selectedSucursalLabel = useMemo(() => {
+        if (selectedSucursalId === null) return "Selecciona una sucursal"
+        return sucursalOptions.find((option) => option.value === String(selectedSucursalId))?.label
+            ?? `Sucursal #${selectedSucursalId}`
+    }, [selectedSucursalId, sucursalOptions])
+
+    const updateBranchConfig = (
+        idMetodoPago: number,
+        patch: Partial<Omit<SucursalMetodoPagoConfig, "idMetodoPago" | "nombre">>
+    ) => {
+        setBranchConfigs((prev) =>
+            prev.map((item) =>
+                item.idMetodoPago === idMetodoPago
+                    ? { ...item, ...patch }
+                    : item
+            )
+        )
+        setBranchDirty(true)
+    }
+
+    const saveBranchConfigs = async () => {
+        if (selectedSucursalId === null) {
+            toast.error("Selecciona una sucursal")
+            return
+        }
+        setBranchSaving(true)
+        try {
+            const res = await authFetch(`/api/config/sucursales/${selectedSucursalId}/metodos-pago`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    metodosPago: branchConfigs.map((item) => ({
+                        idMetodoPago: item.idMetodoPago,
+                        activo: item.activo,
+                        requiereCodigoOperacion: item.requiereCodigoOperacion,
+                        requiereFechaPago: item.requiereFechaPago,
+                        requiereHoraPago: item.requiereHoraPago,
+                    })),
+                }),
+            })
+            const data = await res.json().catch(() => null)
+            if (!res.ok) {
+                toast.error(data?.message ?? "Error al guardar configuracion")
+                return
+            }
+            setBranchConfigs(normalizeSucursalMetodoPagoConfigs(data))
+            setBranchDirty(false)
+            toast.success(`Configuracion de ${selectedSucursalLabel} actualizada`)
+        } catch {
+            toast.error("Error de conexion")
+        } finally {
+            setBranchSaving(false)
+        }
+    }
 
     const toggleMethod = async (metodo: MetodoPago) => {
         const nuevoEstado: MetodoPago["estado"] = metodo.estado === "ACTIVO" ? "INACTIVO" : "ACTIVO"
@@ -447,6 +592,14 @@ export default function MetodosPagoPage() {
                     <Plus className="h-4 w-4" /> Nuevo método
                 </Button>
             </div>
+
+            <Tabs defaultValue="metodos" className="space-y-6">
+                <TabsList className="w-full max-w-md">
+                    <TabsTrigger value="metodos" className="flex-1">Metodos de pago</TabsTrigger>
+                    <TabsTrigger value="sucursal" className="flex-1">Configuracion por sucursal</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="metodos">
 
             {/* Loading */}
             {loading && (
@@ -581,6 +734,187 @@ export default function MetodosPagoPage() {
                     })}
                 </div>
             )}
+
+                </TabsContent>
+
+                <TabsContent value="sucursal">
+
+            <section className="space-y-4 rounded-xl border bg-card p-4 shadow-sm">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                    <div className="space-y-1">
+                        <h2 className="text-base font-semibold">Configuracion por sucursal</h2>
+                        <p className="text-sm text-muted-foreground">
+                            Define que metodos estan disponibles y que datos exige cada sucursal de venta.
+                        </p>
+                    </div>
+                    <div className="w-full lg:max-w-sm">
+                        <Label htmlFor="sucursal-metodos-pago" className="mb-2 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                            Sucursal
+                        </Label>
+                        <Combobox
+                            id="sucursal-metodos-pago"
+                            value={selectedSucursalValue}
+                            options={sucursalOptions}
+                            searchValue={searchSucursal}
+                            onSearchValueChange={setSearchSucursal}
+                            onValueChange={(value) => {
+                                const nextId = Number(value)
+                                setSelectedSucursalId(Number.isFinite(nextId) && nextId > 0 ? nextId : null)
+                            }}
+                            placeholder="Selecciona una sucursal"
+                            searchPlaceholder="Buscar sucursal..."
+                            emptyMessage={errorSucursales ?? "No se encontraron sucursales"}
+                            loading={loadingSucursales}
+                            loadingMessage="Cargando sucursales..."
+                            disabled={branchSaving}
+                        />
+                    </div>
+                </div>
+
+                {branchLoading && (
+                    <div className="flex w-full items-center justify-center rounded-xl border border-dashed py-12">
+                        <LoaderSpinner text="Cargando configuracion..." />
+                    </div>
+                )}
+
+                {!branchLoading && branchError && (
+                    <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-300">
+                        <p className="font-semibold">{branchError}</p>
+                        {selectedSucursalId !== null && (
+                            <button
+                                type="button"
+                                onClick={() => void loadBranchConfigs(selectedSucursalId)}
+                                className="mt-1 text-xs underline opacity-80 hover:opacity-100"
+                            >
+                                Reintentar
+                            </button>
+                        )}
+                    </div>
+                )}
+
+                {!branchLoading && !branchError && selectedSucursalId !== null && (
+                    <div className="overflow-hidden rounded-xl border">
+                        <div className="hidden grid-cols-[minmax(160px,1.5fr)_repeat(4,minmax(80px,0.6fr))] gap-x-6 gap-y-2 border-b bg-muted/40 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground lg:grid">
+                            <span>Metodo</span>
+                            <span className="text-center">Activo</span>
+                            <span className="text-center">Codigo de operacion</span>
+                            <span className="text-center">Fecha</span>
+                            <span className="text-center">Hora</span>
+                        </div>
+
+                        <div className="divide-y">
+                            {(() => {
+                                const activeConfigs = branchConfigs.filter((config) => {
+                                    const method = methods.find((item) => item.idMetodoPago === config.idMetodoPago)
+                                    return !method || method.estado !== "INACTIVO"
+                                })
+                                if (activeConfigs.length === 0) {
+                                    return (
+                                        <p className="px-4 py-8 text-center text-sm text-muted-foreground">
+                                            No hay metodos configurables para esta sucursal.
+                                        </p>
+                                    )
+                                }
+                                return activeConfigs.map((config) => {
+                                    const method = methods.find((item) => item.idMetodoPago === config.idMetodoPago)
+                                    const globallyInactive = method?.estado === "INACTIVO"
+                                    const disabledRequirements = branchSaving || !config.activo || globallyInactive
+                                    return (
+                                        <div
+                                            key={config.idMetodoPago}
+                                            className="grid gap-x-6 gap-y-3 px-4 py-4 lg:grid-cols-[minmax(160px,1.5fr)_repeat(4,minmax(80px,0.6fr))] lg:items-center"
+                                        >
+                                            <div className="min-w-0">
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <p className="truncate text-sm font-semibold">{config.nombre}</p>
+                                                    {globallyInactive && (
+                                                        <Badge variant="secondary" className="text-[10px]">
+                                                            Global inactivo
+                                                        </Badge>
+                                                    )}
+                                                </div>
+                                                <p className="mt-1 text-xs text-muted-foreground">
+                                                    ID {config.idMetodoPago}
+                                                </p>
+                                            </div>
+
+                                            <div className="flex items-center justify-between gap-3 lg:justify-center">
+                                                <span className="text-xs font-medium text-muted-foreground lg:hidden">Activo</span>
+                                                <Switch
+                                                    checked={config.activo}
+                                                    disabled={branchSaving || globallyInactive}
+                                                    onCheckedChange={(checked) =>
+                                                        updateBranchConfig(config.idMetodoPago, {
+                                                            activo: checked,
+                                                            requiereCodigoOperacion: checked ? config.requiereCodigoOperacion : false,
+                                                            requiereFechaPago: checked ? config.requiereFechaPago : false,
+                                                            requiereHoraPago: checked ? config.requiereHoraPago : false,
+                                                        })
+                                                    }
+                                                />
+                                            </div>
+
+                                            <div className="flex items-center justify-between gap-3 lg:justify-center">
+                                                <span className="text-xs font-medium text-muted-foreground lg:hidden">Codigo de operacion</span>
+                                                <Switch
+                                                    checked={config.requiereCodigoOperacion}
+                                                    disabled={disabledRequirements}
+                                                    onCheckedChange={(checked) =>
+                                                        updateBranchConfig(config.idMetodoPago, { requiereCodigoOperacion: checked })
+                                                    }
+                                                />
+                                            </div>
+
+                                            <div className="flex items-center justify-between gap-3 lg:justify-center">
+                                                <span className="text-xs font-medium text-muted-foreground lg:hidden">Fecha</span>
+                                                <Switch
+                                                    checked={config.requiereFechaPago}
+                                                    disabled={disabledRequirements}
+                                                    onCheckedChange={(checked) =>
+                                                        updateBranchConfig(config.idMetodoPago, { requiereFechaPago: checked })
+                                                    }
+                                                />
+                                            </div>
+
+                                            <div className="flex items-center justify-between gap-3 lg:justify-center">
+                                                <span className="text-xs font-medium text-muted-foreground lg:hidden">Hora</span>
+                                                <Switch
+                                                    checked={config.requiereHoraPago}
+                                                    disabled={disabledRequirements}
+                                                    onCheckedChange={(checked) =>
+                                                        updateBranchConfig(config.idMetodoPago, {
+                                                            requiereHoraPago: checked,
+                                                            requiereFechaPago: checked ? true : config.requiereFechaPago,
+                                                        })
+                                                    }
+                                                />
+                                            </div>
+                                        </div>
+                                    )
+                                })
+                            })()}
+                        </div>
+                    </div>
+                )}
+
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-xs text-muted-foreground">
+                        {branchDirty ? "Hay cambios pendientes por guardar." : "La configuracion esta sincronizada."}
+                    </p>
+                    <Button
+                        type="button"
+                        onClick={saveBranchConfigs}
+                        disabled={selectedSucursalId === null || branchLoading || branchSaving || !branchDirty}
+                        className="gap-2 self-start sm:self-auto"
+                    >
+                        {branchSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                        {branchSaving ? "Guardando..." : "Guardar configuracion"}
+                    </Button>
+                </div>
+            </section>
+
+                </TabsContent>
+            </Tabs>
 
             <MetodoPagoFormDialog
                 open={formOpen}

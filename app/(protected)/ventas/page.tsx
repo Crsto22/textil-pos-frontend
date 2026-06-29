@@ -468,22 +468,15 @@ export default function VentasPage() {
         ? user?.idSucursal ?? null
         : null
 
-  // Sincronizar filtro "Solo disponibles" con localStorage
-  const [initialSoloDisponibles] = useState(
-    () => typeof window !== "undefined" ? localStorage.getItem("pos_solo_disponibles") !== "0" : true
-  )
-
   const {
     search: searchProductos,
     setSearch: setSearchProductos,
     idCategoriaFilter: idCategoriaFilterProductos,
     idColorFilter: idColorFilterProductos,
     conOfertaFilter: conOfertaFilterProductos,
-    soloDisponiblesFilter: soloDisponiblesFilterProductos,
     setIdCategoriaFilter: setIdCategoriaFilterProductos,
     setIdColorFilter: setIdColorFilterProductos,
     setConOfertaFilter: setConOfertaFilterProductos,
-    setSoloDisponiblesFilter: setSoloDisponiblesFilterProductos,
     displayedProductos,
     displayedTotalElements: displayedTotalElementsProductos,
     displayedTotalPages: displayedTotalPagesProductos,
@@ -492,18 +485,16 @@ export default function VentasPage() {
     setDisplayedPage: setDisplayedPageProductos,
     error: errorProductosListado,
     refreshCurrentView: refreshProductosView,
-  } = useProductos(!isVariantView && resolvedSucursalId !== null, resolvedSucursalId, initialSoloDisponibles, true)
+  } = useProductos(!isVariantView && resolvedSucursalId !== null, resolvedSucursalId, true, true)
   const {
     search: searchVariantes,
     setSearch: setSearchVariantes,
     idCategoriaFilter: idCategoriaFilterVariantes,
     idColorFilter: idColorFilterVariantes,
     conOfertaFilter: conOfertaFilterVariantes,
-    soloDisponiblesFilter: soloDisponiblesFilterVariantes,
     setIdCategoriaFilter: setIdCategoriaFilterVariantes,
     setIdColorFilter: setIdColorFilterVariantes,
     setConOfertaFilter: setConOfertaFilterVariantes,
-    setSoloDisponiblesFilter: setSoloDisponiblesFilterVariantes,
     displayedCatalogVariants,
     displayedTotalElements: displayedTotalElementsVariantes,
     displayedTotalPages: displayedTotalPagesVariantes,
@@ -512,18 +503,16 @@ export default function VentasPage() {
     setDisplayedPage: setDisplayedPageVariantes,
     error: errorVariantesListado,
     refreshCurrentView: refreshVariantesView,
-  } = useCatalogoVariantes(isVariantView && resolvedSucursalId !== null, resolvedSucursalId, initialSoloDisponibles, true)
+  } = useCatalogoVariantes(isVariantView && resolvedSucursalId !== null, resolvedSucursalId, true, true)
   const {
     search: sheetSearch,
     setSearch: setSheetSearch,
     idCategoriaFilter: sheetIdCategoriaFilter,
     idColorFilter: sheetIdColorFilter,
     conOfertaFilter: sheetConOfertaFilter,
-    soloDisponiblesFilter: sheetSoloDisponiblesFilter,
     setIdCategoriaFilter: setSheetIdCategoriaFilter,
     setIdColorFilter: setSheetIdColorFilter,
     setConOfertaFilter: setSheetConOfertaFilter,
-    setSoloDisponiblesFilter: setSheetSoloDisponiblesFilter,
     displayedCatalogVariants: sheetCatalogVariants,
     displayedTotalElements: sheetTotalElements,
     displayedTotalPages: sheetTotalPages,
@@ -532,7 +521,7 @@ export default function VentasPage() {
     setDisplayedPage: setSheetPage,
     error: sheetError,
     refreshCurrentView: refreshSheetView,
-  } = useCatalogoVariantes(addProductSheetOpen && resolvedSucursalId !== null, resolvedSucursalId, initialSoloDisponibles, true)
+  } = useCatalogoVariantes(addProductSheetOpen && resolvedSucursalId !== null, resolvedSucursalId, true, true)
   const [cart, setCart] = useState<CartItemData[]>([])
   const [selectedPayment, setSelectedPayment] = useState<PaymentKey | null>(null)
   const [paymentOperationCode, setPaymentOperationCode] = useState("")
@@ -812,7 +801,11 @@ export default function VentasPage() {
   })
   const {
     methods: activeMetodosPago,
-  } = useMetodosPagoActivos()
+    error: errorMetodosPago,
+  } = useMetodosPagoActivos({
+    enabled: resolvedSucursalId !== null,
+    idSucursal: resolvedSucursalId,
+  })
 
   const effectiveSelectedComprobanteId = useMemo(() => {
     if (comprobanteOptions.length === 0) return ""
@@ -886,7 +879,6 @@ export default function VentasPage() {
   const idCategoriaFilter = isVariantView ? idCategoriaFilterVariantes : idCategoriaFilterProductos
   const idColorFilter = isVariantView ? idColorFilterVariantes : idColorFilterProductos
   const conOfertaFilter = isVariantView ? conOfertaFilterVariantes : conOfertaFilterProductos
-  const soloDisponiblesFilter = isVariantView ? soloDisponiblesFilterVariantes : soloDisponiblesFilterProductos
   const shouldShowCatalogFilters = resolvedSucursalId !== null
   const displayedTotalElements = isVariantView
     ? displayedTotalElementsVariantes
@@ -985,18 +977,26 @@ export default function VentasPage() {
     if (!selectedPayment || !activeMetodosPago) return null
     return activeMetodosPago.find((method) => method.nombre === selectedPayment) ?? null
   }, [activeMetodosPago, selectedPayment])
+  const requiresOperationCode = selectedMetodoPago?.requiereCodigoOperacion === true
+  const requiresPaymentDate = selectedMetodoPago?.requiereFechaPago === true
+  const requiresPaymentTime = selectedMetodoPago?.requiereHoraPago === true
+  const requiresPaymentDateTime = requiresPaymentDate || requiresPaymentTime
   const canContinueToPayment =
     cart.length > 0 &&
     resolvedSucursalId !== null &&
     selectedComprobante !== null &&
     (!requiresRucClient || selectedClientHasRuc)
   const hasValidPaymentOperationCode = paymentOperationCode.trim().length > 0
-  const hasValidPaymentDateTime = paymentDate.trim().length > 0 && paymentTime.trim().length > 0
+  const hasValidPaymentDate = paymentDate.trim().length > 0
+  const hasValidPaymentTime = paymentTime.trim().length > 0
+  const hasValidPaymentDateTime =
+    (!requiresPaymentDateTime || hasValidPaymentDate) &&
+    (!requiresPaymentTime || hasValidPaymentTime)
   const canConfirm =
     canContinueToPayment &&
     selectedPayment !== null &&
     selectedMetodoPago !== null &&
-    hasValidPaymentOperationCode &&
+    (!requiresOperationCode || hasValidPaymentOperationCode) &&
     hasValidPaymentDateTime
 
   const continueHint = useMemo(() => {
@@ -1027,19 +1027,24 @@ export default function VentasPage() {
     selectedComprobante,
   ])
   const paymentHint = useMemo(() => {
+    if (errorMetodosPago) return errorMetodosPago
     if (!activeMetodosPago) return "Cargando metodos de pago..."
     if (activeMetodosPago.length === 0) return "No hay metodos de pago activos"
     if (selectedPayment === null) return "Selecciona un metodo de pago"
     if (selectedMetodoPago === null) return "Selecciona un metodo de pago valido"
-    if (!paymentOperationCode.trim()) return "Ingresa el codigo de operacion"
-    if (!paymentDate.trim()) return "Ingresa la fecha de operacion"
-    if (!paymentTime.trim()) return "Ingresa la hora de operacion"
+    if (requiresOperationCode && !paymentOperationCode.trim()) return "Ingresa el codigo de operacion"
+    if (requiresPaymentDateTime && !paymentDate.trim()) return "Ingresa la fecha de operacion"
+    if (requiresPaymentTime && !paymentTime.trim()) return "Ingresa la hora de operacion"
     return ""
   }, [
     activeMetodosPago,
+    errorMetodosPago,
     paymentDate,
     paymentOperationCode,
     paymentTime,
+    requiresOperationCode,
+    requiresPaymentDateTime,
+    requiresPaymentTime,
     selectedMetodoPago,
     selectedPayment,
   ])
@@ -1053,6 +1058,26 @@ export default function VentasPage() {
     ? !canConfirm || submittingVenta
     : !canContinueToPayment || submittingVenta
   const primaryActionHint = isPaymentStepActive ? paymentHint : continueHint
+
+  useEffect(() => {
+    setSelectedPayment(null)
+    setPaymentOperationCode("")
+    setPaymentDate(getTodayLocalDate())
+    setPaymentTime("")
+    setPaymentDateTimeError("")
+  }, [resolvedSucursalId])
+
+  useEffect(() => {
+    if (!selectedPayment || !activeMetodosPago) return
+    const exists = activeMetodosPago.some((method) => method.nombre === selectedPayment)
+    if (!exists) {
+      setSelectedPayment(null)
+      setPaymentOperationCode("")
+      setPaymentDate(getTodayLocalDate())
+      setPaymentTime("")
+      setPaymentDateTimeError("")
+    }
+  }, [activeMetodosPago, selectedPayment])
 
   const applySucursalChange = useCallback((value: string) => {
     const nextValue = Number(value)
@@ -1131,20 +1156,6 @@ export default function VentasPage() {
       setConOfertaFilterProductos(value)
     },
     [isVariantView, setConOfertaFilterProductos, setConOfertaFilterVariantes]
-  )
-
-  const handleSoloDisponiblesFilterChange = useCallback(
-    (value: boolean) => {
-      if (typeof window !== "undefined") {
-        localStorage.setItem("pos_solo_disponibles", value ? "1" : "0")
-      }
-      if (isVariantView) {
-        setSoloDisponiblesFilterVariantes(value)
-        return
-      }
-      setSoloDisponiblesFilterProductos(value)
-    },
-    [isVariantView, setSoloDisponiblesFilterProductos, setSoloDisponiblesFilterVariantes]
   )
 
   const handleDisplayedPageChange = useCallback(
@@ -1602,16 +1613,23 @@ export default function VentasPage() {
       return
     }
 
-    if (!paymentOperationCode.trim()) {
+    if (requiresOperationCode && !paymentOperationCode.trim()) {
       toast.error("Debe ingresar el codigo de operacion.")
       return
     }
 
-    const normalizedPaymentDateTime = buildPaymentDateTime(paymentDate, paymentTime)
-    if (!normalizedPaymentDateTime) {
-      setPaymentDateTimeError("Debe ingresar la fecha y hora del pago.")
-      toast.error("Debe ingresar la fecha y hora del pago.")
-      return
+    let normalizedPaymentDateTime: string | null = null
+    if (requiresPaymentDateTime) {
+      const effectivePaymentTime = requiresPaymentTime ? paymentTime : paymentTime || "00:00"
+      normalizedPaymentDateTime = buildPaymentDateTime(paymentDate, effectivePaymentTime)
+      if (!normalizedPaymentDateTime) {
+        const message = requiresPaymentTime
+          ? "Debe ingresar la fecha y hora del pago."
+          : "Debe ingresar la fecha del pago."
+        setPaymentDateTimeError(message)
+        toast.error(message)
+        return
+      }
     }
 
     setSubmittingVenta(true)
@@ -1640,7 +1658,7 @@ export default function VentasPage() {
           {
             idMetodoPago: selectedMetodoPago.idMetodoPago,
             monto: total,
-            codigoOperacion: paymentOperationCode.trim(),
+            codigoOperacion: requiresOperationCode ? paymentOperationCode.trim() : null,
             fecha: normalizedPaymentDateTime,
           },
         ],
@@ -1725,6 +1743,9 @@ export default function VentasPage() {
     total,
     autoOpenDoc,
     autoOpenDocType,
+    requiresOperationCode,
+    requiresPaymentDateTime,
+    requiresPaymentTime,
   ])
 
   return (
@@ -1862,20 +1883,6 @@ export default function VentasPage() {
                 >
                   <TagIcon className="h-4 w-4" />
                   {conOfertaFilter ? "Ofertas activas" : "Solo ofertas"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSoloDisponiblesFilterChange(!soloDisponiblesFilter)}
-                  className={`inline-flex h-11 items-center gap-2 rounded-xl border px-3 text-xs font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/20 ${
-                    soloDisponiblesFilter
-                      ? "border-emerald-500 bg-emerald-50 text-emerald-700 dark:border-emerald-500/70 dark:bg-emerald-500/10 dark:text-emerald-200"
-                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700/70"
-                  }`}
-                  title="Mostrar solo productos con stock disponible"
-                  aria-pressed={soloDisponiblesFilter}
-                >
-                  <CheckCircleIcon className="h-4 w-4" />
-                  {soloDisponiblesFilter ? "Disponibles" : "Disponible"}
                 </button>
                 <button
                   type="button"
@@ -2416,6 +2423,7 @@ export default function VentasPage() {
                     />
 
                     <div className="mt-4 grid grid-cols-1 gap-3">
+                      {requiresOperationCode && (
                       <div className="space-y-2">
                         <label
                           htmlFor="venta-codigo-operacion"
@@ -2428,11 +2436,13 @@ export default function VentasPage() {
                           type="text"
                           value={paymentOperationCode}
                           onChange={handlePaymentOperationCodeChange}
-                          placeholder="Obligatorio"
+                          placeholder="Ingrese el codigo"
                           className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
                         />
                       </div>
+                      )}
 
+                      {requiresPaymentDateTime && (
                       <div className="space-y-2">
                         <div className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200">
                           <span>Fecha y hora del pago de la operación</span>
@@ -2440,7 +2450,7 @@ export default function VentasPage() {
                             variant="secondary"
                             className="h-5 px-1.5 text-[10px] uppercase tracking-wide"
                           >
-                            Nuevo
+                            Obligatorio
                           </Badge>
                         </div>
                         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -2459,6 +2469,7 @@ export default function VentasPage() {
                               className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
                             />
                           </div>
+                          {requiresPaymentTime && (
                           <div className="space-y-1.5">
                             <label
                               htmlFor="venta-hora-pago"
@@ -2479,6 +2490,7 @@ export default function VentasPage() {
                               </span>
                             </div>
                           </div>
+                          )}
                         </div>
                         {paymentDateTimeError && (
                           <p className="text-xs font-medium text-red-600 dark:text-red-400">
@@ -2486,6 +2498,12 @@ export default function VentasPage() {
                           </p>
                         )}
                       </div>
+                      )}
+                      {selectedMetodoPago && !requiresOperationCode && !requiresPaymentDateTime && (
+                        <p className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300">
+                          Este metodo no requiere datos adicionales para esta sucursal.
+                        </p>
+                      )}
                     </div>
                   </div>
                 </Card>
@@ -2928,19 +2946,6 @@ export default function VentasPage() {
                 {sheetConOfertaFilter ? "Ofertas activas" : "Solo ofertas"}
               </button>
 
-              <button
-                type="button"
-                onClick={() => setSheetSoloDisponiblesFilter(!sheetSoloDisponiblesFilter)}
-                className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold transition-all ${
-                  sheetSoloDisponiblesFilter
-                    ? "border-emerald-500 bg-emerald-50 text-emerald-700 dark:border-emerald-500/70 dark:bg-emerald-500/10 dark:text-emerald-200"
-                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
-                }`}
-                aria-pressed={sheetSoloDisponiblesFilter}
-              >
-                <CheckCircleIcon className="h-3.5 w-3.5" />
-                {sheetSoloDisponiblesFilter ? "Disponibles" : "Disponible"}
-              </button>
             </div>
 
             {/* Filtros de categoría/color */}

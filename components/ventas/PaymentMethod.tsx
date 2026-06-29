@@ -51,8 +51,10 @@ const METHOD_STYLES: Record<string, MethodStyle> = {
     activeRing: "ring-2 ring-emerald-500",
     activeBg: "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-300 dark:border-emerald-600",
     iconWrap:
-      "border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300",
+      "border-transparent bg-transparent text-emerald-600 dark:text-emerald-300",
     icon: <BanknotesIcon className="h-5 w-5" />,
+    logoSrc: "/img/efectivo.png",
+    logoAlt: "Efectivo",
   },
   YAPE: {
     label: "Yape",

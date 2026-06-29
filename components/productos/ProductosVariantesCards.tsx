@@ -4,13 +4,13 @@ import {
   ExclamationTriangleIcon,
   NoSymbolIcon,
   PencilSquareIcon,
-  PhotoIcon,
   PlusCircleIcon,
   TagIcon,
   TrashIcon,
 } from "@heroicons/react/24/outline"
 import { Barcode } from "lucide-react"
 
+import { KimentsLogo } from "@/components/KimentsLogo"
 import { formatMonedaPen } from "@/components/productos/productos.utils"
 import type { CatalogVariantItem } from "@/lib/catalog-view"
 import { cn } from "@/lib/utils"
@@ -99,8 +99,8 @@ function VarianteCard({ variant, onEditVariante, onDeleteVariante, onShowBarcode
             className={cn("object-contain p-4", (noStock || noStockRegistered) && "opacity-50")}
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center text-muted-foreground">
-            <PhotoIcon className="h-10 w-10" />
+          <div className="flex h-full w-full items-center justify-center">
+            <KimentsLogo size="sm" />
           </div>
         )}
 

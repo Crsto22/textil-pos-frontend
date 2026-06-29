@@ -13,6 +13,12 @@ const soraLight = localFont({
   weight: "300",
 });
 
+const kiments = localFont({
+  src: "../public/font/logo/jen-wagner-co-versailles-regular.ttf",
+  variable: "--font-kiments",
+  weight: "400",
+});
+
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
@@ -65,7 +71,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" suppressHydrationWarning>
-      <body className={`${soraLight.variable} antialiased`}>
+      <body className={`${soraLight.variable} ${kiments.variable} antialiased`}>
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
