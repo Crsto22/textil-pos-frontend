@@ -7,6 +7,8 @@ export interface Producto {
   descripcion: string
   imagenGlobalUrl: string | null
   imagenGlobalThumbUrl: string | null
+  guiaTallasUrl: string | null
+  guiaTallasThumbUrl: string | null
   publicarEcommerce: boolean
   estado: string
   fechaCreacion: string
@@ -78,6 +80,8 @@ export interface ProductoCreateRequest {
   descripcion: string
   imagenGlobalUrl?: string | null
   imagenGlobalThumbUrl?: string | null
+  guiaTallasUrl?: string | null
+  guiaTallasThumbUrl?: string | null
   publicarEcommerce?: boolean
 }
 
@@ -110,6 +114,8 @@ export interface ProductoInsertarCompletoRequest {
   descripcion?: string
   imagenGlobalUrl?: string | null
   imagenGlobalThumbUrl?: string | null
+  guiaTallasUrl?: string | null
+  guiaTallasThumbUrl?: string | null
   publicarEcommerce?: boolean
   variantes: ProductoVarianteCreateRequest[]
   imagenes: ProductoImagenCreateRequest[]
@@ -254,6 +260,8 @@ export interface ProductoUpdateRequest {
   descripcion: string
   imagenGlobalUrl?: string | null
   imagenGlobalThumbUrl?: string | null
+  guiaTallasUrl?: string | null
+  guiaTallasThumbUrl?: string | null
   publicarEcommerce?: boolean
 }
 

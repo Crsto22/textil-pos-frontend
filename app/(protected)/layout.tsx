@@ -22,7 +22,7 @@ export default function ProtectedLayout({ children }: { children: ReactNode }) {
     }
 
     if (!isLoading && isAuthenticated && user) {
-      if (!hasAccess(user.rol, pathname)) {
+      if (!hasAccess(user.rol, pathname, user.puedeAceptarPedidos)) {
         router.replace(getDefaultRoute(user.rol))
       }
     }
@@ -30,7 +30,7 @@ export default function ProtectedLayout({ children }: { children: ReactNode }) {
 
   if (isLoading) return <LoaderOverlay />
   if (!isAuthenticated) return null
-  if (user && !hasAccess(user.rol, pathname)) return <LoaderOverlay /> // Optional check to prevent rendering flash before redirect
+  if (user && !hasAccess(user.rol, pathname, user.puedeAceptarPedidos)) return <LoaderOverlay /> // Optional check to prevent rendering flash before redirect
 
   return (
     <div className="flex h-screen overflow-hidden">

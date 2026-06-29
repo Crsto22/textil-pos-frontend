@@ -14,6 +14,7 @@ import { ProductoGeneralInfoCard } from "@/components/producto-nuevo/ProductoGen
 import { ProductoUnsavedChangesToast } from "@/components/producto-nuevo/ProductoUnsavedChangesToast"
 import { ProductoVariantMatrixCard } from "@/components/producto-nuevo/ProductoVariantMatrixCard"
 import { ProductoMediaSidebar } from "@/components/producto-nuevo/media/ProductoMediaSidebar"
+import { ProductoSizeGuideDialog } from "@/components/producto-nuevo/media/ProductoSizeGuideDialog"
 import { useProductoCreate } from "@/lib/hooks/useProductoCreate"
 
 interface ProductoCreatePageProps {
@@ -24,6 +25,7 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
   const router = useRouter()
   const [isMediaSidebarOpen, setIsMediaSidebarOpen] = useState(false)
   const [mediaSidebarSession, setMediaSidebarSession] = useState(0)
+  const [isSizeGuideDialogOpen, setIsSizeGuideDialogOpen] = useState(false)
   const [isAttributesSidebarOpen, setIsAttributesSidebarOpen] = useState(false)
   const [isCategoriaCreateDialogOpen, setIsCategoriaCreateDialogOpen] = useState(false)
   const [attributeSidebarSection, setAttributeSidebarSection] =
@@ -66,8 +68,10 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
     focusedColorId,
     mediaByColor,
     globalMedia,
+    guiaTallasMedia,
     replaceMediaByColor,
     replaceGlobalMedia,
+    replaceGuiaTallasMedia,
     variantRows,
     deletingVariantKeys,
     isAutoSkuEnabled,
@@ -104,6 +108,9 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
     ? (globalMedia?.previewUrl ?? mediaByColor[activePreviewColorId]?.at(-1)?.previewUrl ?? null)
     : (globalMedia?.previewUrl ?? null)
 
+
+  const sizeGuidePreviewImageUrl = guiaTallasMedia?.previewUrl ?? null
+
   const canCreateCategoria = true
 
   const hasUnsavedChanges = useMemo(() => {
@@ -118,6 +125,7 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
 
     const hasMediaSelected =
       Boolean(globalMedia) ||
+      Boolean(guiaTallasMedia) ||
       Object.values(mediaByColor).some((media) => media.length > 0)
 
     const hasVariantValues = variantRows.some(
@@ -140,6 +148,7 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
     form.idCategoria,
     form.nombre,
     globalMedia,
+    guiaTallasMedia,
     mediaByColor,
     selectedColorIds.length,
     selectedTallaIds.length,
@@ -219,6 +228,7 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
             selectedTallas={selectedTallas}
             activePreviewColorId={activePreviewColorId}
             activePreviewImageUrl={activePreviewImageUrl}
+            sizeGuidePreviewImageUrl={sizeGuidePreviewImageUrl}
             onOpenImages={handleOpenMediaSidebar}
             onOpenColors={() => {
               handleOpenAttributesSidebar("colors")
@@ -226,6 +236,7 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
             onOpenTallas={() => {
               handleOpenAttributesSidebar("tallas")
             }}
+            onOpenSizeGuide={() => setIsSizeGuideDialogOpen(true)}
             onPreviewColorChange={setFocusedColorId}
             onCategoriaChange={handleCategoriaChange}
             onOpenCategoriaCreate={() => setIsCategoriaCreateDialogOpen(true)}
@@ -296,6 +307,14 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
           onCreateTalla: handleCreateTalla,
           onToggleTallaSelection: toggleTallaSelection,
         }}
+      />
+
+      <ProductoSizeGuideDialog
+        key={`producto-size-guide-${isSizeGuideDialogOpen ? "open" : "closed"}-${guiaTallasMedia?.id ?? "empty"}`}
+        open={isSizeGuideDialogOpen}
+        media={guiaTallasMedia}
+        onOpenChange={setIsSizeGuideDialogOpen}
+        onSave={replaceGuiaTallasMedia}
       />
 
       <ProductoMediaSidebar

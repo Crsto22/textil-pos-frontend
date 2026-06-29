@@ -337,6 +337,8 @@ export function mapVarianteResumenToProductoResumen(
     descripcion: item.producto.descripcion,
     imagenGlobalUrl: null,
     imagenGlobalThumbUrl: null,
+    guiaTallasUrl: null,
+    guiaTallasThumbUrl: null,
     publicarEcommerce: false,
     estado: item.estado || item.producto.estado,
     fechaCreacion: item.producto.fechaCreacion,

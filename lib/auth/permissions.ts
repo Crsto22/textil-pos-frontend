@@ -8,6 +8,14 @@ const GUIA_ROUTES = [
   "/ventas/guia-remision",
 ]
 
+const PEDIDOS_ROUTES = [
+  "/ventas/pedidos",
+]
+
+const ADMIN_ONLY_ROUTES = [
+  "/configuracion/ecommerce",
+]
+
 interface RoleConfig {
   allowedRoutes: string[]
   defaultRoute: string
@@ -62,7 +70,8 @@ export const ROLE_CONFIG: Record<string, RoleConfig> = {
 
 export function hasAccess(
   role: string | undefined | null,
-  pathname: string
+  pathname: string,
+  puedeAceptarPedidos = false
 ): boolean {
   const normalizedRole = normalizeSupportedRole(role)
   if (!normalizedRole) return false
@@ -72,6 +81,20 @@ export function hasAccess(
   }
 
   // Guías de remisión: solo ALMACEN y VENTAS_ALMACEN (no VENTAS)
+  const isAdminOnlyRoute = ADMIN_ONLY_ROUTES.some(
+    (route) => pathname === route || pathname.startsWith(`${route}/`)
+  )
+  if (isAdminOnlyRoute) {
+    return false
+  }
+
+  const isPedidosRoute = PEDIDOS_ROUTES.some(
+    (route) => pathname === route || pathname.startsWith(`${route}/`)
+  )
+  if (isPedidosRoute) {
+    return roleHasVentasAccess(normalizedRole) && puedeAceptarPedidos
+  }
+
   const isGuiaRoute = GUIA_ROUTES.some(
     (route) => pathname === route || pathname.startsWith(`${route}/`)
   )

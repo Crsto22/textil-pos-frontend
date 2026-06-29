@@ -28,9 +28,11 @@ interface ProductoGeneralInfoCardProps {
   selectedTallas: Talla[]
   activePreviewColorId: number | null
   activePreviewImageUrl: string | null
+  sizeGuidePreviewImageUrl: string | null
   onOpenImages: () => void
   onOpenColors: () => void
   onOpenTallas: () => void
+  onOpenSizeGuide: () => void
   onPreviewColorChange: (idColor: number) => void
   onCategoriaChange: (value: string) => void
   onOpenCategoriaCreate: () => void
@@ -61,9 +63,11 @@ export function ProductoGeneralInfoCard({
   selectedTallas,
   activePreviewColorId,
   activePreviewImageUrl,
+  sizeGuidePreviewImageUrl,
   onOpenImages,
   onOpenColors,
   onOpenTallas,
+  onOpenSizeGuide,
   onPreviewColorChange,
   onCategoriaChange,
   onOpenCategoriaCreate,
@@ -90,10 +94,12 @@ export function ProductoGeneralInfoCard({
           selectedTallas={selectedTallas}
           activeColorId={activePreviewColorId}
           previewImageUrl={activePreviewImageUrl}
+          sizeGuidePreviewImageUrl={sizeGuidePreviewImageUrl}
           hasSucursal
           onOpenImages={onOpenImages}
           onOpenColors={onOpenColors}
           onOpenTallas={onOpenTallas}
+          onOpenSizeGuide={onOpenSizeGuide}
           onActiveColorChange={onPreviewColorChange}
         />
 

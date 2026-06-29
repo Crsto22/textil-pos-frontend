@@ -95,6 +95,7 @@ export interface VentaHistorial {
   nombreUsuario: string
   idSucursal: number | null
   nombreSucursal: string
+  origen: string | null
   idCanalVenta: number | null
   nombreCanalVenta: string | null
   plataformaCanalVenta: string | null
@@ -184,6 +185,7 @@ export interface VentaDetalleResponse {
   nombreUsuario: string
   idSucursal: number | null
   nombreSucursal: string
+  origen: string | null
   idCanalVenta: number | null
   nombreCanalVenta: string | null
   plataformaCanalVenta: string | null

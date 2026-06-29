@@ -241,7 +241,7 @@ export function Header({ onMenuToggle }: HeaderProps) {
     .map((section) => ({
       ...section,
       items: section.items.filter((item) => {
-        if (!hasAccess(user?.rol, item.href)) return false
+        if (!hasAccess(user?.rol, item.href, user?.puedeAceptarPedidos)) return false
         if (!searchQuery.trim()) return true
         const q = searchQuery.toLowerCase()
         return (
@@ -255,7 +255,7 @@ export function Header({ onMenuToggle }: HeaderProps) {
 
   const totalModulos = navSections
     .flatMap((s) => s.items)
-    .filter((item) => hasAccess(user?.rol, item.href)).length
+    .filter((item) => hasAccess(user?.rol, item.href, user?.puedeAceptarPedidos)).length
 
   const title =
     pageTitles[pathname] ??

@@ -13,10 +13,12 @@ interface ProductoLabelPreviewProps {
   selectedTallas: Talla[]
   activeColorId: number | null
   previewImageUrl: string | null
+  sizeGuidePreviewImageUrl: string | null
   hasSucursal: boolean
   onOpenImages: () => void
   onOpenColors: () => void
   onOpenTallas: () => void
+  onOpenSizeGuide: () => void
   onActiveColorChange: (idColor: number) => void
 }
 
@@ -33,10 +35,12 @@ export function ProductoLabelPreview({
   selectedTallas,
   activeColorId,
   previewImageUrl,
+  sizeGuidePreviewImageUrl,
   hasSucursal,
   onOpenImages,
   onOpenColors,
   onOpenTallas,
+  onOpenSizeGuide,
   onActiveColorChange,
 }: ProductoLabelPreviewProps) {
   const displayName = productName.trim() || "PRODUCT NAME"
@@ -74,7 +78,7 @@ export function ProductoLabelPreview({
         </div>
       </button>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid gap-3 sm:grid-cols-3">
         <button
           type="button"
           onClick={hasSucursal ? onOpenColors : undefined}
@@ -112,6 +116,27 @@ export function ProductoLabelPreview({
             {selectedTallas.length}
           </span>
         </button>
+
+        <button
+          type="button"
+          onClick={onOpenSizeGuide}
+          className="inline-flex items-center justify-center gap-2 rounded-2xl bg-background px-4 py-3 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-muted/60"
+        >
+          {sizeGuidePreviewImageUrl ? (
+            <span
+              className="h-5 w-5 rounded-md border bg-cover bg-center"
+              style={{ backgroundImage: `url("${sizeGuidePreviewImageUrl}")` }}
+              aria-hidden
+            />
+          ) : (
+            <PhotoIcon className="h-4 w-4" />
+          )}
+          <span>Guia tallas</span>
+          <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
+            {sizeGuidePreviewImageUrl ? 1 : 0}
+          </span>
+        </button>
+
       </div>
 
       {selectedColors.length > 0 && (

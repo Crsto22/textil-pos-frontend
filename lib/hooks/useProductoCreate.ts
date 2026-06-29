@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import {
   useCallback,
@@ -199,6 +199,34 @@ function toGlobalMediaItemFromProducto(producto: Producto): MediaItem | null {
 
   return {
     id: "global-persisted",
+    file: null,
+    fileName: fallbackFileName,
+    previewUrl,
+    url: resolvedUrl,
+    urlThumb: resolvedThumbUrl,
+  }
+}
+
+function toGuiaTallasMediaItemFromProducto(producto: Producto): MediaItem | null {
+  const rawUrl = producto.guiaTallasUrl ?? ""
+  const rawThumbUrl = producto.guiaTallasThumbUrl ?? ""
+  if (rawUrl.trim() === "" && rawThumbUrl.trim() === "") return null
+
+  const resolvedUrl = resolveBackendUrl(rawUrl) ?? rawUrl
+  const resolvedThumbUrl = resolveBackendUrl(rawThumbUrl) ?? rawThumbUrl
+  const previewUrl = resolvedUrl || resolvedThumbUrl
+
+  const fallbackFileName = (() => {
+    try {
+      const url = new URL(previewUrl)
+      return url.pathname.split("/").pop() || "guia-tallas.webp"
+    } catch {
+      return "guia-tallas.webp"
+    }
+  })()
+
+  return {
+    id: "guia-tallas-persisted",
     file: null,
     fileName: fallbackFileName,
     previewUrl,
@@ -695,8 +723,10 @@ const activeStockSucursales = useMemo<VariantSucursalStockInput[]>(
 
   const [mediaByColor, setMediaByColor] = useState<Record<number, MediaItem[]>>({})
   const [globalMedia, setGlobalMedia] = useState<MediaItem | null>(null)
+  const [guiaTallasMedia, setGuiaTallasMedia] = useState<MediaItem | null>(null)
   const mediaRef = useRef<Record<number, MediaItem[]>>(mediaByColor)
   const globalMediaRef = useRef<MediaItem | null>(globalMedia)
+  const guiaTallasMediaRef = useRef<MediaItem | null>(guiaTallasMedia)
 
   useEffect(() => {
     mediaRef.current = mediaByColor
@@ -707,11 +737,19 @@ const activeStockSucursales = useMemo<VariantSucursalStockInput[]>(
   }, [globalMedia])
 
   useEffect(() => {
+    guiaTallasMediaRef.current = guiaTallasMedia
+  }, [guiaTallasMedia])
+
+  useEffect(() => {
     return () => {
       Object.values(mediaRef.current).forEach((media) => revokeMedia(media))
       const currentGlobalMedia = globalMediaRef.current
       if (currentGlobalMedia?.file) {
         URL.revokeObjectURL(currentGlobalMedia.previewUrl)
+      }
+      const currentGuiaTallasMedia = guiaTallasMediaRef.current
+      if (currentGuiaTallasMedia?.file) {
+        URL.revokeObjectURL(currentGuiaTallasMedia.previewUrl)
       }
     }
   }, [])
@@ -774,6 +812,18 @@ const activeStockSucursales = useMemo<VariantSucursalStockInput[]>(
         URL.revokeObjectURL(previous.previewUrl)
       }
       return nextGlobalMedia
+    })
+  }, [])
+
+  const replaceGuiaTallasMedia = useCallback((nextGuiaTallasMedia: MediaItem | null) => {
+    setGuiaTallasMedia((previous) => {
+      if (
+        previous?.file &&
+        previous.previewUrl !== nextGuiaTallasMedia?.previewUrl
+      ) {
+        URL.revokeObjectURL(previous.previewUrl)
+      }
+      return nextGuiaTallasMedia
     })
   }, [])
 
@@ -1009,6 +1059,12 @@ const activeStockSucursales = useMemo<VariantSucursalStockInput[]>(
             URL.revokeObjectURL(previous.previewUrl)
           }
           return toGlobalMediaItemFromProducto(payload.producto)
+        })
+        setGuiaTallasMedia((previous) => {
+          if (previous?.file) {
+            URL.revokeObjectURL(previous.previewUrl)
+          }
+          return toGuiaTallasMediaItemFromProducto(payload.producto)
         })
         setFocusedColorId(nextSelectedColorIds[0] ?? null)
         setErrorDetalle(null)
@@ -1518,8 +1574,8 @@ const activeStockSucursales = useMemo<VariantSucursalStockInput[]>(
       selectedColorIds.reduce(
         (accumulator, colorId) => accumulator + (mediaByColor[colorId]?.length ?? 0),
         0
-      ) + (globalMedia ? 1 : 0),
-    [globalMedia, mediaByColor, selectedColorIds]
+      ) + (globalMedia ? 1 : 0) + (guiaTallasMedia ? 1 : 0),
+    [globalMedia, guiaTallasMedia, mediaByColor, selectedColorIds]
   )
 
   const handleCategoriaChange = useCallback((value: string) => {
@@ -1785,6 +1841,9 @@ const activeStockSucursales = useMemo<VariantSucursalStockInput[]>(
     try {
       let imagenGlobalUrl: string | null = null
       let imagenGlobalThumbUrl: string | null = null
+      let guiaTallasUrl: string | null = null
+      let guiaTallasThumbUrl: string | null = null
+      let nextGuiaTallasMedia: MediaItem | null | undefined
 
       if (globalMedia) {
         if (isLocalMedia(globalMedia)) {
@@ -1821,6 +1880,55 @@ const activeStockSucursales = useMemo<VariantSucursalStockInput[]>(
         } else {
           throw new Error("Se detecto una imagen global invalida")
         }
+      }
+
+      if (guiaTallasMedia) {
+        if (isLocalMedia(guiaTallasMedia)) {
+          const uploadFormData = new FormData()
+          if (hasValidId(productoId)) {
+            uploadFormData.append("productoId", String(productoId))
+          }
+          uploadFormData.append("tipo", "GUIA_TALLAS")
+          uploadFormData.append("file", guiaTallasMedia.file, guiaTallasMedia.file.name)
+
+          const uploadResponse = await authFetch("/api/producto/imagen-global", {
+            method: "POST",
+            body: uploadFormData,
+          })
+          const uploadPayload = await parseJsonSafe(uploadResponse)
+
+          if (!uploadResponse.ok) {
+            throw new Error(
+              getResponseMessage(
+                uploadPayload,
+                "No se pudo subir la guia de tallas del producto"
+              )
+            )
+          }
+
+          if (!isProductoImagenGlobalUploadResponse(uploadPayload)) {
+            throw new Error("La respuesta de guia de tallas no tiene el formato esperado")
+          }
+
+          guiaTallasUrl = uploadPayload.url
+          guiaTallasThumbUrl = uploadPayload.urlThumb
+          nextGuiaTallasMedia = {
+            id: "guia-tallas-persisted",
+            file: null,
+            fileName: guiaTallasMedia.fileName,
+            previewUrl: resolveBackendUrl(uploadPayload.url) ?? uploadPayload.url,
+            url: uploadPayload.url,
+            urlThumb: uploadPayload.urlThumb,
+          }
+        } else if (isRemoteMedia(guiaTallasMedia)) {
+          guiaTallasUrl = guiaTallasMedia.url
+          guiaTallasThumbUrl = guiaTallasMedia.urlThumb
+          nextGuiaTallasMedia = guiaTallasMedia
+        } else {
+          throw new Error("Se detecto una guia de tallas invalida")
+        }
+      } else {
+        nextGuiaTallasMedia = null
       }
 
       const imagenesByColor = await Promise.all(
@@ -1922,6 +2030,8 @@ const activeStockSucursales = useMemo<VariantSucursalStockInput[]>(
         imagenes,
         imagenGlobalUrl,
         imagenGlobalThumbUrl,
+        guiaTallasUrl,
+        guiaTallasThumbUrl,
         publicarEcommerce: form.publicarEcommerce,
         ...(descripcion !== "" ? { descripcion } : {}),
       }
@@ -1956,6 +2066,9 @@ const activeStockSucursales = useMemo<VariantSucursalStockInput[]>(
       toast.success(
         isEditing ? "Producto actualizado exitosamente" : "Producto creado exitosamente"
       )
+      if (nextGuiaTallasMedia !== undefined) {
+        replaceGuiaTallasMedia(nextGuiaTallasMedia)
+      }
       return true
     } catch (saveError) {
       const message =
@@ -1975,12 +2088,14 @@ const activeStockSucursales = useMemo<VariantSucursalStockInput[]>(
     isSaving,
     loadNextAutoSkuSequence,
     globalMedia,
+    guiaTallasMedia,
     mediaByColor,
     productoId,
     selectedColors,
     selectedTallas,
     activeStockSucursales,
     buildVariantStocksSucursalesRequest,
+    replaceGuiaTallasMedia,
     variantValues,
     variantRows,
   ])
@@ -2060,8 +2175,10 @@ const activeStockSucursales = useMemo<VariantSucursalStockInput[]>(
     focusedColorId,
     mediaByColor,
     globalMedia,
+    guiaTallasMedia,
     replaceMediaByColor,
     replaceGlobalMedia,
+    replaceGuiaTallasMedia,
     variantRows,
     deletingVariantKeys,
     isAutoSkuEnabled,

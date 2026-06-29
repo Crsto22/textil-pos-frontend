@@ -1,603 +1,944 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Image from "next/image"
 import {
-  AdjustmentsHorizontalIcon,
   ArrowPathIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  EllipsisVerticalIcon,
+  CheckIcon,
+  DocumentTextIcon,
   EyeIcon,
   MagnifyingGlassIcon,
+  ClockIcon,
+  XMarkIcon,
 } from "@heroicons/react/24/outline"
+import { toast } from "sonner"
 
+import { getMetodoPagoLabel, getMetodoPagoLogo } from "@/components/pagos/pagos.utils"
+import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { LoaderSpinner } from "@/components/ui/loader-spinner"
+import { authFetch } from "@/lib/auth/auth-fetch"
+import { buildComprobanteLabel } from "@/lib/comprobante"
+import { useComprobanteOptions } from "@/lib/hooks/useComprobanteOptions"
+import { useDocumentoLookup } from "@/lib/hooks/useDocumentoLookup"
+import { resolveBackendUrl } from "@/lib/resolve-backend-url"
+import type { DocumentoRucResponse } from "@/lib/types/documento"
+import type { EcommercePedidoAdmin, EcommercePedidoPageResponse } from "@/lib/types/ecommerce-pedido"
 
-type PedidoEstado = "PENDIENTE" | "PAGADO" | "CANCELADO"
-type PedidoPagoEstado = "Pendiente" | "Validado" | "Cancelado"
-type PedidoMetodoPago = "YAPE" | "TRANSFERENCIA"
-type PedidoMetodoEnvio = "SHALOM" | "MOTORIZADO" | "RECOJO EN TIENDA"
-type PedidoTipoDocumento = "DNI" | "RUC"
+const ESTADOS = ["TODOS", "ESPERANDO_COMPROBANTE", "PAGO_EN_REVISION", "ACEPTADO", "CANCELADO", "CANCELADO_POR_TIEMPO"] as const
+const PERIODOS = ["HOY", "AYER", "SEMANA", "MES", "FECHA"] as const
+const TIPOS_VENTA_WEB = new Set(["NOTA DE VENTA", "BOLETA", "FACTURA"])
 
-interface PedidoMock {
-  id: number
-  fecha: string
-  codigo: string
-  canal: string
-  tipoDocumento: PedidoTipoDocumento
-  numeroDocumento: string
-  nombre: string
-  apellido: string
-  total: number
-  items: number
-  metodoEnvio: PedidoMetodoEnvio
-  metodoPago: PedidoMetodoPago
-  pagoEstado: PedidoPagoEstado
-  estado: PedidoEstado
-  estadoDetalle: string
-  comprobante?: {
-    nombre: string
-    size: string
-    preview: string
-  }
+function money(value: number) {
+  return new Intl.NumberFormat("es-PE", { style: "currency", currency: "PEN" }).format(value || 0)
 }
 
-const pedidosMock: PedidoMock[] = [
-  {
-    id: 1,
-    fecha: "03/06/2026, 06:15 p. m.",
-    codigo: "PED-10072",
-    canal: "TDA-ONLINE",
-    tipoDocumento: "DNI",
-    numeroDocumento: "90352948",
-    nombre: "Milagros",
-    apellido: "Quispe Rojas",
-    total: 153,
-    items: 2,
-    metodoEnvio: "SHALOM",
-    metodoPago: "YAPE",
-    pagoEstado: "Pendiente",
-    estado: "PENDIENTE",
-    estadoDetalle: "Por validar pago",
-    comprobante: {
-      nombre: "captura_10072.jpg",
-      size: "125 KB",
-      preview: "/img/guias/pantalla1.png",
-    },
-  },
-  {
-    id: 2,
-    fecha: "03/06/2026, 05:48 p. m.",
-    codigo: "PED-10071",
-    canal: "TDA-ONLINE",
-    tipoDocumento: "RUC",
-    numeroDocumento: "20605487321",
-    nombre: "Comercial Andina",
-    apellido: "S.A.C.",
-    total: 67,
-    items: 1,
-    metodoEnvio: "MOTORIZADO",
-    metodoPago: "TRANSFERENCIA",
-    pagoEstado: "Validado",
-    estado: "PAGADO",
-    estadoDetalle: "Pago confirmado",
-    comprobante: {
-      nombre: "captura_10071.jpg",
-      size: "98 KB",
-      preview: "/img/guias/pantalla2.png",
-    },
-  },
-  {
-    id: 3,
-    fecha: "03/06/2026, 05:42 p. m.",
-    codigo: "PED-10070",
-    canal: "TDA-ONLINE",
-    tipoDocumento: "DNI",
-    numeroDocumento: "99379480",
-    nombre: "Lucia",
-    apellido: "Mendoza Flores",
-    total: 153,
-    items: 2,
-    metodoEnvio: "RECOJO EN TIENDA",
-    metodoPago: "YAPE",
-    pagoEstado: "Validado",
-    estado: "PAGADO",
-    estadoDetalle: "Pago confirmado",
-    comprobante: {
-      nombre: "captura_10070.jpg",
-      size: "110 KB",
-      preview: "/img/guias/pantalla3.png",
-    },
-  },
-  {
-    id: 4,
-    fecha: "03/06/2026, 05:40 p. m.",
-    codigo: "PED-10069",
-    canal: "TDA-ONLINE",
-    tipoDocumento: "DNI",
-    numeroDocumento: "92553728",
-    nombre: "Carlos",
-    apellido: "Salazar Vega",
-    total: 134,
-    items: 1,
-    metodoEnvio: "MOTORIZADO",
-    metodoPago: "TRANSFERENCIA",
-    pagoEstado: "Validado",
-    estado: "PAGADO",
-    estadoDetalle: "Pago confirmado",
-    comprobante: {
-      nombre: "captura_10069.jpg",
-      size: "105 KB",
-      preview: "/img/guias/pantalla1.png",
-    },
-  },
-  {
-    id: 5,
-    fecha: "03/06/2026, 04:55 p. m.",
-    codigo: "PED-10068",
-    canal: "TDA-ONLINE",
-    tipoDocumento: "DNI",
-    numeroDocumento: "98123456",
-    nombre: "Valeria",
-    apellido: "Torres Huaman",
-    total: 89,
-    items: 1,
-    metodoEnvio: "SHALOM",
-    metodoPago: "YAPE",
-    pagoEstado: "Pendiente",
-    estado: "PENDIENTE",
-    estadoDetalle: "Por validar pago",
-    comprobante: {
-      nombre: "captura_10068.jpg",
-      size: "152 KB",
-      preview: "/img/guias/pantalla2.png",
-    },
-  },
-  {
-    id: 6,
-    fecha: "03/06/2026, 04:30 p. m.",
-    codigo: "PED-10067",
-    canal: "TDA-ONLINE",
-    tipoDocumento: "RUC",
-    numeroDocumento: "20481234567",
-    nombre: "Textiles Rivera",
-    apellido: "E.I.R.L.",
-    total: 210,
-    items: 3,
-    metodoEnvio: "RECOJO EN TIENDA",
-    metodoPago: "TRANSFERENCIA",
-    pagoEstado: "Validado",
-    estado: "PAGADO",
-    estadoDetalle: "Pago confirmado",
-    comprobante: {
-      nombre: "captura_10067.jpg",
-      size: "120 KB",
-      preview: "/img/guias/pantalla3.png",
-    },
-  },
-  {
-    id: 7,
-    fecha: "03/06/2026, 03:20 p. m.",
-    codigo: "PED-10066",
-    canal: "TDA-ONLINE",
-    tipoDocumento: "DNI",
-    numeroDocumento: "90234567",
-    nombre: "Rosa",
-    apellido: "Castillo Leon",
-    total: 45,
-    items: 1,
-    metodoEnvio: "MOTORIZADO",
-    metodoPago: "YAPE",
-    pagoEstado: "Cancelado",
-    estado: "CANCELADO",
-    estadoDetalle: "Pedido cancelado",
-  },
-]
-
-const estadoOptions: Array<PedidoEstado | "TODOS"> = [
-  "TODOS",
-  "PENDIENTE",
-  "PAGADO",
-  "CANCELADO",
-]
-
-const pagoOptions: Array<PedidoPagoEstado | "TODOS"> = [
-  "TODOS",
-  "Pendiente",
-  "Validado",
-  "Cancelado",
-]
-
-function formatMoney(value: number) {
-  return new Intl.NumberFormat("es-PE", {
-    style: "currency",
-    currency: "PEN",
-  }).format(value)
+function dateOnly(value: string | null | undefined) {
+  if (!value) return "-"
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString("es-PE")
 }
 
-function estadoClass(estado: PedidoEstado) {
-  if (estado === "PAGADO") {
-    return "bg-emerald-100 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-400 dark:ring-emerald-500/20"
-  }
-  if (estado === "CANCELADO") {
-    return "bg-rose-100 text-rose-700 ring-rose-200 dark:bg-rose-500/15 dark:text-rose-400 dark:ring-rose-500/20"
-  }
-  return "bg-amber-100 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-400 dark:ring-amber-500/20"
+function timeOnly(value: string | null | undefined) {
+  if (!value) return ""
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? "" : date.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" })
 }
 
-function pagoEstadoClass(estado: PedidoPagoEstado) {
-  if (estado === "Validado") return "text-emerald-700 dark:text-emerald-400"
-  if (estado === "Cancelado") return "text-rose-700 dark:text-rose-400"
-  return "text-amber-700 dark:text-amber-400"
+function estadoLabel(value: (typeof ESTADOS)[number]) {
+  return {
+    TODOS: "Todos",
+    ESPERANDO_COMPROBANTE: "Nuevos",
+    PAGO_EN_REVISION: "En Progreso",
+    ACEPTADO: "Completados",
+    CANCELADO: "Cancelado",
+    CANCELADO_POR_TIEMPO: "Vencido",
+  }[value]
 }
 
-function metodoPagoClass(metodo: PedidoMetodoPago) {
-  return metodo === "TRANSFERENCIA"
-    ? "bg-blue-100 text-blue-700 ring-blue-200 dark:bg-blue-500/15 dark:text-blue-300 dark:ring-blue-500/20"
-    : "bg-violet-100 text-violet-700 ring-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:ring-violet-500/20"
+function periodoLabel(value: (typeof PERIODOS)[number]) {
+  return { HOY: "Hoy", AYER: "Ayer", SEMANA: "Semana", MES: "Mes", FECHA: "Fecha" }[value]
 }
 
-function metodoEnvioClass(metodo: PedidoMetodoEnvio) {
-  if (metodo === "SHALOM") {
-    return "bg-sky-100 text-sky-700 ring-sky-200 dark:bg-sky-500/15 dark:text-sky-300 dark:ring-sky-500/20"
+function estadoDisplay(value: string) {
+  const key = value.trim().toUpperCase()
+  if (key === "ESPERANDO_COMPROBANTE") return "Nuevo"
+  if (key === "PAGO_EN_REVISION") return "En Progreso"
+  if (key === "ACEPTADO") return "Completado"
+  if (key === "CANCELADO_POR_TIEMPO") return "Vencido"
+  if (key === "CANCELADO") return "Cancelado"
+  return value
+}
+
+function estadoClass(value: string) {
+  const key = value.trim().toUpperCase()
+  if (key === "ACEPTADO") return "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+  if (key === "PAGO_EN_REVISION") return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300"
+  if (key === "CANCELADO" || key === "CANCELADO_POR_TIEMPO") return "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800 dark:bg-rose-950 dark:text-rose-300"
+  return "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300"
+}
+
+function estadoDotClass(value: string) {
+  const key = value.trim().toUpperCase()
+  if (key === "ACEPTADO") return "bg-emerald-500"
+  if (key === "PAGO_EN_REVISION") return "bg-amber-500"
+  if (key === "CANCELADO" || key === "CANCELADO_POR_TIEMPO") return "bg-rose-500"
+  return "bg-blue-500"
+}
+
+function countdown(expiraAt: string | null | undefined, now: number) {
+  if (!expiraAt) return "-"
+  const diff = new Date(expiraAt).getTime() - now
+  if (!Number.isFinite(diff)) return "-"
+  if (diff <= 0) return "Vencido"
+  const total = Math.floor(diff / 1000)
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`
+}
+
+function initials(pedido: EcommercePedidoAdmin) {
+  return `${pedido.cliente.nombres?.[0] ?? ""}${pedido.cliente.apellidos?.[0] ?? ""}`.toUpperCase() || "CL"
+}
+
+function wantsInvoice(pedido: EcommercePedidoAdmin | null | undefined) {
+  return Boolean(pedido?.cliente.deseaFactura && pedido.cliente.ruc)
+}
+
+function avatarClass(index: number) {
+  return ["bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300", "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300", "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300", "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300", "bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300"][index % 5]
+}
+
+function message(data: unknown, fallback: string) {
+  return data && typeof data === "object" && typeof (data as { message?: unknown }).message === "string"
+    ? String((data as { message: string }).message)
+    : fallback
+}
+
+function extractFilename(contentDisposition: string | null) {
+  const match = contentDisposition?.match(/filename="?([^"]+)"?/i)
+  return match?.[1] ?? `reporte_pedidos_ecommerce_${Date.now()}.xlsx`
+}
+
+function downloadBlob(filename: string, blob: Blob) {
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement("a")
+  anchor.href = url
+  anchor.download = filename
+  document.body.append(anchor)
+  anchor.click()
+  anchor.remove()
+  URL.revokeObjectURL(url)
+}
+
+function ProductCircles({ detalles }: { detalles: EcommercePedidoAdmin["detalles"] }) {
+  const visible = detalles.slice(0, 4)
+  const extra = detalles.length - visible.length
+
+  return (
+    <div className="flex -space-x-2">
+      {visible.map((detalle, index) => {
+        const src = detalle.imagenUrl ? resolveBackendUrl(detalle.imagenUrl) : null
+        return (
+          <div
+            key={`${detalle.idProductoVariante ?? "producto"}-${index}`}
+            className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border-2 border-white bg-slate-100 text-[10px] font-bold text-slate-500 shadow-sm dark:border-slate-900 dark:bg-slate-800 dark:text-slate-300"
+            title={detalle.nombreProducto ?? "Producto"}
+          >
+            {src ? (
+              <img src={src} alt={detalle.nombreProducto ?? "Producto"} className="h-full w-full object-cover" />
+            ) : (
+              (detalle.nombreProducto ?? "P").slice(0, 1).toUpperCase()
+            )}
+          </div>
+        )
+      })}
+      {extra > 0 ? (
+        <div className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-white bg-slate-200 text-[10px] font-bold text-slate-600 shadow-sm dark:border-slate-900 dark:bg-slate-700 dark:text-slate-200">
+          +{extra}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function formatDateParam(date: Date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
+function addDays(date: Date, days: number) {
+  const next = new Date(date)
+  next.setDate(next.getDate() + days)
+  return next
+}
+
+function monthStart(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1)
+}
+
+function weekStart(date: Date) {
+  const start = new Date(date)
+  const day = start.getDay() || 7
+  start.setDate(start.getDate() - day + 1)
+  return start
+}
+
+function resolveDateRange(periodo: (typeof PERIODOS)[number], fechaDesde: string, fechaHasta: string) {
+  const today = new Date()
+  if (periodo === "HOY") return { desde: formatDateParam(today), hasta: formatDateParam(today) }
+  if (periodo === "AYER") {
+    const yesterday = addDays(today, -1)
+    return { desde: formatDateParam(yesterday), hasta: formatDateParam(yesterday) }
   }
-  if (metodo === "MOTORIZADO") {
-    return "bg-amber-100 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/20"
-  }
-  return "bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-500/15 dark:text-slate-300 dark:ring-slate-500/20"
+  if (periodo === "SEMANA") return { desde: formatDateParam(weekStart(today)), hasta: formatDateParam(today) }
+  if (periodo === "MES") return { desde: formatDateParam(monthStart(today)), hasta: formatDateParam(today) }
+  return { desde: fechaDesde || fechaHasta, hasta: fechaHasta || fechaDesde }
+}
+
+const EMPTY_STATS = {
+  completados: 0,
+  vencidos: 0,
+  enProgreso: 0,
+  gananciasCompletadas: 0,
 }
 
 export function PedidosPage() {
+  const [pedidos, setPedidos] = useState<EcommercePedidoAdmin[]>([])
   const [search, setSearch] = useState("")
-  const [estado, setEstado] = useState<PedidoEstado | "TODOS">("TODOS")
-  const [pagoEstado, setPagoEstado] = useState<PedidoPagoEstado | "TODOS">("TODOS")
-  const [periodo, setPeriodo] = useState("HOY")
+  const [estado, setEstado] = useState<(typeof ESTADOS)[number]>("TODOS")
+  const [page, setPage] = useState(0)
+  const [totalPages, setTotalPages] = useState(0)
+  const [totalElements, setTotalElements] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [selected, setSelected] = useState<EcommercePedidoAdmin | null>(null)
+  const [acceptTarget, setAcceptTarget] = useState<EcommercePedidoAdmin | null>(null)
+  const [cancelTarget, setCancelTarget] = useState<EcommercePedidoAdmin | null>(null)
+  const [selectedComprobanteId, setSelectedComprobanteId] = useState("")
+  const [busy, setBusy] = useState(false)
+  const [excelLoading, setExcelLoading] = useState(false)
+  const [now, setNow] = useState(() => Date.now())
+  const [highlightedRows, setHighlightedRows] = useState<Set<number>>(new Set())
+  const [newRowIds, setNewRowIds] = useState<Set<number>>(new Set())
+  const [periodo, setPeriodo] = useState<(typeof PERIODOS)[number]>("HOY")
+  const [fechaDesde, setFechaDesde] = useState("")
+  const [fechaHasta, setFechaHasta] = useState("")
+  const [estadisticas, setEstadisticas] = useState(EMPTY_STATS)
+  const [rucData, setRucData] = useState<DocumentoRucResponse | null>(null)
+  const [rucError, setRucError] = useState<string | null>(null)
+  const [rucInput, setRucInput] = useState("")
+  const [editingRuc, setEditingRuc] = useState(false)
+  const prevPedidoIdsRef = useRef<Set<number>>(new Set())
+  const estadoRef = useRef(estado)
+  const searchRef = useRef(search)
+  const periodoRef = useRef(periodo)
+  const fechaDesdeRef = useRef(fechaDesde)
+  const fechaHastaRef = useRef(fechaHasta)
+  const pageRef = useRef(page)
+  const silentTimerRef = useRef<number | null>(null)
 
-  const filteredPedidos = useMemo(() => {
-    const normalizedSearch = search.trim().toLowerCase()
+  const { comprobantes, loadingComprobantes, errorComprobantes } = useComprobanteOptions({
+    enabled: Boolean(acceptTarget),
+    habilitadoVenta: true,
+  })
+  const { loading: loadingRuc, lookupDocumento } = useDocumentoLookup()
 
-    return pedidosMock.filter((pedido) => {
-      const matchesSearch =
-        normalizedSearch.length === 0 ||
-        pedido.codigo.toLowerCase().includes(normalizedSearch) ||
-        pedido.nombre.toLowerCase().includes(normalizedSearch) ||
-        pedido.apellido.toLowerCase().includes(normalizedSearch) ||
-        pedido.numeroDocumento.includes(normalizedSearch) ||
-        pedido.tipoDocumento.toLowerCase().includes(normalizedSearch)
-      const matchesEstado = estado === "TODOS" || pedido.estado === estado
-      const matchesPago = pagoEstado === "TODOS" || pedido.pagoEstado === pagoEstado
+  const dateRange = useMemo(
+    () => resolveDateRange(periodo, fechaDesde, fechaHasta),
+    [fechaDesde, fechaHasta, periodo],
+  )
 
-      return matchesSearch && matchesEstado && matchesPago
+  const fetchPedidos = useCallback(async () => {
+    setLoading(true)
+    const params = new URLSearchParams({ page: String(page), size: "20" })
+    if (search.trim()) params.set("q", search.trim())
+    if (estado !== "TODOS") params.set("estado", estado)
+    if (dateRange.desde) params.set("fechaDesde", dateRange.desde)
+    if (dateRange.hasta) params.set("fechaHasta", dateRange.hasta)
+    try {
+      const response = await authFetch(`/api/ecommerce/pedidos?${params}`)
+      const data = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(message(data, "No se pudo listar pedidos"))
+      const pageData = data as EcommercePedidoPageResponse
+      setPedidos(Array.isArray(pageData.content) ? pageData.content : [])
+      setTotalPages(Number(pageData.totalPages) || 0)
+      setTotalElements(Number(pageData.totalElements) || 0)
+      setEstadisticas(pageData.estadisticas ?? EMPTY_STATS)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo listar pedidos")
+      setPedidos([])
+      setEstadisticas(EMPTY_STATS)
+    } finally {
+      setLoading(false)
+    }
+  }, [dateRange.desde, dateRange.hasta, estado, page, search])
+
+  useEffect(() => {
+    const id = window.setTimeout(() => void fetchPedidos(), 250)
+    return () => window.clearTimeout(id)
+  }, [fetchPedidos])
+
+  useEffect(() => {
+    let closed = false
+    let retryId: number | null = null
+    let controller: AbortController | null = null
+
+    const connect = async () => {
+      controller = new AbortController()
+      try {
+        const response = await authFetch("/api/ecommerce/pedidos/stream", {
+          signal: controller.signal,
+          headers: { Accept: "text/event-stream" },
+        })
+        if (!response.ok || !response.body) throw new Error("SSE no disponible")
+
+        const reader = response.body.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ""
+        while (!closed) {
+          const { value, done } = await reader.read()
+          if (done) break
+          buffer += decoder.decode(value, { stream: true })
+          buffer = buffer.replace(/\r\n/g, "\n")
+          const events = buffer.split("\n\n")
+          buffer = events.pop() ?? ""
+          for (const event of events) {
+            if (!event.includes("event:pedidos.changed")) continue
+            const lines = event.split("\n")
+            const dataLine = lines.find((l) => l.startsWith("data:"))
+            if (!dataLine) continue
+            try {
+              const payload = JSON.parse(dataLine.slice(5).trim()) as { codigo?: string; estado?: string }
+              if (payload.codigo && payload.estado) {
+                handlePedidoChanged(payload.codigo, payload.estado)
+              }
+            } catch { /* ignorar evento malformado */ }
+          }
+        }
+      } catch {
+        if (!closed) {
+          retryId = window.setTimeout(connect, 3000)
+        }
+      }
+    }
+
+    void connect()
+    return () => {
+      closed = true
+      controller?.abort()
+      if (retryId) window.clearTimeout(retryId)
+      if (silentTimerRef.current) window.clearTimeout(silentTimerRef.current)
+    }
+  }, [])
+
+  useEffect(() => { estadoRef.current = estado }, [estado])
+  useEffect(() => { searchRef.current = search }, [search])
+  useEffect(() => { periodoRef.current = periodo }, [periodo])
+  useEffect(() => { fechaDesdeRef.current = fechaDesde }, [fechaDesde])
+  useEffect(() => { fechaHastaRef.current = fechaHasta }, [fechaHasta])
+  useEffect(() => { pageRef.current = page }, [page])
+
+  const fetchPedidosSilent = useCallback(async () => {
+    try {
+      const params = new URLSearchParams({ page: String(pageRef.current), size: "20" })
+      if (searchRef.current.trim()) params.set("q", searchRef.current.trim())
+      if (estadoRef.current !== "TODOS") params.set("estado", estadoRef.current)
+      const currentRange = resolveDateRange(periodoRef.current, fechaDesdeRef.current, fechaHastaRef.current)
+      if (currentRange.desde) params.set("fechaDesde", currentRange.desde)
+      if (currentRange.hasta) params.set("fechaHasta", currentRange.hasta)
+      const response = await authFetch(`/api/ecommerce/pedidos?${params}`)
+      const data = await response.json().catch(() => null)
+      if (!response.ok) return
+      const pageData = data as EcommercePedidoPageResponse
+      const fresh = Array.isArray(pageData.content) ? pageData.content : []
+      const currentIds = prevPedidoIdsRef.current
+      const incomingIds = fresh.map((p) => p.idEcommercePedido)
+      const trulyNew = incomingIds.filter((id) => !currentIds.has(id))
+      prevPedidoIdsRef.current = new Set(incomingIds)
+      setPedidos(fresh)
+      setTotalPages(Number(pageData.totalPages) || 0)
+      setTotalElements(Number(pageData.totalElements) || 0)
+      setEstadisticas(pageData.estadisticas ?? EMPTY_STATS)
+      if (trulyNew.length > 0) {
+        setNewRowIds((prev) => {
+          const next = new Set(prev)
+          trulyNew.forEach((id) => next.add(id))
+          return next
+        })
+        setTimeout(() => {
+          setNewRowIds((prev) => {
+            const next = new Set(prev)
+            trulyNew.forEach((id) => next.delete(id))
+            return next
+          })
+        }, 2000)
+      }
+    } catch { /* silencioso */ }
+  }, [])
+
+  const handlePedidoChanged = useCallback((codigo: string, nuevoEstado: string) => {
+    setPedidos((prev) => {
+      const idx = prev.findIndex((p) => p.codigo.replace(/^#?/, "") === codigo.replace(/^#?/, ""))
+      if (idx < 0) return prev
+      if (prev[idx].estado === nuevoEstado) return prev
+      const updated = [...prev]
+      updated[idx] = { ...updated[idx], estado: nuevoEstado }
+      const id = updated[idx].idEcommercePedido
+      setHighlightedRows((prev) => { const next = new Set(prev); next.add(id); return next })
+      setTimeout(() => {
+        setHighlightedRows((prev) => { const next = new Set(prev); next.delete(id); return next })
+      }, 2000)
+      return updated
     })
-  }, [estado, pagoEstado, search])
 
-  const resetFilters = () => {
-    setSearch("")
-    setEstado("TODOS")
-    setPagoEstado("TODOS")
-    setPeriodo("HOY")
+    if (silentTimerRef.current) window.clearTimeout(silentTimerRef.current)
+    silentTimerRef.current = window.setTimeout(() => {
+      silentTimerRef.current = null
+      void fetchPedidosSilent()
+    }, 500)
+  }, [fetchPedidosSilent])
+
+  useEffect(() => setPage(0), [estado, fechaDesde, fechaHasta, periodo, search])
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(id)
+  }, [])
+
+  const comprobantesVentaWeb = useMemo(
+    () => comprobantes.filter((item) => TIPOS_VENTA_WEB.has(item.tipoComprobante)),
+    [comprobantes]
+  )
+  const comprobantesDisponibles = useMemo(
+    () => {
+      if (!wantsInvoice(acceptTarget)) return comprobantesVentaWeb.filter((item) => item.tipoComprobante !== "FACTURA")
+      return rucData?.razonSocial
+        ? comprobantesVentaWeb.filter((item) => item.tipoComprobante === "FACTURA")
+        : comprobantesVentaWeb.filter((item) => item.tipoComprobante !== "FACTURA")
+    },
+    [acceptTarget, comprobantesVentaWeb, rucData?.razonSocial]
+  )
+  const comprobanteSeleccionado = useMemo(
+    () => comprobantesDisponibles.find((item) => String(item.idComprobante) === selectedComprobanteId) ?? null,
+    [comprobantesDisponibles, selectedComprobanteId]
+  )
+
+  useEffect(() => {
+    if (!acceptTarget || comprobantesDisponibles.length === 0) return
+    if (selectedComprobanteId && comprobantesDisponibles.some((item) => String(item.idComprobante) === selectedComprobanteId)) return
+    const preferred = comprobantesDisponibles.find((item) => item.tipoComprobante === "BOLETA")
+    setSelectedComprobanteId(String((preferred ?? comprobantesDisponibles[0]).idComprobante))
+  }, [acceptTarget, comprobantesDisponibles, selectedComprobanteId])
+
+  const consultarRuc = useCallback(async (ruc: string) => {
+    const normalized = ruc.replace(/\D/g, "")
+    setRucData(null)
+    setRucError(null)
+    setRucInput(normalized)
+    if (!normalized.match(/^\d{11}$/)) {
+      setRucError("Ingrese un RUC de 11 digitos")
+      return
+    }
+    const result = await lookupDocumento("RUC", normalized)
+    if (!result.ok || result.tipoDocumento !== "RUC") {
+      setRucError(result.ok ? "No se pudo validar el RUC" : result.message)
+      return
+    }
+    const razonSocial = result.data.razonSocial?.replace(/\s+/g, " ").trim()
+    if (!razonSocial) {
+      setRucError("El RUC no devolvio razon social")
+      return
+    }
+    setEditingRuc(false)
+    setRucData({ ...result.data, ruc: normalized, razonSocial })
+  }, [lookupDocumento])
+
+  useEffect(() => {
+    if (!acceptTarget) return
+    const ruc = acceptTarget.cliente.ruc ?? ""
+    setRucInput(ruc)
+    setEditingRuc(false)
+    if (wantsInvoice(acceptTarget)) void consultarRuc(ruc)
+  }, [acceptTarget, consultarRuc])
+
+  const acceptPedido = async () => {
+    if (!acceptTarget || !comprobanteSeleccionado) return
+    if (comprobanteSeleccionado.tipoComprobante === "FACTURA" && !rucData?.razonSocial) {
+      toast.error("Valida el RUC antes de emitir factura")
+      return
+    }
+    setBusy(true)
+    try {
+      const response = await authFetch(`/api/ecommerce/pedidos/${acceptTarget.idEcommercePedido}/aceptar`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tipoComprobante: comprobanteSeleccionado.tipoComprobante,
+          serie: comprobanteSeleccionado.serie,
+          facturaRuc: rucData?.ruc ?? rucInput,
+          razonSocial: rucData?.razonSocial,
+        }),
+      })
+      const data = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(message(data, "No se pudo aceptar el pedido"))
+      toast.success("Pedido aceptado")
+      setSelected(null)
+      setAcceptTarget(null)
+      setCancelTarget(null)
+      await fetchPedidosSilent()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo aceptar el pedido")
+    } finally {
+      setBusy(false)
+    }
   }
+
+  const cancelPedido = async () => {
+    if (!cancelTarget) return
+    setBusy(true)
+    try {
+      const response = await authFetch(`/api/ecommerce/pedidos/${cancelTarget.idEcommercePedido}/cancelar`, { method: "POST" })
+      const data = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(message(data, "No se pudo cancelar el pedido"))
+      toast.success("Pedido cancelado")
+      setCancelTarget(null)
+      await fetchPedidosSilent()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo cancelar el pedido")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const clearFilters = () => {
+    setPeriodo("HOY")
+    setFechaDesde("")
+    setFechaHasta("")
+    setEstado("TODOS")
+    setSearch("")
+    setPage(0)
+  }
+
+  const exportExcel = async () => {
+    setExcelLoading(true)
+    try {
+      const params = new URLSearchParams()
+      if (dateRange.desde) params.set("fechaDesde", dateRange.desde)
+      if (dateRange.hasta) params.set("fechaHasta", dateRange.hasta)
+      const response = await authFetch(`/api/ecommerce/pedidos/reporte/excel?${params}`)
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null) as { message?: string } | null
+        throw new Error(payload?.message || "No se pudo exportar el Excel")
+      }
+      const blob = await response.blob()
+      if (blob.size === 0) throw new Error("El Excel llego vacio")
+      downloadBlob(extractFilename(response.headers.get("content-disposition")), blob)
+      toast.success("Reporte Excel descargado")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo exportar el Excel")
+    } finally {
+      setExcelLoading(false)
+    }
+  }
+
+  const statsCards = [
+    {
+      label: "Pedidos completados",
+      value: String(estadisticas.completados ?? 0),
+      icon: CheckIcon,
+      className: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300",
+    },
+    {
+      label: "Pedidos vencidos",
+      value: String(estadisticas.vencidos ?? 0),
+      icon: XMarkIcon,
+      className: "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900 dark:bg-rose-950 dark:text-rose-300",
+    },
+    {
+      label: "Pedidos en progreso",
+      value: String(estadisticas.enProgreso ?? 0),
+      icon: ClockIcon,
+      className: "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300",
+    },
+    {
+      label: "Ganancias completadas",
+      value: money(estadisticas.gananciasCompletadas ?? 0),
+      icon: DocumentTextIcon,
+      className: "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-300",
+    },
+  ]
 
   return (
     <div className="space-y-4">
-      <section className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-700/60 dark:bg-slate-800/80">
-        <div className="flex flex-col gap-4">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <div className="space-y-1 xl:col-span-2">
-              <label className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                Buscar pedido
-              </label>
-              <div className="relative">
-                <MagnifyingGlassIcon className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <Input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Buscar por pedido, DNI/RUC, nombre o apellido..."
-                  className="h-11 border-slate-200 bg-white pl-10 text-sm dark:border-slate-700 dark:bg-slate-800"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Estado</label>
-              <select
-                value={estado}
-                onChange={(event) => setEstado(event.target.value as PedidoEstado | "TODOS")}
-                className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none dark:border-slate-700 dark:bg-slate-800"
-              >
-                {estadoOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option === "TODOS" ? "Todos los estados" : option}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Pago</label>
-              <select
-                value={pagoEstado}
-                onChange={(event) => setPagoEstado(event.target.value as PedidoPagoEstado | "TODOS")}
-                className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none dark:border-slate-700 dark:bg-slate-800"
-              >
-                {pagoOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option === "TODOS" ? "Todos los pagos" : option}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Periodo</label>
-              <select
-                value={periodo}
-                onChange={(event) => setPeriodo(event.target.value)}
-                className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none dark:border-slate-700 dark:bg-slate-800"
-              >
-                <option value="HOY">Hoy</option>
-                <option value="AYER">Ayer</option>
-                <option value="SEMANA">Semana</option>
-                <option value="MES">Mes</option>
-              </select>
-            </div>
-
-            <div className="flex items-end xl:col-span-3">
-              <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-xs text-muted-foreground">
-                  Mostrando {filteredPedidos.length} pedido(s) de {pedidosMock.length} registros mock
-                </p>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 px-3 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-                  >
-                    <ArrowPathIcon className="h-4 w-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={resetFilters}
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 px-4 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-                  >
-                    <AdjustmentsHorizontalIcon className="h-4 w-4" />
-                    Limpiar filtros
-                  </button>
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {statsCards.map((card) => {
+          const Icon = card.icon
+          return (
+            <article key={card.label} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  {loading ? (
+                    <>
+                      <div className="h-3 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
+                      <div className="mt-3 h-8 w-24 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-xs font-medium uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">{card.label}</p>
+                      <p className="mt-2 text-2xl font-bold text-slate-950 dark:text-slate-100">{card.value}</p>
+                    </>
+                  )}
                 </div>
+                <span className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${card.className}`}>
+                  <Icon className="h-5 w-5" />
+                </span>
               </div>
-            </div>
-          </div>
-        </div>
+            </article>
+          )
+        })}
       </section>
 
-      <section className="space-y-3 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-700/60 dark:bg-slate-800/80">
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex overflow-x-auto rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
+            {PERIODOS.map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => setPeriodo(option)}
+                className={`whitespace-nowrap rounded-lg px-4 py-2 text-xs font-medium transition-colors ${option === periodo ? "bg-white text-slate-950 shadow-sm dark:bg-slate-700 dark:text-slate-100" : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"}`}
+              >
+                {periodoLabel(option)}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" className="h-10 rounded-xl" onClick={clearFilters}>Limpiar</Button>
+            <button
+              type="button"
+              onClick={() => void exportExcel()}
+              disabled={excelLoading}
+              className="inline-flex h-10 items-center justify-center rounded-xl bg-emerald-700 px-4 text-sm font-semibold text-white transition-colors hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-emerald-700/50"
+            >
+              {excelLoading ? "Descargando..." : "Reporte Excel"}
+            </button>
+          </div>
+        </div>
+        {periodo === "FECHA" && (
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+            <div className="flex-1">
+              <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">Desde</label>
+              <input
+                type="date"
+                value={fechaDesde}
+                onChange={(e) => setFechaDesde(e.target.value)}
+                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">Hasta</label>
+              <input
+                type="date"
+                value={fechaHasta}
+                onChange={(e) => setFechaHasta(e.target.value)}
+                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
+              />
+            </div>
+          </div>
+        )}
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
+        <div className="flex flex-col gap-3 border-b border-slate-200 p-4 dark:border-slate-800 md:flex-row md:items-center md:justify-between">
+          <div className="flex overflow-x-auto rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
+            {ESTADOS.map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => setEstado(option)}
+                className={`whitespace-nowrap rounded-lg px-4 py-2 text-xs font-medium transition-colors ${option === estado ? "bg-white text-slate-950 shadow-sm dark:bg-slate-700 dark:text-slate-100" : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"}`}
+              >
+                {estadoLabel(option)}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2 md:w-[420px]">
+            <div className="relative flex-1">
+              <MagnifyingGlassIcon className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+              <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar pedido o cliente..." className="h-10 rounded-xl pl-10" />
+            </div>
+            <Button variant="outline" className="h-10 rounded-xl" onClick={() => void fetchPedidos()}>
+              <ArrowPathIcon className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            </Button>
+          </div>
+        </div>
+
         <div className="hidden overflow-x-auto lg:block">
-          <table className="w-full min-w-[1180px] text-sm">
+          <table className="w-full min-w-[1260px] text-sm">
             <thead>
-              <tr className="border-b bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
-                <th className="px-3 py-3 text-left">Fecha</th>
-                <th className="px-3 py-3 text-left">Pedido</th>
-                <th className="px-3 py-3 text-left">Cliente</th>
-                <th className="px-3 py-3 text-right">Total</th>
-                <th className="px-3 py-3 text-center">Envio</th>
-                <th className="px-3 py-3 text-center">Pago</th>
-                <th className="px-3 py-3 text-center">Estado</th>
-                <th className="px-3 py-3 text-left">Comprobante</th>
-                <th className="px-3 py-3 text-center">Accion</th>
+              <tr className="border-b border-slate-200 bg-slate-50/70 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-400">
+                <th className="px-5 py-3 text-left">Pedido / Fecha</th>
+                <th className="px-5 py-3 text-left">Cliente</th>
+                <th className="px-5 py-3 text-left">Productos</th>
+                <th className="px-5 py-3 text-left">Monto / Pago</th>
+                <th className="px-5 py-3 text-left">Estado</th>
+                <th className="px-5 py-3 text-left">Factura</th>
+                <th className="px-5 py-3 text-center">Docs</th>
+                <th className="px-5 py-3 text-right">Accion</th>
               </tr>
             </thead>
             <tbody>
-              {filteredPedidos.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="px-3 py-14 text-center">
-                    <LoaderSpinner text="Sin pedidos para los filtros seleccionados" />
-                  </td>
-                </tr>
+              {loading ? (
+                <tr><td colSpan={8} className="px-5 py-14 text-center"><LoaderSpinner text="Cargando pedidos..." /></td></tr>
+              ) : pedidos.length === 0 ? (
+                <tr><td colSpan={8} className="px-5 py-14 text-center text-sm text-muted-foreground">Sin pedidos para los filtros seleccionados</td></tr>
               ) : (
-                filteredPedidos.map((pedido) => (
-                  <tr key={pedido.id} className="border-b last:border-0 hover:bg-muted/20">
-                    <td className="px-3 py-3 font-medium">{pedido.fecha}</td>
-                    <td className="px-3 py-3">
-                      <div className="flex flex-col">
-                        <span className="font-semibold">{pedido.codigo}</span>
-                        <span className="text-xs text-muted-foreground">{pedido.canal}</span>
-                      </div>
-                    </td>
-                    <td className="px-3 py-3">
-                      <div className="flex flex-col">
-                        <span className="font-semibold">
-                          {pedido.nombre} {pedido.apellido}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {pedido.tipoDocumento} {pedido.numeroDocumento}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-3 py-3 text-right">
-                      <div className="flex flex-col">
-                        <span className="font-semibold">{formatMoney(pedido.total)}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {pedido.items} item{pedido.items === 1 ? "" : "s"}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-3 py-3 text-center">
-                      <span
-                        className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold ring-1 ${metodoEnvioClass(pedido.metodoEnvio)}`}
-                      >
-                        {pedido.metodoEnvio}
-                      </span>
-                    </td>
-                    <td className="px-3 py-3 text-center">
-                      <div className="inline-flex items-center gap-2">
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-[10px] font-bold ring-1 ${metodoPagoClass(pedido.metodoPago)}`}
-                        >
-                          {pedido.metodoPago}
-                        </span>
-                        <span className={`text-[11px] font-semibold ${pagoEstadoClass(pedido.pagoEstado)}`}>
-                          + {pedido.pagoEstado}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-3 py-3 text-center">
-                      <div className="flex flex-col items-center">
-                        <span
-                          className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold ring-1 ${estadoClass(pedido.estado)}`}
-                        >
-                          {pedido.estado}
-                        </span>
-                        <span className="mt-1 text-[11px] text-muted-foreground">
-                          {pedido.estadoDetalle}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-3 py-3">
-                      {pedido.comprobante ? (
+                pedidos.map((pedido, index) => {
+                  const metodoLogo = getMetodoPagoLogo(pedido.metodoPago ?? "")
+                  const comprobanteSrc = pedido.comprobanteUrl ? resolveBackendUrl(pedido.comprobanteUrl) : null
+                  const tiempo = pedido.estado === "ESPERANDO_COMPROBANTE" ? countdown(pedido.reservaExpiraAt, now) : "-"
+                  const factura = wantsInvoice(pedido)
+                  return (
+                    <tr key={pedido.idEcommercePedido} className={`border-b border-slate-100 last:border-0 hover:bg-slate-50/70 dark:border-slate-800 dark:hover:bg-slate-800/50 transition-colors ${highlightedRows.has(pedido.idEcommercePedido) ? "bg-blue-50/80 dark:bg-blue-900/30" : ""} ${newRowIds.has(pedido.idEcommercePedido) ? "animate-row-enter bg-emerald-50/80 dark:bg-emerald-950/50" : ""}`}>
+                      <td className="px-5 py-4">
+                        <p className="font-bold text-slate-950 dark:text-slate-100">#{pedido.codigo.replace(/^#?/, "")}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">{dateOnly(pedido.fecha)}, {timeOnly(pedido.fecha)} • {pedido.detalles?.length ?? 0} item(s)</p>
+                        {tiempo !== "-" ? <p className="mt-0.5 text-[11px] font-medium text-amber-600 dark:text-amber-400">Reserva {tiempo}</p> : null}
+                      </td>
+                      <td className="px-5 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="relative h-12 w-10 overflow-hidden rounded-md border border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-900">
-                            <Image
-                              src={pedido.comprobante.preview}
-                              alt={pedido.comprobante.nombre}
-                              fill
-                              sizes="40px"
-                              className="object-cover"
-                            />
-                          </div>
-                          <div className="flex min-w-0 flex-col">
-                            <span className="truncate font-medium">{pedido.comprobante.nombre}</span>
-                            <span className="text-xs text-muted-foreground">{pedido.comprobante.size}</span>
+                          <div className={`flex h-8 w-8 items-center justify-center rounded-full text-[11px] font-bold ${avatarClass(index)}`}>{initials(pedido)}</div>
+                          <div>
+                            <p className="font-semibold text-slate-950 dark:text-slate-100">{pedido.cliente.nombres} {pedido.cliente.apellidos}</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">{pedido.cliente.telefono || pedido.cliente.dni}</p>
                           </div>
                         </div>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-3">
-                      <div className="flex items-center justify-center gap-2">
-                        <button
-                          type="button"
-                          className="inline-flex h-9 items-center justify-center rounded-xl border border-blue-200 bg-blue-50 px-3 text-xs font-semibold text-blue-700 transition hover:bg-blue-100 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300"
-                        >
-                          Ver detalle
-                        </button>
-                        <button
-                          type="button"
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
-                        >
-                          <EllipsisVerticalIcon className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                      </td>
+                      <td className="px-5 py-4">
+                        <ProductCircles detalles={pedido.detalles ?? []} />
+                      </td>
+                      <td className="px-5 py-4">
+                        <p className="font-bold text-slate-950 dark:text-slate-100">{money(pedido.total)}</p>
+                        <p className="inline-flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
+                          {metodoLogo ? <Image src={metodoLogo.src} alt={metodoLogo.alt} width={13} height={13} className="h-3 w-3 object-contain" /> : null}
+                          {getMetodoPagoLabel(pedido.metodoPago ?? "")}
+                        </p>
+                      </td>
+                      <td className="px-5 py-4">
+                        <span className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-semibold ${estadoClass(pedido.estado)}`}>
+                          <span className={`h-1.5 w-1.5 rounded-full ${estadoDotClass(pedido.estado)}`} />
+                          {estadoDisplay(pedido.estado)}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4">
+                        {factura ? (
+                          <div>
+                            <p className="text-xs font-bold text-blue-600 dark:text-blue-300">Necesita factura</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">RUC {pedido.cliente.ruc}</p>
+                          </div>
+                        ) : <span className="text-xs text-slate-400">No</span>}
+                      </td>
+                      <td className="px-5 py-4 text-center">
+                        {comprobanteSrc ? (
+                          <button type="button" onClick={() => setSelected(pedido)} className="inline-flex overflow-hidden rounded-lg border border-slate-200 hover:ring-2 hover:ring-blue-400 dark:border-slate-600 dark:hover:ring-blue-500 transition-all">
+                            <img src={comprobanteSrc} alt={`Comprobante ${pedido.codigo}`} className="h-14 w-20 object-cover" />
+                          </button>
+                        ) : (
+                          <button type="button" onClick={() => setSelected(pedido)} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-blue-400 hover:bg-blue-50 hover:text-blue-600 dark:text-blue-300 dark:hover:bg-blue-900/30 dark:hover:text-blue-200">
+                            <DocumentTextIcon className="h-5 w-5" />
+                          </button>
+                        )}
+                      </td>
+                      <td className="px-5 py-4 text-right">
+                        <Button variant="ghost" size="icon-sm" title="Ver detalle" onClick={() => setSelected(pedido)}>
+                          <EyeIcon className="h-5 w-5 text-slate-400 dark:text-slate-500" />
+                        </Button>
+                      </td>
+                    </tr>
+                  )
+                })
               )}
             </tbody>
           </table>
         </div>
 
-        <div className="space-y-3 lg:hidden">
-          {filteredPedidos.map((pedido) => (
-            <article
-              key={pedido.id}
-              className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-900/40"
-            >
+        <div className="space-y-3 p-4 lg:hidden">
+          {loading ? <LoaderSpinner text="Cargando pedidos..." /> : pedidos.map((pedido, index) => (
+            <article key={pedido.idEcommercePedido} className={`rounded-2xl border bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/50 transition-colors ${highlightedRows.has(pedido.idEcommercePedido) ? "ring-2 ring-blue-400 dark:ring-blue-500" : ""} ${newRowIds.has(pedido.idEcommercePedido) ? "animate-row-enter ring-2 ring-emerald-400 dark:ring-emerald-500" : ""}`}>
               <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">
-                    {pedido.codigo}
-                  </p>
-                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{pedido.fecha}</p>
+                <div className="flex items-center gap-3">
+                  <div className={`flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold ${avatarClass(index)}`}>{initials(pedido)}</div>
+                  <div>
+                    <p className="font-bold">#{pedido.codigo}</p>
+                    <p className="text-xs text-muted-foreground">{pedido.cliente.nombres} {pedido.cliente.apellidos}</p>
+                  </div>
                 </div>
-                <span
-                  className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold ring-1 ${estadoClass(pedido.estado)}`}
-                >
-                  {pedido.estado}
+                <span className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-semibold ${estadoClass(pedido.estado)}`}>
+                  <span className={`h-1.5 w-1.5 rounded-full ${estadoDotClass(pedido.estado)}`} />
+                  {estadoDisplay(pedido.estado)}
                 </span>
               </div>
-
-              <div className="mt-4 grid grid-cols-2 gap-2">
-                <div className="rounded-xl border border-slate-200/70 bg-white px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/80">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Cliente</p>
-                  <p className="mt-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
-                    {pedido.nombre} {pedido.apellido}
-                  </p>
-                  <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
-                    {pedido.tipoDocumento} {pedido.numeroDocumento}
-                  </p>
-                </div>
-                <div className="rounded-xl border border-slate-200/70 bg-white px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/80">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Total</p>
-                  <p className="mt-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
-                    {formatMoney(pedido.total)}
-                  </p>
-                </div>
-                <div className="rounded-xl border border-slate-200/70 bg-white px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/80">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Pago</p>
-                  <p className={`mt-1 text-xs font-semibold ${pagoEstadoClass(pedido.pagoEstado)}`}>
-                    {pedido.metodoPago} + {pedido.pagoEstado}
-                  </p>
-                </div>
-                <div className="rounded-xl border border-slate-200/70 bg-white px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/80">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Envio</p>
-                  <p className="mt-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
-                    {pedido.metodoEnvio}
-                  </p>
-                </div>
+              {wantsInvoice(pedido) ? (
+                <p className="mt-2 text-xs font-semibold text-blue-600 dark:text-blue-300">Necesita factura - RUC {pedido.cliente.ruc}</p>
+              ) : null}
+              <div className="mt-3 flex items-center justify-between text-sm">
+                <span>{getMetodoPagoLabel(pedido.metodoPago ?? "")}</span>
+                <b>{money(pedido.total)}</b>
               </div>
-
-              <div className="mt-2 rounded-xl border border-slate-200/70 bg-white px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/80">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Captura</p>
-                <p className="mt-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
-                  {pedido.comprobante?.nombre ?? "Sin captura"}
-                </p>
+              <div className="mt-3">
+                <ProductCircles detalles={pedido.detalles ?? []} />
               </div>
-
-              <button
-                type="button"
-                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-100 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300"
-              >
-                <EyeIcon className="h-4 w-4" />
-                Ver detalle
-              </button>
+              <Button variant="outline" className="mt-3 w-full" onClick={() => setSelected(pedido)}>
+                <EyeIcon className="h-4 w-4" /> Ver detalle
+              </Button>
             </article>
           ))}
         </div>
 
-        <div className="flex items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-700/60">
-          <p className="text-xs text-muted-foreground">
-            Mostrando 1 a {filteredPedidos.length} de {filteredPedidos.length} pedidos
-          </p>
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-300 text-slate-500 disabled:opacity-50 dark:border-slate-700"
-              disabled
-            >
-              <ChevronLeftIcon className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              className="inline-flex h-9 min-w-9 items-center justify-center rounded-xl bg-blue-600 px-3 text-xs font-bold text-white"
-            >
-              1
-            </button>
-            <button
-              type="button"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-300 text-slate-500 disabled:opacity-50 dark:border-slate-700"
-              disabled
-            >
-              <ChevronRightIcon className="h-4 w-4" />
-            </button>
+        <div className="flex items-center justify-between border-t p-4">
+          <p className="text-xs text-muted-foreground">{totalElements} pedidos{totalPages > 0 ? ` - pagina ${page + 1} de ${totalPages}` : ""}</p>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" disabled={page <= 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>Anterior</Button>
+            <Button variant="outline" size="sm" disabled={page + 1 >= totalPages} onClick={() => setPage((p) => p + 1)}>Siguiente</Button>
           </div>
-          <select className="hidden h-9 rounded-xl border border-slate-300 bg-white px-3 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 sm:block">
-            <option>10 por pagina</option>
-          </select>
         </div>
       </section>
+
+      <Dialog open={Boolean(selected)} onOpenChange={(open) => !open && setSelected(null)}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto p-0 sm:max-w-4xl">
+          {selected ? (
+            <div>
+              <DialogHeader className="border-b px-5 py-4 text-left">
+                <DialogTitle>Pedido <span className="text-blue-600">{selected.codigo}</span></DialogTitle>
+                <DialogDescription>Revisa el pedido y valida el comprobante de pago.</DialogDescription>
+              </DialogHeader>
+              <div className="grid md:grid-cols-[1fr_1fr]">
+                <div className="space-y-4 border-r p-5 dark:border-slate-700">
+                  <section className="rounded-lg border bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/50">
+                    <p className="font-semibold">{selected.cliente.nombres} {selected.cliente.apellidos}</p>
+                    <p className="text-xs text-muted-foreground">DNI {selected.cliente.dni} • {selected.cliente.telefono}</p>
+                    {wantsInvoice(selected) ? <p className="text-xs font-semibold text-blue-600">Factura RUC {selected.cliente.ruc}</p> : null}
+                    <p className="text-xs text-blue-600">{selected.cliente.correo}</p>
+                  </section>
+                  <section className="overflow-hidden rounded-lg border">
+                    {selected.detalles.map((detalle, index) => {
+                      const imagen = detalle.imagenUrl ? resolveBackendUrl(detalle.imagenUrl) : null
+                      return (
+                      <div key={`${detalle.idProductoVariante}-${index}`} className="flex items-center justify-between border-b p-3 last:border-0 dark:border-slate-700">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-slate-100 text-xs font-bold text-slate-400 dark:bg-slate-800">
+                            {imagen ? <img src={imagen} alt={detalle.nombreProducto || "Producto"} className="h-full w-full object-cover" /> : "IMG"}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="truncate font-semibold">{detalle.nombreProducto || "Producto"}</p>
+                            <p className="text-xs text-muted-foreground">{detalle.colorNombre || "-"} / {detalle.tallaNombre || "-"} x{detalle.cantidad}</p>
+                          </div>
+                        </div>
+                        <b>{money(detalle.subtotal)}</b>
+                      </div>
+                    )})}
+                    <div className="flex justify-between bg-slate-50 p-3 dark:bg-slate-800/50"><span>Total</span><b>{money(selected.total)}</b></div>
+                  </section>
+                </div>
+                <div className="space-y-4 bg-slate-50 p-5 dark:bg-slate-800/50">
+                  <div className="flex min-h-[240px] items-center justify-center rounded-xl border border-dashed bg-white p-4 dark:border-slate-600 dark:bg-slate-800">
+                    {selected.comprobanteUrl ? (
+                      <img src={resolveBackendUrl(selected.comprobanteUrl) ?? ""} alt="Comprobante" className="max-h-[280px] w-full object-contain" />
+                    ) : <p className="text-sm text-muted-foreground">Sin comprobante</p>}
+                  </div>
+                  {selected.estado === "PAGO_EN_REVISION" ? (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <Button variant="outline" className="border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-950" onClick={() => setCancelTarget(selected)}>
+                        <XMarkIcon className="h-4 w-4" /> Rechazar Pago
+                      </Button>
+                      <Button className="bg-green-600 text-white hover:bg-green-700" onClick={() => { setAcceptTarget(selected); setSelectedComprobanteId("") }}>
+                        <CheckIcon className="h-4 w-4" /> Aprobar Pedido
+                      </Button>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(acceptTarget)} onOpenChange={(open) => !open && setAcceptTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Aceptar pedido {acceptTarget?.codigo}</DialogTitle>
+            <DialogDescription>Se generara una venta con origen WEB.</DialogDescription>
+          </DialogHeader>
+          {acceptTarget ? (
+            <section className="rounded-lg border bg-slate-50 p-3 text-sm dark:border-slate-700 dark:bg-slate-800/50">
+              <div className="grid gap-2 sm:grid-cols-2">
+                <p><span className="text-muted-foreground">Cliente:</span> {acceptTarget.cliente.nombres} {acceptTarget.cliente.apellidos}</p>
+                <p><span className="text-muted-foreground">Telefono:</span> {acceptTarget.cliente.telefono || "-"}</p>
+                <p><span className="text-muted-foreground">Fecha:</span> {dateOnly(acceptTarget.fecha)} {timeOnly(acceptTarget.fecha)}</p>
+                <p><span className="text-muted-foreground">Total:</span> <b>{money(acceptTarget.total)}</b></p>
+                <p><span className="text-muted-foreground">Documento:</span> <b>{comprobanteSeleccionado?.tipoComprobante ?? (wantsInvoice(acceptTarget) ? "FACTURA" : "NOTA DE VENTA")}</b></p>
+                {wantsInvoice(acceptTarget) ? <p><span className="text-muted-foreground">RUC:</span> {rucInput || acceptTarget.cliente.ruc}</p> : null}
+              </div>
+              {wantsInvoice(acceptTarget) ? (
+                <div className="mt-3 border-t pt-3 text-sm dark:border-slate-700">
+                  {loadingRuc ? <p className="text-blue-600">Consultando RUC...</p> : null}
+                  {rucData ? (
+                    <div className="space-y-1">
+                      <p><span className="text-muted-foreground">Razon social:</span> <b>{rucData.razonSocial}</b></p>
+                      <p className="text-xs text-muted-foreground">Estado: {rucData.estado || "-"} - Condicion: {rucData.condicion || "-"}</p>
+                    </div>
+                  ) : null}
+                  {rucError ? <p className="text-red-600">{rucError}</p> : null}
+                  {!rucData ? <p className="mt-1 text-xs text-muted-foreground">Puedes aprobar como boleta o nota de venta, o corregir el RUC para emitir factura.</p> : null}
+                  {editingRuc ? (
+                    <div className="mt-3 flex gap-2">
+                      <Input value={rucInput} onChange={(event) => setRucInput(event.target.value.replace(/\D/g, "").slice(0, 11))} maxLength={11} className="h-9" />
+                      <Button type="button" size="sm" onClick={() => void consultarRuc(rucInput)} disabled={loadingRuc}>Verificar</Button>
+                    </div>
+                  ) : (
+                    <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => setEditingRuc(true)}>
+                      Editar RUC
+                    </Button>
+                  )}
+                </div>
+              ) : null}
+            </section>
+          ) : null}
+          <label className="block text-sm font-medium">
+            Comprobante
+            <select value={selectedComprobanteId} onChange={(event) => setSelectedComprobanteId(event.target.value)} className="mt-1 h-10 w-full rounded-md border bg-background px-3 text-sm" disabled={loadingComprobantes}>
+              <option value="">{loadingComprobantes ? "Cargando comprobantes..." : "Seleccione comprobante"}</option>
+              {comprobantesDisponibles.map((item) => <option key={item.idComprobante} value={item.idComprobante}>{buildComprobanteLabel(item)}</option>)}
+            </select>
+          </label>
+          {wantsInvoice(acceptTarget) && !rucData?.razonSocial && !loadingComprobantes && comprobantesDisponibles.length === 0 ? <p className="text-sm text-red-600">No hay BOLETA o NOTA DE VENTA habilitada para aprobar sin razon social.</p> : null}
+          {wantsInvoice(acceptTarget) && rucData?.razonSocial && !loadingComprobantes && comprobantesDisponibles.length === 0 ? <p className="text-sm text-red-600">No hay comprobante FACTURA habilitado para venta web.</p> : null}
+          {errorComprobantes ? <p className="text-sm text-red-600">{errorComprobantes}</p> : null}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAcceptTarget(null)} disabled={busy}>Cancelar</Button>
+            <Button onClick={() => void acceptPedido()} disabled={busy || loadingComprobantes || loadingRuc || !comprobanteSeleccionado || (comprobanteSeleccionado?.tipoComprobante === "FACTURA" && !rucData?.razonSocial)}>
+              {busy ? <ArrowPathIcon className="h-4 w-4 animate-spin" /> : null}
+              Aceptar pedido
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(cancelTarget)} onOpenChange={(open) => !open && setCancelTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancelar pedido {cancelTarget?.codigo}</DialogTitle>
+            <DialogDescription>Se liberara el stock reservado.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCancelTarget(null)} disabled={busy}>Volver</Button>
+            <Button variant="destructive" onClick={() => void cancelPedido()} disabled={busy}>
+              {busy ? <ArrowPathIcon className="h-4 w-4 animate-spin" /> : null}
+              Cancelar pedido
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -24,6 +24,7 @@ import {
   getUsuarioRoleOptionsBySucursalType,
   isUsuarioRol,
   normalizeUsuarioRol,
+  usuarioRolPuedeAceptarPedidos,
   validateUsuarioRoleAssignment,
   type Usuario,
   type UsuarioUpdateFormState,
@@ -184,6 +185,7 @@ export function UsuarioEditDialog({
       idSucursal: initialBranchId,
       idsSucursales: initialIdsSucursales,
       idTurno: user.idTurno,
+      puedeAceptarPedidos: usuarioRolPuedeAceptarPedidos(initialRole) && user.puedeAceptarPedidos === true,
     })
     setSearchSucursal("")
     setSearchSucursalesAdicionales("")
@@ -191,6 +193,7 @@ export function UsuarioEditDialog({
   }, [open, setSearchSucursal, setSearchTurno, user])
 
   const showSucursalField = form.rol !== "" && form.rol !== "ADMINISTRADOR"
+  const showPedidosPermission = usuarioRolPuedeAceptarPedidos(form.rol)
 
   const isEditValid = useMemo(
     () =>
@@ -222,6 +225,7 @@ export function UsuarioEditDialog({
       idSucursal: form.rol === "ADMINISTRADOR" ? null : form.idSucursal,
       idsSucursales: form.rol === "ADMINISTRADOR" ? null : (form.idsSucursales ?? []),
       idTurno: form.idTurno,
+      puedeAceptarPedidos: showPedidosPermission && form.puedeAceptarPedidos === true,
     }
 
     setIsUpdating(true)
@@ -377,9 +381,35 @@ export function UsuarioEditDialog({
                   ...p,
                   rol: value,
                   idSucursal: value === "ADMINISTRADOR" ? null : p.idSucursal,
+                  puedeAceptarPedidos: usuarioRolPuedeAceptarPedidos(value) ? p.puedeAceptarPedidos : false,
                 }))
               }}
             />
+
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 dark:border-white/10">
+              <div>
+                <Label
+                  htmlFor="e-puede-aceptar-pedidos"
+                  className={`text-sm font-medium ${showPedidosPermission ? "" : "text-muted-foreground"}`}
+                >
+                  Puede aceptar pedidos ecommerce
+                </Label>
+                {!showPedidosPermission ? (
+                  <p className="text-xs text-muted-foreground">
+                    Disponible para Ventas y Ventas y Almacen.
+                  </p>
+                ) : null}
+              </div>
+              <Switch
+                id="e-puede-aceptar-pedidos"
+                checked={showPedidosPermission && form.puedeAceptarPedidos === true}
+                disabled={!showPedidosPermission}
+                onCheckedChange={(checked) =>
+                  setForm((p) => ({ ...p, puedeAceptarPedidos: checked }))
+                }
+                aria-label="Permitir aceptar pedidos ecommerce"
+              />
+            </div>
 
             {validation.rolError && form.rol !== "" ? (
               <p className="text-xs text-red-500">{validation.rolError}</p>

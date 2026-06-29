@@ -92,6 +92,8 @@ function parseProducto(value: unknown): Producto | null {
     descripcion: pickString(payload, ["descripcion"]),
     imagenGlobalUrl: pickNullableString(payload, ["imagenGlobalUrl"]),
     imagenGlobalThumbUrl: pickNullableString(payload, ["imagenGlobalThumbUrl"]),
+    guiaTallasUrl: pickNullableString(payload, ["guiaTallasUrl"]),
+    guiaTallasThumbUrl: pickNullableString(payload, ["guiaTallasThumbUrl"]),
     publicarEcommerce: payload?.publicarEcommerce === true,
     estado: pickString(payload, ["estado"], "ACTIVO"),
     fechaCreacion: pickString(payload, ["fechaCreacion", "createdAt"]),

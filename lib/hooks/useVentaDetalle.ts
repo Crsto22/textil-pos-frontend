@@ -148,6 +148,7 @@ function parseVentaDetalle(value: unknown): VentaDetalleResponse | null {
     nombreUsuario: stringOr(payload.nombreUsuario, "Sin usuario"),
     idSucursal: nullableNumber(payload.idSucursal),
     nombreSucursal: stringOr(payload.nombreSucursal, "Sin sucursal"),
+    origen: stringOr(payload.origen, "POS"),
     idCanalVenta: nullableNumber(payload.idCanalVenta),
     nombreCanalVenta: stringOrNull(payload.nombreCanalVenta),
     plataformaCanalVenta: stringOrNull(payload.plataformaCanalVenta),

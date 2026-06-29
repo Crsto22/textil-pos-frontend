@@ -46,6 +46,12 @@ export function usuarioRolRequiresSucursal(
   return Boolean(rol) && rol !== "ADMINISTRADOR"
 }
 
+export function usuarioRolPuedeAceptarPedidos(
+  rol: UsuarioFormRol | UsuarioRol | null | undefined
+): boolean {
+  return rol === "VENTAS" || rol === "VENTAS_ALMACEN"
+}
+
 export function getSucursalTipoFilterByRol(
   rol: UsuarioRol | null | undefined
 ): "VENTA" | undefined {
@@ -201,6 +207,7 @@ interface UsuarioBaseResponse {
   horaFinTurno: string | null
   diasTurno: string[] | null
   horariosTurno: TurnoUsuarioHorario[] | null
+  puedeAceptarPedidos: boolean
 }
 
 export interface TurnoUsuarioHorario {
@@ -231,6 +238,7 @@ export interface UsuarioCreateRequest {
   idSucursal: number | null
   idsSucursales?: number[] | null
   idTurno?: number | null
+  puedeAceptarPedidos?: boolean
 }
 
 export interface UsuarioUpdateRequest {
@@ -244,6 +252,7 @@ export interface UsuarioUpdateRequest {
   idSucursal: number | null
   idsSucursales?: number[] | null
   idTurno?: number | null
+  puedeAceptarPedidos?: boolean
 }
 
 export interface UsuarioCreateFormState
@@ -273,6 +282,7 @@ export const emptyCreate: UsuarioCreateRequest = {
   idSucursal: null,
   idsSucursales: [],
   idTurno: null,
+  puedeAceptarPedidos: false,
 }
 
 export const emptyCreateForm: UsuarioCreateFormState = {
@@ -291,6 +301,7 @@ export const emptyUpdate: UsuarioUpdateRequest = {
   idSucursal: null,
   idsSucursales: [],
   idTurno: null,
+  puedeAceptarPedidos: false,
 }
 
 export const emptyUpdateForm: UsuarioUpdateFormState = {

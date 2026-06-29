@@ -31,6 +31,7 @@ import type {
 import {
   ALL_USUARIO_BRANCH_FILTER,
   ALL_USUARIO_ROLE_FILTER,
+  usuarioRolPuedeAceptarPedidos,
   validateUsuarioRoleAssignment,
   usuarioRolRequiresSucursal,
 } from "@/lib/types/usuario"
@@ -275,6 +276,7 @@ export function useUsuarios() {
         ...payload,
         idSucursal: usuarioRolRequiresSucursal(payload.rol) ? payload.idSucursal : null,
         idsSucursales: usuarioRolRequiresSucursal(payload.rol) ? (payload.idsSucursales ?? []) : null,
+        puedeAceptarPedidos: usuarioRolPuedeAceptarPedidos(payload.rol) && payload.puedeAceptarPedidos === true,
       }
 
       const validation = validateUsuarioRoleAssignment(
@@ -329,6 +331,7 @@ export function useUsuarios() {
         ...payload,
         idSucursal: usuarioRolRequiresSucursal(payload.rol) ? payload.idSucursal : null,
         idsSucursales: usuarioRolRequiresSucursal(payload.rol) ? (payload.idsSucursales ?? []) : null,
+        puedeAceptarPedidos: usuarioRolPuedeAceptarPedidos(payload.rol) && payload.puedeAceptarPedidos === true,
       }
 
       const validation = validateUsuarioRoleAssignment(

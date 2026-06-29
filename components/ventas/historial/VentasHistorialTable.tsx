@@ -107,6 +107,22 @@ function normalizeValue(value: string | null | undefined): string {
   return value?.trim().toUpperCase() ?? ""
 }
 
+function OrigenBadge({ origen }: { origen: string | null | undefined }) {
+  const normalized = normalizeValue(origen) || "POS"
+  const isWeb = normalized === "WEB"
+  return (
+    <span
+      className={`mt-1 inline-flex w-fit rounded-full px-2 py-0.5 text-[10px] font-bold ring-1 ${
+        isWeb
+          ? "bg-purple-100 text-purple-700 ring-purple-200 dark:bg-purple-500/15 dark:text-purple-300 dark:ring-purple-500/20"
+          : "bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-500/15 dark:text-slate-300 dark:ring-slate-500/20"
+      }`}
+    >
+      {isWeb ? "WEB" : "POS"}
+    </span>
+  )
+}
+
 export function VentasHistorialTable({
   ventas,
   loading,
@@ -192,6 +208,7 @@ export function VentasHistorialTable({
                     <div className="flex flex-col">
                       <span className="font-semibold">{venta.tipoComprobante}</span>
                       <span className="text-xs text-muted-foreground">{formatComprobante(venta)}</span>
+                      <OrigenBadge origen={venta.origen} />
                       {venta.conversionOrigen && (
                         <span className="text-[11px] font-medium text-amber-700 dark:text-amber-300">
                           Origen: {formatComprobante(venta.conversionOrigen)}
@@ -321,6 +338,7 @@ export function VentasHistorialTable({
                   <p className="mt-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
                     {formatComprobante(venta)}
                   </p>
+                  <OrigenBadge origen={venta.origen} />
                   {venta.conversionOrigen && (
                     <p className="mt-1 text-[11px] font-medium text-amber-700 dark:text-amber-300">
                       Origen: {formatComprobante(venta.conversionOrigen)}

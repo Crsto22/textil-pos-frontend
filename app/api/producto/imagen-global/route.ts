@@ -29,6 +29,7 @@ export async function POST(request: NextRequest) {
     }
 
     const productoIdValue = String(formData.get("productoId") ?? "")
+    const tipoValue = String(formData.get("tipo") ?? "")
     const fileEntry = formData.get("file")
 
     if (!(fileEntry instanceof File)) {
@@ -40,6 +41,11 @@ export async function POST(request: NextRequest) {
 
     const backendFormData = new FormData()
     backendFormData.append("file", fileEntry, fileEntry.name)
+
+
+    if (tipoValue.trim() !== "") {
+      backendFormData.append("tipo", tipoValue.trim())
+    }
 
     if (productoIdValue.trim() !== "") {
       const parsedProductoId = parsePositiveInt(productoIdValue)

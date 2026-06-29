@@ -62,17 +62,17 @@ export function getMetodoPagoBadgeClasses(method: string) {
 
   switch (normalizedMethod) {
     case "EFECTIVO":
-      return "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300"
+      return "bg-amber-50 text-amber-700 dark:bg-amber-600 dark:text-white"
     case "YAPE":
-      return "bg-cyan-50 text-cyan-700 dark:bg-cyan-500/10 dark:text-cyan-300"
+      return "bg-cyan-50 text-cyan-700 dark:bg-cyan-600 dark:text-white"
     case "PLIN":
-      return "bg-teal-50 text-teal-700 dark:bg-teal-500/10 dark:text-teal-300"
+      return "bg-teal-50 text-teal-700 dark:bg-teal-600 dark:text-white"
     case "TRANSFERENCIA":
-      return "bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300"
+      return "bg-indigo-50 text-indigo-700 dark:bg-indigo-600 dark:text-white"
     case "TARJETA":
-      return "bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300"
+      return "bg-blue-50 text-blue-700 dark:bg-blue-600 dark:text-white"
     default:
-      return "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200"
+      return "bg-slate-100 text-slate-700 dark:bg-slate-600 dark:text-white"
   }
 }
 

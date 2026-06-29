@@ -40,6 +40,7 @@ import {
     ArchiveBoxIcon,
     ArrowsRightLeftIcon,
     ShoppingBagIcon,
+    GlobeAltIcon,
 } from "@heroicons/react/24/outline"
 import {
     BanknotesIcon as BanknotesIconSolid,
@@ -68,6 +69,7 @@ import {
     ArchiveBoxIcon as ArchiveBoxIconSolid,
     ArrowsRightLeftIcon as ArrowsRightLeftIconSolid,
     ShoppingBagIcon as ShoppingBagIconSolid,
+    GlobeAltIcon as GlobeAltIconSolid,
 } from "@heroicons/react/24/solid"
 
 interface SidebarProps {
@@ -191,6 +193,7 @@ export const navSections: SidebarSection[] = [
             { label: "Empresa", href: "/configuracion/empresa", icon: Cog6ToothIcon, iconActive: Cog6ToothIconSolid },
             { label: "Mi cuenta", href: "/configuracion/cuenta", icon: UserCircleIcon, iconActive: UserCircleIconSolid },
             { label: "Metodos de pago", href: "/configuracion/metodos-pago", icon: CreditCardIcon, iconActive: CreditCardIconSolid },
+            { label: "Ecommerce", href: "/configuracion/ecommerce", icon: GlobeAltIcon, iconActive: GlobeAltIconSolid, badge: "Nuevo" },
         ],
     },
 ]
@@ -252,7 +255,9 @@ export function Sidebar({ isOpen, collapsed, onClose, onToggleCollapse }: Sideba
     const filteredSections = navSections
         .map((section) => ({
             ...section,
-            items: section.items.filter((item) => matchQuery(item) && hasAccess(user?.rol, item.href)),
+            items: section.items.filter((item) =>
+                matchQuery(item) && hasAccess(user?.rol, item.href, user?.puedeAceptarPedidos)
+            ),
         }))
         .filter((section) => section.items.length > 0)
 

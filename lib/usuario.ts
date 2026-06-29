@@ -103,6 +103,7 @@ export function normalizeUsuario(value: unknown): Usuario | null {
           .filter((item) => item.length > 0)
       : null,
     horariosTurno: normalizeHorariosTurno(value.horariosTurno),
+    puedeAceptarPedidos: value.puedeAceptarPedidos === true,
   }
 }
 
