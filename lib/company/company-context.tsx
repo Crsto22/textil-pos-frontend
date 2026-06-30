@@ -4,14 +4,11 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
-  useRef,
   useState,
   type ReactNode,
 } from "react"
 
-import { normalizeEmpresaPublica } from "@/lib/empresa"
 import type { Empresa, EmpresaPublica } from "@/lib/types/empresa"
 
 type CompanyRecord = Empresa | EmpresaPublica
@@ -26,81 +23,13 @@ interface CompanyContextType {
 
 const CompanyContext = createContext<CompanyContextType | null>(null)
 
-function isAbortError(error: unknown) {
-  return error instanceof DOMException && error.name === "AbortError"
-}
-
-async function parseJsonSafe(response: Response) {
-  return response.json().catch(() => null)
-}
-
 export function CompanyProvider({ children }: { children: ReactNode }) {
   const [company, setCompany] = useState<CompanyRecord | null>(null)
-  const [isLoadingCompany, setIsLoadingCompany] = useState(false)
   const [companyError, setCompanyError] = useState<string | null>(null)
-
-  const abortRef = useRef<AbortController | null>(null)
-
-  const loadCompany = useCallback(
-    async (signal?: AbortSignal) => {
-      setIsLoadingCompany(true)
-      setCompanyError(null)
-
-      try {
-        const response = await fetch("/api/empresa/publico", {
-          signal,
-          cache: "no-store",
-        })
-        const data = await parseJsonSafe(response)
-        if (signal?.aborted) return
-
-        if (!response.ok) {
-          setCompany(null)
-          setCompanyError(
-            data?.message ?? "Error al obtener la informacion de la empresa"
-          )
-          return
-        }
-
-        setCompany(normalizeEmpresaPublica(data))
-      } catch (requestError) {
-        if (isAbortError(requestError)) return
-        const message =
-          requestError instanceof Error
-            ? requestError.message
-            : "Error inesperado al obtener la empresa"
-        setCompany(null)
-        setCompanyError(message)
-      } finally {
-        if (!signal?.aborted) {
-          setIsLoadingCompany(false)
-        }
-      }
-    },
-    []
-  )
+  const isLoadingCompany = false
 
   const refreshCompany = useCallback(async () => {
-    abortRef.current?.abort()
-    const controller = new AbortController()
-    abortRef.current = controller
-    await loadCompany(controller.signal)
-  }, [loadCompany])
-
-  useEffect(() => {
-    abortRef.current?.abort()
-
-    const controller = new AbortController()
-    abortRef.current = controller
-    void loadCompany(controller.signal)
-
-    return () => controller.abort()
-  }, [loadCompany])
-
-  useEffect(() => {
-    return () => {
-      abortRef.current?.abort()
-    }
+    setCompanyError(null)
   }, [])
 
   const value = useMemo(

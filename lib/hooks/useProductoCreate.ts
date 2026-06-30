@@ -1595,8 +1595,9 @@ const activeStockSucursales = useMemo<VariantSucursalStockInput[]>(
   }, [])
 
   const handlePublicarEcommerceChange = useCallback((value: boolean) => {
+    if (!isAdmin) return
     setForm((previous) => ({ ...previous, publicarEcommerce: value }))
-  }, [])
+  }, [isAdmin])
 
   const handleCreateCategoria = useCallback(
     async (payload: CategoriaCreateRequest) => {
@@ -2032,7 +2033,7 @@ const activeStockSucursales = useMemo<VariantSucursalStockInput[]>(
         imagenGlobalThumbUrl,
         guiaTallasUrl,
         guiaTallasThumbUrl,
-        publicarEcommerce: form.publicarEcommerce,
+        ...(isAdmin ? { publicarEcommerce: form.publicarEcommerce } : {}),
         ...(descripcion !== "" ? { descripcion } : {}),
       }
 
@@ -2083,6 +2084,7 @@ const activeStockSucursales = useMemo<VariantSucursalStockInput[]>(
     form.idCategoria,
     form.nombre,
     form.publicarEcommerce,
+    isAdmin,
     isEditing,
     isAutoSkuEnabled,
     isSaving,
@@ -2134,6 +2136,7 @@ const activeStockSucursales = useMemo<VariantSucursalStockInput[]>(
     user,
     isAdmin,
     isEditing,
+    isAdmin,
     loadingDetalle,
     errorDetalle,
     form,

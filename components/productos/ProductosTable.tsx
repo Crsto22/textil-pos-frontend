@@ -6,6 +6,7 @@ import {
 } from "@heroicons/react/24/outline"
 import { LoaderSpinner } from "@/components/ui/loader-spinner"
 import { KimentsLogo } from "@/components/KimentsLogo"
+import { Switch } from "@/components/ui/switch"
 
 import { formatMonedaPen, formatRangoPrecioPen } from "@/components/productos/productos.utils"
 import type { ProductoResumen, ProductoResumenColor } from "@/lib/types/producto"
@@ -70,6 +71,7 @@ interface ProductoRowProps {
   activeColorId?: number | null
   onEditProducto: (producto: ProductoResumen) => void
   onDeleteProducto: (producto: ProductoResumen) => void
+  onToggleEcommerce?: (producto: ProductoResumen, publicarEcommerce: boolean) => void | Promise<boolean>
 }
 
 function ProductoRow({
@@ -77,6 +79,7 @@ function ProductoRow({
   activeColorId = null,
   onEditProducto,
   onDeleteProducto,
+  onToggleEcommerce,
 }: ProductoRowProps) {
   const [colorActivoIdx, setColorActivoIdx] = useState(() =>
     getInitialColorIndex(producto, activeColorId)
@@ -160,6 +163,20 @@ function ProductoRow({
                 </span>
               )}
             </div>
+            {onToggleEcommerce && (
+              <div className="mt-2 flex w-fit items-center gap-2 rounded-lg border bg-muted/20 px-2 py-1">
+                <span className="text-[11px] font-medium text-muted-foreground">
+                  Ecommerce
+                </span>
+                <Switch
+                  checked={producto.publicarEcommerce}
+                  onCheckedChange={(checked) => {
+                    void onToggleEcommerce(producto, checked)
+                  }}
+                  aria-label={`Mostrar ${producto.nombre} en ecommerce`}
+                />
+              </div>
+            )}
           </div>
         </div>
       </td>
@@ -317,6 +334,7 @@ interface ProductosTableProps {
   activeColorId?: number | null
   onEditProducto: (producto: ProductoResumen) => void
   onDeleteProducto: (producto: ProductoResumen) => void
+  onToggleEcommerce?: (producto: ProductoResumen, publicarEcommerce: boolean) => void | Promise<boolean>
 }
 
 function ProductosTableComponent({
@@ -325,6 +343,7 @@ function ProductosTableComponent({
   activeColorId = null,
   onEditProducto,
   onDeleteProducto,
+  onToggleEcommerce,
 }: ProductosTableProps) {
   return (
     <div className="overflow-hidden rounded-2xl border bg-card">
@@ -376,6 +395,7 @@ function ProductosTableComponent({
                   activeColorId={activeColorId}
                   onEditProducto={onEditProducto}
                   onDeleteProducto={onDeleteProducto}
+                  onToggleEcommerce={onToggleEcommerce}
                 />
               ))
             )}

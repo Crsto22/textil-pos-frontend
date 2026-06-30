@@ -9,6 +9,7 @@ import {
 
 import { KimentsLogo } from "@/components/KimentsLogo"
 import { ProductosCardsSkeleton } from "@/components/productos/ProductosCardsSkeleton"
+import { Switch } from "@/components/ui/switch"
 import { formatMonedaPen, formatRangoPrecioPen } from "@/components/productos/productos.utils"
 import type { ProductoResumen, ProductoResumenColor } from "@/lib/types/producto"
 import { cn } from "@/lib/utils"
@@ -72,6 +73,7 @@ interface ProductoCardProps {
   activeColorId?: number | null
   onEditProducto: (producto: ProductoResumen) => void
   onDeleteProducto: (producto: ProductoResumen) => void
+  onToggleEcommerce?: (producto: ProductoResumen, publicarEcommerce: boolean) => void | Promise<boolean>
 }
 
 function ProductoCard({
@@ -79,6 +81,7 @@ function ProductoCard({
   activeColorId = null,
   onEditProducto,
   onDeleteProducto,
+  onToggleEcommerce,
 }: ProductoCardProps) {
   const [colorActivoIdx, setColorActivoIdx] = useState(() =>
     getInitialColorIndex(producto, activeColorId)
@@ -88,6 +91,7 @@ function ProductoCard({
 
   useEffect(() => {
     const nextColorIdx = getInitialColorIndex(producto, activeColorId)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setColorActivoIdx(nextColorIdx)
     setTallaActivaIdx(0)
     setImgError(false)
@@ -351,6 +355,21 @@ function ProductoCard({
         {/* Spacer para empujar botones al fondo */}
         <div className="flex-1" />
 
+        {onToggleEcommerce && (
+          <div className="flex items-center justify-between gap-3 rounded-lg border bg-muted/20 px-2.5 py-2">
+            <span className="text-xs font-medium text-muted-foreground">
+              Mostrar en ecommerce
+            </span>
+            <Switch
+              checked={producto.publicarEcommerce}
+              onCheckedChange={(checked) => {
+                void onToggleEcommerce(producto, checked)
+              }}
+              aria-label={`Mostrar ${producto.nombre} en ecommerce`}
+            />
+          </div>
+        )}
+
         {/* Botones de accion */}
         <div className="flex items-center justify-end gap-1 border-t pt-2 sm:pt-3">
           <button
@@ -385,6 +404,7 @@ interface ProductosCardsProps {
   activeColorId?: number | null
   onEditProducto: (producto: ProductoResumen) => void
   onDeleteProducto: (producto: ProductoResumen) => void
+  onToggleEcommerce?: (producto: ProductoResumen, publicarEcommerce: boolean) => void | Promise<boolean>
 }
 
 function ProductosCardsComponent({
@@ -393,6 +413,7 @@ function ProductosCardsComponent({
   activeColorId = null,
   onEditProducto,
   onDeleteProducto,
+  onToggleEcommerce,
 }: ProductosCardsProps) {
   if (loading) return <ProductosCardsSkeleton />
 
@@ -413,6 +434,7 @@ function ProductosCardsComponent({
           activeColorId={activeColorId}
           onEditProducto={onEditProducto}
           onDeleteProducto={onDeleteProducto}
+          onToggleEcommerce={onToggleEcommerce}
         />
       ))}
     </div>

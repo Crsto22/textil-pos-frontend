@@ -422,9 +422,6 @@ export function useProductos(
             ...(payload.imagenGlobalThumbUrl !== undefined
               ? { imagenGlobalThumbUrl: payload.imagenGlobalThumbUrl }
               : {}),
-            ...(payload.publicarEcommerce !== undefined
-              ? { publicarEcommerce: payload.publicarEcommerce === true }
-              : {}),
           }
 
       if (isAdmin && !hasValidSucursalId(normalizedPayload.idSucursal)) {
@@ -501,9 +498,6 @@ export function useProductos(
             ...(payload.imagenGlobalThumbUrl !== undefined
               ? { imagenGlobalThumbUrl: payload.imagenGlobalThumbUrl }
               : {}),
-            ...(payload.publicarEcommerce !== undefined
-              ? { publicarEcommerce: payload.publicarEcommerce === true }
-              : {}),
           }
 
       try {
@@ -534,6 +528,76 @@ export function useProductos(
       }
     },
     [isAdmin, refreshCurrentView]
+  )
+
+  const updateProductoEcommerce = useCallback(
+    async (producto: ProductoResumen, publicarEcommerce: boolean) => {
+      if (!isAdmin) {
+        toast.error("Solo el administrador puede cambiar ecommerce")
+        return false
+      }
+      if (!hasValidCategoriaId(producto.idCategoria)) {
+        toast.error("El producto no tiene una categoria valida")
+        return false
+      }
+
+      const previousValue = producto.publicarEcommerce === true
+      const updateLocal = (items: ProductoResumen[]) =>
+        items.map((item) =>
+          item.idProducto === producto.idProducto
+            ? { ...item, publicarEcommerce }
+            : item
+        )
+      const rollbackLocal = (items: ProductoResumen[]) =>
+        items.map((item) =>
+          item.idProducto === producto.idProducto
+            ? { ...item, publicarEcommerce: previousValue }
+            : item
+        )
+
+      setProductos(updateLocal)
+      setSearchResults(updateLocal)
+
+      try {
+        const payload: ProductoUpdateRequest = {
+          idCategoria: producto.idCategoria,
+          nombre: producto.nombre,
+          descripcion: producto.descripcion ?? "",
+          imagenGlobalUrl: producto.imagenGlobalUrl,
+          imagenGlobalThumbUrl: producto.imagenGlobalThumbUrl,
+          guiaTallasUrl: producto.guiaTallasUrl,
+          guiaTallasThumbUrl: producto.guiaTallasThumbUrl,
+          publicarEcommerce,
+        }
+
+        const response = await authFetch(`/api/producto/actualizar/${producto.idProducto}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        })
+        const data = await parseJsonSafe(response)
+
+        if (!response.ok) {
+          throw new Error(getErrorMessage(response.status, data?.message))
+        }
+
+        toast.success(
+          publicarEcommerce
+            ? "Producto visible en ecommerce"
+            : "Producto oculto del ecommerce"
+        )
+        return true
+      } catch (requestError) {
+        setProductos(rollbackLocal)
+        setSearchResults(rollbackLocal)
+        const message =
+          requestError instanceof Error ? requestError.message : "Error inesperado"
+        setError(message)
+        toast.error(message)
+        return false
+      }
+    },
+    [isAdmin]
   )
 
   const deleteProducto = useCallback(
@@ -640,6 +704,7 @@ export function useProductos(
     refreshCurrentView,
     createProducto,
     updateProducto,
+    updateProductoEcommerce,
     deleteProducto,
   }
 }

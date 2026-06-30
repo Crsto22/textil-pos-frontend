@@ -32,8 +32,8 @@ export function KimentsLogo({ size = "md", className }: KimentsLogoProps) {
         className,
       )}
     >
-      <p className={s.main}>Kiments</p>
-      <p className={s.sub}>Tienda de ropa</p>
+      <p className={s.main}>KIMENTS</p>
+      <p className={s.sub}>TIENDA DE ROPA</p>
     </div>
   )
 }

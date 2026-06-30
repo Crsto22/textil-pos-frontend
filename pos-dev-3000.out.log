@@ -1,0 +1,22 @@
+
+> textil-pos-frontend@0.1.0 dev
+> next dev --webpack
+
+▲ Next.js 16.1.6 (webpack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.0.107:3000
+- Environments: .env
+
+✓ Starting...
+ ○ (pwa) PWA support is disabled.
+✓ Ready in 15.1s
+○ Compiling / ...
+ GET / 200 in 247ms (compile: 21ms, render: 225ms)
+ GET /api/empresa/publico 404 in 3.0s (compile: 2.6s, render: 368ms)
+ GET / 200 in 467ms (compile: 50ms, render: 417ms)
+○ Compiling /_not-found ...
+ GET / 200 in 3.6s (compile: 2.2s, render: 1444ms)
+ POST /api/auth/refresh 401 in 271ms (compile: 142ms, render: 129ms)
+ POST /api/auth/refresh 401 in 318ms (compile: 186ms, render: 132ms)
+ GET /api/empresa/publico 404 in 550ms (compile: 371ms, render: 178ms)
+[?25h

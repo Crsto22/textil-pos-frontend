@@ -33,6 +33,7 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
 
   const {
     isEditing,
+    isAdmin,
     loadingDetalle,
     errorDetalle,
     form,
@@ -244,6 +245,7 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
             onNombreChange={handleNombreChange}
             onDescripcionChange={handleDescripcionChange}
             onPublicarEcommerceChange={handlePublicarEcommerceChange}
+            canManageEcommerce={isAdmin}
             canCreateCategoria={canCreateCategoria}
           />
         </div>

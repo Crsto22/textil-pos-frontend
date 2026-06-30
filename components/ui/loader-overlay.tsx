@@ -1,5 +1,6 @@
 "use client"
 
+import { KimentsLogo } from "@/components/KimentsLogo"
 import { cn } from "@/lib/utils"
 
 interface LoaderOverlayProps {
@@ -20,9 +21,7 @@ export function LoaderOverlay({
       aria-busy="true"
     >
       <div className="flex flex-col items-center gap-6 px-10 py-9">
-        <p className="font-[family-name:var(--font-kiments)] text-3xl tracking-[0.16em] text-black dark:text-white">
-          Kiments
-        </p>
+        <KimentsLogo size="lg" />
         <span
           className="h-8 w-8 animate-spin rounded-full border-2 border-blue-500 border-t-transparent dark:border-blue-400 dark:border-t-transparent"
           aria-hidden="true"

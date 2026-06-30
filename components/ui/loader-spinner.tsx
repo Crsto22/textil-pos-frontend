@@ -18,32 +18,22 @@ interface LoaderSpinnerProps {
   className?: string
 }
 
-export function LoaderSpinner({ size = "md", className, text: _text }: LoaderSpinnerProps) {
+export function LoaderSpinner({ size = "md", className }: LoaderSpinnerProps) {
   const cfg = SIZE[size]
 
   return (
     <div className={cn("flex flex-col items-center justify-center gap-3", className)}>
-      <style>{`
-        @keyframes ls-dot {
-          0%, 100% { opacity: 0.25; transform: scale(0.8); }
-          50%       { opacity: 1;    transform: scale(1.1); }
-        }
-      `}</style>
-
       <KimentsLogo size="sm" />
 
       <div className={cn("flex items-center", cfg.gap)} aria-hidden="true">
         <span
-          className={cn("block rounded-full bg-blue-500 dark:bg-blue-400", cfg.dot)}
-          style={{ animation: "ls-dot 1.2s ease-in-out infinite" }}
+          className={cn("block animate-pulse rounded-full bg-blue-500 dark:bg-blue-400", cfg.dot)}
         />
         <span
-          className={cn("block rounded-full bg-blue-500 dark:bg-blue-400", cfg.dot)}
-          style={{ animation: "ls-dot 1.2s ease-in-out 0.2s infinite" }}
+          className={cn("block animate-pulse rounded-full bg-blue-500 [animation-delay:150ms] dark:bg-blue-400", cfg.dot)}
         />
         <span
-          className={cn("block rounded-full bg-blue-500 dark:bg-blue-400", cfg.dot)}
-          style={{ animation: "ls-dot 1.2s ease-in-out 0.4s infinite" }}
+          className={cn("block animate-pulse rounded-full bg-blue-500 [animation-delay:300ms] dark:bg-blue-400", cfg.dot)}
         />
       </div>
     </div>

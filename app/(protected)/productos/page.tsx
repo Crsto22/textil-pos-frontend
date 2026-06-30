@@ -192,6 +192,7 @@ export default function ProductosPage() {
     displayedPage: displayedPageProductos,
     setDisplayedPage: setDisplayedPageProductos,
     deleteProducto,
+    updateProductoEcommerce,
     refreshCurrentView: refreshProductosView,
   } = useProductos(!isVariantView && isSucursalResolved, resolvedSucursalId, initialSoloDisponibles)
   const {
@@ -633,6 +634,7 @@ export default function ProductosPage() {
             activeColorId={idColorFilter}
             onEditProducto={handleEditProducto}
             onDeleteProducto={handleDeleteProducto}
+            onToggleEcommerce={isAdmin ? updateProductoEcommerce : undefined}
           />
         ) : (
           <ProductosTable
@@ -641,6 +643,7 @@ export default function ProductosPage() {
             activeColorId={idColorFilter}
             onEditProducto={handleEditProducto}
             onDeleteProducto={handleDeleteProducto}
+            onToggleEcommerce={isAdmin ? updateProductoEcommerce : undefined}
           />
         )}
 
