@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import Image from "next/image"
 import {
   ArrowPathIcon,
@@ -219,8 +219,6 @@ export function PedidosPage() {
   const [busy, setBusy] = useState(false)
   const [excelLoading, setExcelLoading] = useState(false)
   const [now, setNow] = useState(() => Date.now())
-  const [highlightedRows, setHighlightedRows] = useState<Set<number>>(new Set())
-  const [newRowIds, setNewRowIds] = useState<Set<number>>(new Set())
   const [periodo, setPeriodo] = useState<(typeof PERIODOS)[number]>("HOY")
   const [fechaDesde, setFechaDesde] = useState("")
   const [fechaHasta, setFechaHasta] = useState("")
@@ -229,14 +227,6 @@ export function PedidosPage() {
   const [rucError, setRucError] = useState<string | null>(null)
   const [rucInput, setRucInput] = useState("")
   const [editingRuc, setEditingRuc] = useState(false)
-  const prevPedidoIdsRef = useRef<Set<number>>(new Set())
-  const estadoRef = useRef(estado)
-  const searchRef = useRef(search)
-  const periodoRef = useRef(periodo)
-  const fechaDesdeRef = useRef(fechaDesde)
-  const fechaHastaRef = useRef(fechaHasta)
-  const pageRef = useRef(page)
-  const silentTimerRef = useRef<number | null>(null)
 
   const { comprobantes, loadingComprobantes, errorComprobantes } = useComprobanteOptions({
     enabled: Boolean(acceptTarget),
@@ -278,126 +268,6 @@ export function PedidosPage() {
     const id = window.setTimeout(() => void fetchPedidos(), 250)
     return () => window.clearTimeout(id)
   }, [fetchPedidos])
-
-  useEffect(() => {
-    let closed = false
-    let retryId: number | null = null
-    let controller: AbortController | null = null
-
-    const connect = async () => {
-      controller = new AbortController()
-      try {
-        const response = await authFetch("/api/ecommerce/pedidos/stream", {
-          signal: controller.signal,
-          headers: { Accept: "text/event-stream" },
-        })
-        if (!response.ok || !response.body) throw new Error("SSE no disponible")
-
-        const reader = response.body.getReader()
-        const decoder = new TextDecoder()
-        let buffer = ""
-        while (!closed) {
-          const { value, done } = await reader.read()
-          if (done) break
-          buffer += decoder.decode(value, { stream: true })
-          buffer = buffer.replace(/\r\n/g, "\n")
-          const events = buffer.split("\n\n")
-          buffer = events.pop() ?? ""
-          for (const event of events) {
-            if (!event.includes("event:pedidos.changed")) continue
-            const lines = event.split("\n")
-            const dataLine = lines.find((l) => l.startsWith("data:"))
-            if (!dataLine) continue
-            try {
-              const payload = JSON.parse(dataLine.slice(5).trim()) as { codigo?: string; estado?: string }
-              if (payload.codigo && payload.estado) {
-                handlePedidoChanged(payload.codigo, payload.estado)
-              }
-            } catch { /* ignorar evento malformado */ }
-          }
-        }
-      } catch {
-        if (!closed) {
-          retryId = window.setTimeout(connect, 3000)
-        }
-      }
-    }
-
-    void connect()
-    return () => {
-      closed = true
-      controller?.abort()
-      if (retryId) window.clearTimeout(retryId)
-      if (silentTimerRef.current) window.clearTimeout(silentTimerRef.current)
-    }
-  }, [])
-
-  useEffect(() => { estadoRef.current = estado }, [estado])
-  useEffect(() => { searchRef.current = search }, [search])
-  useEffect(() => { periodoRef.current = periodo }, [periodo])
-  useEffect(() => { fechaDesdeRef.current = fechaDesde }, [fechaDesde])
-  useEffect(() => { fechaHastaRef.current = fechaHasta }, [fechaHasta])
-  useEffect(() => { pageRef.current = page }, [page])
-
-  const fetchPedidosSilent = useCallback(async () => {
-    try {
-      const params = new URLSearchParams({ page: String(pageRef.current), size: "20" })
-      if (searchRef.current.trim()) params.set("q", searchRef.current.trim())
-      if (estadoRef.current !== "TODOS") params.set("estado", estadoRef.current)
-      const currentRange = resolveDateRange(periodoRef.current, fechaDesdeRef.current, fechaHastaRef.current)
-      if (currentRange.desde) params.set("fechaDesde", currentRange.desde)
-      if (currentRange.hasta) params.set("fechaHasta", currentRange.hasta)
-      const response = await authFetch(`/api/ecommerce/pedidos?${params}`)
-      const data = await response.json().catch(() => null)
-      if (!response.ok) return
-      const pageData = data as EcommercePedidoPageResponse
-      const fresh = Array.isArray(pageData.content) ? pageData.content : []
-      const currentIds = prevPedidoIdsRef.current
-      const incomingIds = fresh.map((p) => p.idEcommercePedido)
-      const trulyNew = incomingIds.filter((id) => !currentIds.has(id))
-      prevPedidoIdsRef.current = new Set(incomingIds)
-      setPedidos(fresh)
-      setTotalPages(Number(pageData.totalPages) || 0)
-      setTotalElements(Number(pageData.totalElements) || 0)
-      setEstadisticas(pageData.estadisticas ?? EMPTY_STATS)
-      if (trulyNew.length > 0) {
-        setNewRowIds((prev) => {
-          const next = new Set(prev)
-          trulyNew.forEach((id) => next.add(id))
-          return next
-        })
-        setTimeout(() => {
-          setNewRowIds((prev) => {
-            const next = new Set(prev)
-            trulyNew.forEach((id) => next.delete(id))
-            return next
-          })
-        }, 2000)
-      }
-    } catch { /* silencioso */ }
-  }, [])
-
-  const handlePedidoChanged = useCallback((codigo: string, nuevoEstado: string) => {
-    setPedidos((prev) => {
-      const idx = prev.findIndex((p) => p.codigo.replace(/^#?/, "") === codigo.replace(/^#?/, ""))
-      if (idx < 0) return prev
-      if (prev[idx].estado === nuevoEstado) return prev
-      const updated = [...prev]
-      updated[idx] = { ...updated[idx], estado: nuevoEstado }
-      const id = updated[idx].idEcommercePedido
-      setHighlightedRows((prev) => { const next = new Set(prev); next.add(id); return next })
-      setTimeout(() => {
-        setHighlightedRows((prev) => { const next = new Set(prev); next.delete(id); return next })
-      }, 2000)
-      return updated
-    })
-
-    if (silentTimerRef.current) window.clearTimeout(silentTimerRef.current)
-    silentTimerRef.current = window.setTimeout(() => {
-      silentTimerRef.current = null
-      void fetchPedidosSilent()
-    }, 500)
-  }, [fetchPedidosSilent])
 
   useEffect(() => setPage(0), [estado, fechaDesde, fechaHasta, periodo, search])
   useEffect(() => {
@@ -485,7 +355,7 @@ export function PedidosPage() {
       setSelected(null)
       setAcceptTarget(null)
       setCancelTarget(null)
-      await fetchPedidosSilent()
+      await fetchPedidos()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "No se pudo aceptar el pedido")
     } finally {
@@ -502,7 +372,7 @@ export function PedidosPage() {
       if (!response.ok) throw new Error(message(data, "No se pudo cancelar el pedido"))
       toast.success("Pedido cancelado")
       setCancelTarget(null)
-      await fetchPedidosSilent()
+      await fetchPedidos()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "No se pudo cancelar el pedido")
     } finally {
@@ -699,7 +569,7 @@ export function PedidosPage() {
                   const tiempo = pedido.estado === "ESPERANDO_COMPROBANTE" ? countdown(pedido.reservaExpiraAt, now) : "-"
                   const factura = wantsInvoice(pedido)
                   return (
-                    <tr key={pedido.idEcommercePedido} className={`border-b border-slate-100 last:border-0 hover:bg-slate-50/70 dark:border-slate-800 dark:hover:bg-slate-800/50 transition-colors ${highlightedRows.has(pedido.idEcommercePedido) ? "bg-blue-50/80 dark:bg-blue-900/30" : ""} ${newRowIds.has(pedido.idEcommercePedido) ? "animate-row-enter bg-emerald-50/80 dark:bg-emerald-950/50" : ""}`}>
+                    <tr key={pedido.idEcommercePedido} className="border-b border-slate-100 transition-colors last:border-0 hover:bg-slate-50/70 dark:border-slate-800 dark:hover:bg-slate-800/50">
                       <td className="px-5 py-4">
                         <p className="font-bold text-slate-950 dark:text-slate-100">#{pedido.codigo.replace(/^#?/, "")}</p>
                         <p className="text-xs text-slate-500 dark:text-slate-400">{dateOnly(pedido.fecha)}, {timeOnly(pedido.fecha)} • {pedido.detalles?.length ?? 0} item(s)</p>
@@ -764,7 +634,7 @@ export function PedidosPage() {
 
         <div className="space-y-3 p-4 lg:hidden">
           {loading ? <LoaderSpinner text="Cargando pedidos..." /> : pedidos.map((pedido, index) => (
-            <article key={pedido.idEcommercePedido} className={`rounded-2xl border bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/50 transition-colors ${highlightedRows.has(pedido.idEcommercePedido) ? "ring-2 ring-blue-400 dark:ring-blue-500" : ""} ${newRowIds.has(pedido.idEcommercePedido) ? "animate-row-enter ring-2 ring-emerald-400 dark:ring-emerald-500" : ""}`}>
+            <article key={pedido.idEcommercePedido} className="rounded-2xl border bg-slate-50 p-4 transition-colors dark:border-slate-700 dark:bg-slate-800/50">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <div className={`flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold ${avatarClass(index)}`}>{initials(pedido)}</div>
