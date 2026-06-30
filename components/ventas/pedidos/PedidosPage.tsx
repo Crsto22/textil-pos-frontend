@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
+import type { ReactNode } from "react"
 import Image from "next/image"
 import {
   ArrowPathIcon,
@@ -102,6 +103,19 @@ function initials(pedido: EcommercePedidoAdmin) {
 
 function wantsInvoice(pedido: EcommercePedidoAdmin | null | undefined) {
   return Boolean(pedido?.cliente.deseaFactura && pedido.cliente.ruc)
+}
+
+function hasText(value: unknown) {
+  return typeof value === "string" && value.trim().length > 0
+}
+
+function DetailRow({ label, value }: { label: string; value: ReactNode }) {
+  if (value === null || value === undefined || value === "") return null
+  return (
+    <p className="text-sm">
+      <span className="text-muted-foreground">{label}:</span> {value}
+    </p>
+  )
 }
 
 function avatarClass(index: number) {
@@ -371,6 +385,7 @@ export function PedidosPage() {
       const data = await response.json().catch(() => null)
       if (!response.ok) throw new Error(message(data, "No se pudo cancelar el pedido"))
       toast.success("Pedido cancelado")
+      setSelected(null)
       setCancelTarget(null)
       await fetchPedidos()
     } catch (error) {
@@ -686,10 +701,40 @@ export function PedidosPage() {
                 <div className="space-y-4 border-r p-5 dark:border-slate-700">
                   <section className="rounded-lg border bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/50">
                     <p className="font-semibold">{selected.cliente.nombres} {selected.cliente.apellidos}</p>
-                    <p className="text-xs text-muted-foreground">DNI {selected.cliente.dni} • {selected.cliente.telefono}</p>
+                    <div className="mt-2 grid gap-1">
+                      <DetailRow label="DNI" value={selected.cliente.dni} />
+                      <DetailRow label="Telefono" value={selected.cliente.telefono} />
+                      <DetailRow label="Correo" value={selected.cliente.correo} />
+                    </div>
                     {wantsInvoice(selected) ? <p className="text-xs font-semibold text-blue-600">Factura RUC {selected.cliente.ruc}</p> : null}
-                    <p className="text-xs text-blue-600">{selected.cliente.correo}</p>
                   </section>
+                  <section className="rounded-lg border bg-white p-4 text-sm dark:border-slate-700 dark:bg-slate-900">
+                    <p className="mb-2 font-semibold">Datos del pedido</p>
+                    <div className="grid gap-1 sm:grid-cols-2">
+                      <DetailRow label="Fecha" value={`${dateOnly(selected.fecha)} ${timeOnly(selected.fecha)}`} />
+                      <DetailRow label="Estado" value={estadoDisplay(selected.estado)} />
+                      <DetailRow label="Metodo de pago" value={hasText(selected.metodoPago) ? getMetodoPagoLabel(selected.metodoPago ?? "") : null} />
+                      <DetailRow label="Sucursal" value={selected.nombreSucursal} />
+                      <DetailRow label="Venta" value={selected.ventaNumero} />
+                      <DetailRow label="Aceptado por" value={selected.usuarioAceptacionNombre} />
+                      <DetailRow label="Aceptado el" value={selected.aceptadoAt ? `${dateOnly(selected.aceptadoAt)} ${timeOnly(selected.aceptadoAt)}` : null} />
+                      <DetailRow label="Total" value={<b>{money(selected.total)}</b>} />
+                    </div>
+                  </section>
+                  {(hasText(selected.envio.tipo) || hasText(selected.envio.direccion) || hasText(selected.envio.referencia) || hasText(selected.envio.departamento) || hasText(selected.envio.provincia) || hasText(selected.envio.distrito) || hasText(selected.envio.tarifa)) ? (
+                    <section className="rounded-lg border bg-white p-4 text-sm dark:border-slate-700 dark:bg-slate-900">
+                      <p className="mb-2 font-semibold">Envio</p>
+                      <div className="grid gap-1">
+                        <DetailRow label="Tipo" value={selected.envio.tipo} />
+                        <DetailRow label="Direccion" value={selected.envio.direccion} />
+                        <DetailRow label="Referencia" value={selected.envio.referencia} />
+                        <DetailRow label="Departamento" value={selected.envio.departamento} />
+                        <DetailRow label="Provincia" value={selected.envio.provincia} />
+                        <DetailRow label="Distrito" value={selected.envio.distrito} />
+                        <DetailRow label="Tarifa" value={selected.envio.tarifa} />
+                      </div>
+                    </section>
+                  ) : null}
                   <section className="overflow-hidden rounded-lg border">
                     {selected.detalles.map((detalle, index) => {
                       const imagen = detalle.imagenUrl ? resolveBackendUrl(detalle.imagenUrl) : null
@@ -718,10 +763,10 @@ export function PedidosPage() {
                   </div>
                   {selected.estado === "PAGO_EN_REVISION" ? (
                     <div className="grid gap-3 sm:grid-cols-2">
-                      <Button variant="outline" className="border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-950" onClick={() => setCancelTarget(selected)}>
+                      <Button variant="outline" className="border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-950" onClick={() => { setCancelTarget(selected); setSelected(null) }}>
                         <XMarkIcon className="h-4 w-4" /> Rechazar Pago
                       </Button>
-                      <Button className="bg-green-600 text-white hover:bg-green-700" onClick={() => { setAcceptTarget(selected); setSelectedComprobanteId("") }}>
+                      <Button className="bg-green-600 text-white hover:bg-green-700" onClick={() => { setAcceptTarget(selected); setSelected(null); setSelectedComprobanteId("") }}>
                         <CheckIcon className="h-4 w-4" /> Aprobar Pedido
                       </Button>
                     </div>
