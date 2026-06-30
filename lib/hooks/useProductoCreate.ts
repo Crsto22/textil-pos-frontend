@@ -2136,7 +2136,6 @@ const activeStockSucursales = useMemo<VariantSucursalStockInput[]>(
     user,
     isAdmin,
     isEditing,
-    isAdmin,
     loadingDetalle,
     errorDetalle,
     form,
