@@ -27,6 +27,15 @@ export interface EcommercePedidoAdmin {
     deseaFactura: boolean
     ruc: string | null
   }
+  clientePos: {
+    idCliente: number
+    tipoDocumento: string | null
+    nroDocumento: string | null
+    nombres: string | null
+    telefono: string | null
+    nombreDiferente: boolean
+    documentoDiferente: boolean
+  } | null
   envio: {
     tipo: string
     direccion: string | null

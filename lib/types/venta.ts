@@ -314,6 +314,7 @@ export interface VentaReporteDetalle {
   descuentoTotal: number
   igv: number
   total: number
+  origen?: string | null
 }
 
 export interface VentaReporteCliente {

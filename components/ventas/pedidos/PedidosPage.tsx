@@ -1,15 +1,25 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import type { ReactNode } from "react"
+import type { ComponentType, ReactNode, SVGProps } from "react"
 import Image from "next/image"
 import {
+  ArrowDownTrayIcon,
   ArrowPathIcon,
+  BuildingStorefrontIcon,
   CheckIcon,
+  CreditCardIcon,
   DocumentTextIcon,
+  EnvelopeIcon,
   EyeIcon,
+  IdentificationIcon,
   MagnifyingGlassIcon,
   ClockIcon,
+  MapPinIcon,
+  PhoneIcon,
+  ShoppingBagIcon,
+  TruckIcon,
+  UserIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline"
 import { toast } from "sonner"
@@ -24,12 +34,13 @@ import { buildComprobanteLabel } from "@/lib/comprobante"
 import { useComprobanteOptions } from "@/lib/hooks/useComprobanteOptions"
 import { useDocumentoLookup } from "@/lib/hooks/useDocumentoLookup"
 import { resolveBackendUrl } from "@/lib/resolve-backend-url"
-import type { DocumentoRucResponse } from "@/lib/types/documento"
+import type { DocumentoDniResponse, DocumentoRucResponse } from "@/lib/types/documento"
 import type { EcommercePedidoAdmin, EcommercePedidoPageResponse } from "@/lib/types/ecommerce-pedido"
 
 const ESTADOS = ["TODOS", "ESPERANDO_COMPROBANTE", "PAGO_EN_REVISION", "ACEPTADO", "CANCELADO", "CANCELADO_POR_TIEMPO"] as const
 const PERIODOS = ["HOY", "AYER", "SEMANA", "MES", "FECHA"] as const
 const TIPOS_VENTA_WEB = new Set(["NOTA DE VENTA", "BOLETA", "FACTURA"])
+const PICKUP_ADDRESS = "KIMENT'S, Jr. Huanuco 1705-1707, La Victoria 15018, Peru"
 
 function money(value: number) {
   return new Intl.NumberFormat("es-PE", { style: "currency", currency: "PEN" }).format(value || 0)
@@ -109,12 +120,60 @@ function hasText(value: unknown) {
   return typeof value === "string" && value.trim().length > 0
 }
 
-function DetailRow({ label, value }: { label: string; value: ReactNode }) {
+function deliveryTypeLabel(value: string | null | undefined) {
+  if (!value) return null
+  return value.trim().toUpperCase() === "PICKUP" ? "Recojo en tienda" : value
+}
+
+function isPickup(value: string | null | undefined) {
+  return value?.trim().toUpperCase() === "PICKUP"
+}
+
+function DetailRow({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon?: ComponentType<SVGProps<SVGSVGElement>>
+  label: string
+  value: ReactNode
+}) {
   if (value === null || value === undefined || value === "") return null
   return (
-    <p className="text-sm">
-      <span className="text-muted-foreground">{label}:</span> {value}
-    </p>
+    <div className="flex min-w-0 items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-sm dark:bg-slate-800/70">
+      {Icon ? (
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-300">
+          <Icon className="h-3.5 w-3.5" />
+        </span>
+      ) : null}
+      <p className="min-w-0">
+        <span className="text-muted-foreground">{label}:</span> {value}
+      </p>
+    </div>
+  )
+}
+
+function SectionTitle({
+  icon: Icon,
+  tone,
+  title,
+  badge,
+}: {
+  icon: ComponentType<SVGProps<SVGSVGElement>>
+  tone: string
+  title: string
+  badge?: string | null
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center gap-2">
+        <span className={`flex h-8 w-8 items-center justify-center rounded-xl ${tone}`}>
+          <Icon className="h-4 w-4" />
+        </span>
+        <p className="font-semibold text-slate-950 dark:text-slate-100">{title}</p>
+      </div>
+      {badge ? <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-bold uppercase text-blue-600 dark:bg-blue-950 dark:text-blue-300">{badge}</span> : null}
+    </div>
   )
 }
 
@@ -142,6 +201,17 @@ function downloadBlob(filename: string, blob: Blob) {
   anchor.click()
   anchor.remove()
   URL.revokeObjectURL(url)
+}
+
+function downloadUrl(filename: string, url: string) {
+  const anchor = document.createElement("a")
+  anchor.href = url
+  anchor.download = filename
+  anchor.target = "_blank"
+  anchor.rel = "noreferrer"
+  document.body.append(anchor)
+  anchor.click()
+  anchor.remove()
 }
 
 function ProductCircles({ detalles }: { detalles: EcommercePedidoAdmin["detalles"] }) {
@@ -227,11 +297,13 @@ export function PedidosPage() {
   const [totalElements, setTotalElements] = useState(0)
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<EcommercePedidoAdmin | null>(null)
+  const [previewImage, setPreviewImage] = useState<{ src: string; filename: string } | null>(null)
   const [acceptTarget, setAcceptTarget] = useState<EcommercePedidoAdmin | null>(null)
   const [cancelTarget, setCancelTarget] = useState<EcommercePedidoAdmin | null>(null)
   const [selectedComprobanteId, setSelectedComprobanteId] = useState("")
   const [busy, setBusy] = useState(false)
   const [excelLoading, setExcelLoading] = useState(false)
+  const [enviosPdfLoading, setEnviosPdfLoading] = useState(false)
   const [now, setNow] = useState(() => Date.now())
   const [periodo, setPeriodo] = useState<(typeof PERIODOS)[number]>("HOY")
   const [fechaDesde, setFechaDesde] = useState("")
@@ -241,12 +313,17 @@ export function PedidosPage() {
   const [rucError, setRucError] = useState<string | null>(null)
   const [rucInput, setRucInput] = useState("")
   const [editingRuc, setEditingRuc] = useState(false)
+  const [dniData, setDniData] = useState<DocumentoDniResponse | null>(null)
+  const [dniError, setDniError] = useState<string | null>(null)
+  const [dniInput, setDniInput] = useState("")
+  const [editingDni, setEditingDni] = useState(false)
+  const [consumidorFinal, setConsumidorFinal] = useState(false)
 
   const { comprobantes, loadingComprobantes, errorComprobantes } = useComprobanteOptions({
     enabled: Boolean(acceptTarget),
     habilitadoVenta: true,
   })
-  const { loading: loadingRuc, lookupDocumento } = useDocumentoLookup()
+  const { loading: loadingDocumento, lookupDocumento } = useDocumentoLookup()
 
   const dateRange = useMemo(
     () => resolveDateRange(periodo, fechaDesde, fechaHasta),
@@ -306,6 +383,31 @@ export function PedidosPage() {
     () => comprobantesDisponibles.find((item) => String(item.idComprobante) === selectedComprobanteId) ?? null,
     [comprobantesDisponibles, selectedComprobanteId]
   )
+  const requiereDniBoleta = Boolean(
+    acceptTarget &&
+    comprobanteSeleccionado?.tipoComprobante === "BOLETA" &&
+    acceptTarget.total >= 700
+  )
+  const tieneConflictoCliente = Boolean(
+    acceptTarget?.clientePos?.nombreDiferente || acceptTarget?.clientePos?.documentoDiferente
+  )
+  const puedeConsumidorFinal = Boolean(
+    acceptTarget &&
+    comprobanteSeleccionado?.tipoComprobante === "BOLETA" &&
+    acceptTarget.total < 700 &&
+    dniInput
+  )
+  const emitirComprobanteGenerico = Boolean(
+    acceptTarget &&
+    comprobanteSeleccionado?.tipoComprobante === "BOLETA" &&
+    acceptTarget.total < 700 &&
+    (wantsInvoice(acceptTarget) || !dniInput || consumidorFinal)
+  )
+  const mostrarDniBoleta = Boolean(
+    comprobanteSeleccionado?.tipoComprobante === "BOLETA" &&
+    !wantsInvoice(acceptTarget) &&
+    (requiereDniBoleta || dniInput)
+  )
 
   useEffect(() => {
     if (!acceptTarget || comprobantesDisponibles.length === 0) return
@@ -337,18 +439,67 @@ export function PedidosPage() {
     setRucData({ ...result.data, ruc: normalized, razonSocial })
   }, [lookupDocumento])
 
+  const consultarDni = useCallback(async (dni: string) => {
+    const normalized = dni.replace(/\D/g, "")
+    setDniInput(normalized)
+    setDniData(null)
+    setDniError(null)
+    if (!normalized) return
+    if (!normalized.match(/^\d{8}$/)) {
+      setDniError("Ingrese un DNI de 8 digitos")
+      return
+    }
+    const result = await lookupDocumento("DNI", normalized)
+    if (!result.ok || result.tipoDocumento !== "DNI") {
+      setDniError(result.ok ? "No se pudo validar el DNI" : result.message)
+      return
+    }
+    if (!result.data.nombres?.trim()) {
+      setDniError("El DNI no devolvio nombres")
+      return
+    }
+    setEditingDni(false)
+    setDniData({ ...result.data, dni: normalized })
+  }, [lookupDocumento])
+
   useEffect(() => {
     if (!acceptTarget) return
     const ruc = acceptTarget.cliente.ruc ?? ""
+    const dni = acceptTarget.cliente.dni ?? ""
     setRucInput(ruc)
+    setDniInput(dni)
     setEditingRuc(false)
+    setEditingDni(false)
+    setConsumidorFinal(!wantsInvoice(acceptTarget) && Boolean(dni) && acceptTarget.total < 700)
+    setDniData(null)
+    setDniError(null)
     if (wantsInvoice(acceptTarget)) void consultarRuc(ruc)
   }, [acceptTarget, consultarRuc])
+
+  const closePedidoModals = () => {
+    setSelected(null)
+    setAcceptTarget(null)
+    setCancelTarget(null)
+    setPreviewImage(null)
+  }
+
+  const openAcceptPedido = (pedido: EcommercePedidoAdmin) => {
+    setSelectedComprobanteId("")
+    setAcceptTarget(pedido)
+  }
+
+  const openCancelPedido = (pedido: EcommercePedidoAdmin) => {
+    setCancelTarget(pedido)
+  }
 
   const acceptPedido = async () => {
     if (!acceptTarget || !comprobanteSeleccionado) return
     if (comprobanteSeleccionado.tipoComprobante === "FACTURA" && !rucData?.razonSocial) {
       toast.error("Valida el RUC antes de emitir factura")
+      return
+    }
+    if (requiereDniBoleta && !dniInput.match(/^\d{8}$/)) {
+      toast.error("Valida el DNI antes de emitir boleta")
       return
     }
     setBusy(true)
@@ -360,15 +511,15 @@ export function PedidosPage() {
           tipoComprobante: comprobanteSeleccionado.tipoComprobante,
           serie: comprobanteSeleccionado.serie,
           facturaRuc: rucData?.ruc ?? rucInput,
+          dniCliente: comprobanteSeleccionado.tipoComprobante === "BOLETA" && !emitirComprobanteGenerico ? dniInput : undefined,
+          consumidorFinal: emitirComprobanteGenerico,
           razonSocial: rucData?.razonSocial,
         }),
       })
       const data = await response.json().catch(() => null)
       if (!response.ok) throw new Error(message(data, "No se pudo aceptar el pedido"))
       toast.success("Pedido aceptado")
-      setSelected(null)
-      setAcceptTarget(null)
-      setCancelTarget(null)
+      closePedidoModals()
       await fetchPedidos()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "No se pudo aceptar el pedido")
@@ -385,8 +536,7 @@ export function PedidosPage() {
       const data = await response.json().catch(() => null)
       if (!response.ok) throw new Error(message(data, "No se pudo cancelar el pedido"))
       toast.success("Pedido cancelado")
-      setSelected(null)
-      setCancelTarget(null)
+      closePedidoModals()
       await fetchPedidos()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "No se pudo cancelar el pedido")
@@ -423,6 +573,28 @@ export function PedidosPage() {
       toast.error(error instanceof Error ? error.message : "No se pudo exportar el Excel")
     } finally {
       setExcelLoading(false)
+    }
+  }
+
+  const exportEnviosPdf = async () => {
+    setEnviosPdfLoading(true)
+    try {
+      const params = new URLSearchParams()
+      if (dateRange.desde) params.set("fechaDesde", dateRange.desde)
+      if (dateRange.hasta) params.set("fechaHasta", dateRange.hasta)
+      const response = await authFetch(`/api/ecommerce/pedidos/reporte/envios/pdf?${params}`)
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null) as { message?: string } | null
+        throw new Error(payload?.message || "No se pudo exportar el PDF")
+      }
+      const blob = await response.blob()
+      if (blob.size === 0) throw new Error("El PDF llego vacio")
+      downloadBlob(extractFilename(response.headers.get("content-disposition")), blob)
+      toast.success("Reporte de envios descargado")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo exportar el PDF")
+    } finally {
+      setEnviosPdfLoading(false)
     }
   }
 
@@ -506,6 +678,14 @@ export function PedidosPage() {
               className="inline-flex h-10 items-center justify-center rounded-xl bg-emerald-700 px-4 text-sm font-semibold text-white transition-colors hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-emerald-700/50"
             >
               {excelLoading ? "Descargando..." : "Reporte Excel"}
+            </button>
+            <button
+              type="button"
+              onClick={() => void exportEnviosPdf()}
+              disabled={enviosPdfLoading}
+              className="inline-flex h-10 items-center justify-center rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-900/50 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
+            >
+              {enviosPdfLoading ? "Descargando..." : "Envios PDF"}
             </button>
           </div>
         </div>
@@ -690,83 +870,122 @@ export function PedidosPage() {
       </section>
 
       <Dialog open={Boolean(selected)} onOpenChange={(open) => !open && setSelected(null)}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto p-0 sm:max-w-4xl">
+        <DialogContent className="max-h-[92vh] overflow-y-auto p-0 sm:max-w-6xl">
           {selected ? (
-            <div>
-              <DialogHeader className="border-b px-5 py-4 text-left">
-                <DialogTitle>Pedido <span className="text-blue-600">{selected.codigo}</span></DialogTitle>
-                <DialogDescription>Revisa el pedido y valida el comprobante de pago.</DialogDescription>
+            <div className="bg-slate-50 dark:bg-slate-950">
+              <DialogHeader className="border-b border-slate-200 bg-white px-5 py-4 text-left dark:border-slate-800 dark:bg-slate-900">
+                <div className="flex flex-wrap items-center gap-3">
+                  <DialogTitle className="text-xl">Pedido <span className="text-blue-600 dark:text-blue-300">{selected.codigo}</span></DialogTitle>
+                  <span className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-semibold ${estadoClass(selected.estado)}`}>
+                    <span className={`h-1.5 w-1.5 rounded-full ${estadoDotClass(selected.estado)}`} />
+                    {estadoDisplay(selected.estado)}
+                  </span>
+                </div>
+                <DialogDescription>
+                  {dateOnly(selected.fecha)} {timeOnly(selected.fecha)}
+                </DialogDescription>
               </DialogHeader>
-              <div className="grid md:grid-cols-[1fr_1fr]">
-                <div className="space-y-4 border-r p-5 dark:border-slate-700">
-                  <section className="rounded-lg border bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/50">
-                    <p className="font-semibold">{selected.cliente.nombres} {selected.cliente.apellidos}</p>
-                    <div className="mt-2 grid gap-1">
-                      <DetailRow label="DNI" value={selected.cliente.dni} />
-                      <DetailRow label="Telefono" value={selected.cliente.telefono} />
-                      <DetailRow label="Correo" value={selected.cliente.correo} />
-                    </div>
-                    {wantsInvoice(selected) ? <p className="text-xs font-semibold text-blue-600">Factura RUC {selected.cliente.ruc}</p> : null}
-                  </section>
-                  <section className="rounded-lg border bg-white p-4 text-sm dark:border-slate-700 dark:bg-slate-900">
-                    <p className="mb-2 font-semibold">Datos del pedido</p>
-                    <div className="grid gap-1 sm:grid-cols-2">
-                      <DetailRow label="Fecha" value={`${dateOnly(selected.fecha)} ${timeOnly(selected.fecha)}`} />
-                      <DetailRow label="Estado" value={estadoDisplay(selected.estado)} />
-                      <DetailRow label="Metodo de pago" value={hasText(selected.metodoPago) ? getMetodoPagoLabel(selected.metodoPago ?? "") : null} />
-                      <DetailRow label="Sucursal" value={selected.nombreSucursal} />
-                      <DetailRow label="Venta" value={selected.ventaNumero} />
-                      <DetailRow label="Aceptado por" value={selected.usuarioAceptacionNombre} />
-                      <DetailRow label="Aceptado el" value={selected.aceptadoAt ? `${dateOnly(selected.aceptadoAt)} ${timeOnly(selected.aceptadoAt)}` : null} />
-                      <DetailRow label="Total" value={<b>{money(selected.total)}</b>} />
-                    </div>
-                  </section>
-                  {(hasText(selected.envio.tipo) || hasText(selected.envio.direccion) || hasText(selected.envio.referencia) || hasText(selected.envio.departamento) || hasText(selected.envio.provincia) || hasText(selected.envio.distrito) || hasText(selected.envio.tarifa)) ? (
-                    <section className="rounded-lg border bg-white p-4 text-sm dark:border-slate-700 dark:bg-slate-900">
-                      <p className="mb-2 font-semibold">Envio</p>
-                      <div className="grid gap-1">
-                        <DetailRow label="Tipo" value={selected.envio.tipo} />
-                        <DetailRow label="Direccion" value={selected.envio.direccion} />
-                        <DetailRow label="Referencia" value={selected.envio.referencia} />
-                        <DetailRow label="Departamento" value={selected.envio.departamento} />
-                        <DetailRow label="Provincia" value={selected.envio.provincia} />
-                        <DetailRow label="Distrito" value={selected.envio.distrito} />
-                        <DetailRow label="Tarifa" value={selected.envio.tarifa} />
+              <div className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.85fr)]">
+                <div className="space-y-4">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                      <SectionTitle icon={UserIcon} tone="bg-violet-50 text-violet-600 dark:bg-violet-950 dark:text-violet-300" title="Cliente" />
+                      <p className="mt-3 font-semibold text-slate-950 dark:text-slate-100">{selected.cliente.nombres} {selected.cliente.apellidos}</p>
+                      <div className="mt-3 grid gap-2">
+                        <DetailRow icon={IdentificationIcon} label="DNI" value={selected.cliente.dni} />
+                        <DetailRow icon={PhoneIcon} label="Telefono" value={selected.cliente.telefono} />
+                        <DetailRow icon={EnvelopeIcon} label="Correo" value={selected.cliente.correo} />
                       </div>
-                    </section>
-                  ) : null}
-                  <section className="overflow-hidden rounded-lg border">
-                    {selected.detalles.map((detalle, index) => {
-                      const imagen = detalle.imagenUrl ? resolveBackendUrl(detalle.imagenUrl) : null
-                      return (
-                      <div key={`${detalle.idProductoVariante}-${index}`} className="flex items-center justify-between border-b p-3 last:border-0 dark:border-slate-700">
-                        <div className="flex min-w-0 items-center gap-3">
-                          <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-slate-100 text-xs font-bold text-slate-400 dark:bg-slate-800">
-                            {imagen ? <img src={imagen} alt={detalle.nombreProducto || "Producto"} className="h-full w-full object-cover" /> : "IMG"}
+                      {wantsInvoice(selected) ? (
+                        <div className="mt-3 rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-200">
+                          <div className="flex items-center gap-2 font-semibold">
+                            <DocumentTextIcon className="h-4 w-4" />
+                            Solicita factura
                           </div>
-                          <div className="min-w-0">
-                            <p className="truncate font-semibold">{detalle.nombreProducto || "Producto"}</p>
-                            <p className="text-xs text-muted-foreground">{detalle.colorNombre || "-"} / {detalle.tallaNombre || "-"} x{detalle.cantidad}</p>
-                          </div>
+                          <p className="text-xs">RUC {selected.cliente.ruc}</p>
                         </div>
-                        <b>{money(detalle.subtotal)}</b>
-                      </div>
-                    )})}
-                    <div className="flex justify-between bg-slate-50 p-3 dark:bg-slate-800/50"><span>Total</span><b>{money(selected.total)}</b></div>
+                      ) : null}
+                    </section>
+
+                    {(hasText(selected.envio.tipo) || hasText(selected.envio.direccion) || hasText(selected.envio.referencia) || hasText(selected.envio.departamento) || hasText(selected.envio.provincia) || hasText(selected.envio.distrito) || hasText(selected.envio.tarifa)) ? (
+                      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                        <SectionTitle icon={TruckIcon} tone="bg-sky-50 text-sky-600 dark:bg-sky-950 dark:text-sky-300" title="Entrega" badge={deliveryTypeLabel(selected.envio.tipo)} />
+                        <div className="mt-3 grid gap-2">
+                          <DetailRow icon={BuildingStorefrontIcon} label="Tipo" value={deliveryTypeLabel(selected.envio.tipo)} />
+                          {isPickup(selected.envio.tipo) ? (
+                            <DetailRow icon={MapPinIcon} label="Direccion" value={PICKUP_ADDRESS} />
+                          ) : null}
+                          {!isPickup(selected.envio.tipo) ? <DetailRow icon={MapPinIcon} label="Direccion" value={selected.envio.direccion} /> : null}
+                          <DetailRow icon={MapPinIcon} label="Referencia" value={selected.envio.referencia} />
+                          <DetailRow icon={MapPinIcon} label="Departamento" value={selected.envio.departamento} />
+                          <DetailRow icon={MapPinIcon} label="Provincia" value={selected.envio.provincia} />
+                          <DetailRow icon={MapPinIcon} label="Distrito" value={selected.envio.distrito} />
+                          <DetailRow icon={CreditCardIcon} label="Tarifa" value={selected.envio.tarifa} />
+                        </div>
+                      </section>
+                    ) : null}
+                  </div>
+
+                  <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                    <div className="flex items-center justify-between border-b border-slate-200 p-4 dark:border-slate-800">
+                      <SectionTitle icon={ShoppingBagIcon} tone="bg-rose-50 text-rose-600 dark:bg-rose-950 dark:text-rose-300" title={`Articulos (${selected.detalles.length})`} />
+                      <b>{money(selected.total)}</b>
+                    </div>
+                    <div className="max-h-[320px] overflow-y-auto">
+                      {selected.detalles.map((detalle, index) => {
+                        const imagen = detalle.imagenUrl ? resolveBackendUrl(detalle.imagenUrl) : null
+                        return (
+                        <div key={`${detalle.idProductoVariante}-${index}`} className="flex items-center justify-between gap-3 border-b border-slate-100 p-4 last:border-0 dark:border-slate-800">
+                          <div className="flex min-w-0 items-center gap-3">
+                            <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-100 text-xs font-bold text-slate-400 dark:bg-slate-800">
+                              {imagen ? <img src={imagen} alt={detalle.nombreProducto || "Producto"} className="h-full w-full object-cover" /> : "IMG"}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="truncate font-semibold text-slate-950 dark:text-slate-100">{detalle.nombreProducto || "Producto"}</p>
+                              <p className="text-xs text-muted-foreground">{detalle.colorNombre || "-"} / Talla {detalle.tallaNombre || "-"} / Cant. {detalle.cantidad}</p>
+                              <p className="text-xs text-muted-foreground">{money(detalle.precioUnitario)} c/u</p>
+                            </div>
+                          </div>
+                          <b className="shrink-0">{money(detalle.subtotal)}</b>
+                        </div>
+                      )})}
+                    </div>
                   </section>
                 </div>
-                <div className="space-y-4 bg-slate-50 p-5 dark:bg-slate-800/50">
-                  <div className="flex min-h-[240px] items-center justify-center rounded-xl border border-dashed bg-white p-4 dark:border-slate-600 dark:bg-slate-800">
-                    {selected.comprobanteUrl ? (
-                      <img src={resolveBackendUrl(selected.comprobanteUrl) ?? ""} alt="Comprobante" className="max-h-[280px] w-full object-contain" />
-                    ) : <p className="text-sm text-muted-foreground">Sin comprobante</p>}
+
+                <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                  <div className="mb-4">
+                    <SectionTitle icon={CreditCardIcon} tone="bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-300" title="Validacion de pago" />
+                    <div className="mt-3 flex items-center justify-between gap-3">
+                      <p className="font-semibold text-slate-950 dark:text-slate-100">{getMetodoPagoLabel(selected.metodoPago ?? "") || "Comprobante"}</p>
+                      <b className="shrink-0 text-slate-950 dark:text-slate-100">{money(selected.total)}</b>
+                    </div>
                   </div>
+                  {selected.comprobanteUrl ? (() => {
+                    const src = resolveBackendUrl(selected.comprobanteUrl)
+                    return src ? (
+                      <button
+                        type="button"
+                        onClick={() => setPreviewImage({ src, filename: `comprobante-${selected.codigo}.jpg` })}
+                        className="group relative flex min-h-[420px] w-full items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-950"
+                      >
+                        <img src={src} alt={`Comprobante ${selected.codigo}`} className="h-full max-h-[520px] w-full object-contain" />
+                        <span className="absolute bottom-4 right-4 inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-slate-700 shadow-sm transition group-hover:scale-105 dark:bg-slate-900/90 dark:text-slate-100">
+                          <EyeIcon className="h-5 w-5" />
+                        </span>
+                      </button>
+                    ) : null
+                  })() : (
+                    <div className="flex min-h-[420px] items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-100 p-4 dark:border-slate-700 dark:bg-slate-950">
+                      <p className="text-sm text-muted-foreground">Sin comprobante</p>
+                    </div>
+                  )}
                   {selected.estado === "PAGO_EN_REVISION" ? (
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <Button variant="outline" className="border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-950" onClick={() => { setCancelTarget(selected); setSelected(null) }}>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      <Button variant="outline" className="border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-950" onClick={() => openCancelPedido(selected)}>
                         <XMarkIcon className="h-4 w-4" /> Rechazar Pago
                       </Button>
-                      <Button className="bg-green-600 text-white hover:bg-green-700" onClick={() => { setAcceptTarget(selected); setSelected(null); setSelectedComprobanteId("") }}>
+                      <Button className="bg-green-600 text-white hover:bg-green-700" onClick={() => openAcceptPedido(selected)}>
                         <CheckIcon className="h-4 w-4" /> Aprobar Pedido
                       </Button>
                     </div>
@@ -778,12 +997,38 @@ export function PedidosPage() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={Boolean(previewImage)} onOpenChange={(open) => !open && setPreviewImage(null)}>
+        <DialogContent className="border-0 bg-slate-950 p-4 text-white sm:max-w-5xl">
+          {previewImage ? (
+            <div className="flex min-h-[80vh] flex-col items-center justify-center gap-4">
+              <DialogHeader className="sr-only">
+                <DialogTitle>Comprobante completo</DialogTitle>
+                <DialogDescription>Vista ampliada del comprobante de pago.</DialogDescription>
+              </DialogHeader>
+              <img src={previewImage.src} alt="Comprobante completo" className="max-h-[72vh] max-w-full rounded-xl object-contain" />
+              <Button variant="secondary" size="sm" onClick={() => downloadUrl(previewImage.filename, previewImage.src)}>
+                <ArrowDownTrayIcon className="h-4 w-4" /> Descargar original
+              </Button>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={Boolean(acceptTarget)} onOpenChange={(open) => !open && setAcceptTarget(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Aceptar pedido {acceptTarget?.codigo}</DialogTitle>
+            <DialogTitle>Emitir comprobante {acceptTarget?.codigo}</DialogTitle>
             <DialogDescription>Se generara una venta con origen WEB.</DialogDescription>
           </DialogHeader>
+          {acceptTarget && tieneConflictoCliente ? (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+              <p className="font-semibold">Cliente POS encontrado por telefono</p>
+              <p className="mt-1">Se usara sin sobrescribir datos: {acceptTarget.clientePos?.nombres || "Cliente POS"}.</p>
+              {acceptTarget.clientePos?.nombreDiferente || acceptTarget.clientePos?.documentoDiferente ? (
+                <p className="mt-1">Revisar conflicto de nombre/documento.</p>
+              ) : null}
+            </div>
+          ) : null}
           {acceptTarget ? (
             <section className="rounded-lg border bg-slate-50 p-3 text-sm dark:border-slate-700 dark:bg-slate-800/50">
               <div className="grid gap-2 sm:grid-cols-2">
@@ -796,7 +1041,7 @@ export function PedidosPage() {
               </div>
               {wantsInvoice(acceptTarget) ? (
                 <div className="mt-3 border-t pt-3 text-sm dark:border-slate-700">
-                  {loadingRuc ? <p className="text-blue-600">Consultando RUC...</p> : null}
+                  {loadingDocumento ? <p className="text-blue-600">Consultando RUC...</p> : null}
                   {rucData ? (
                     <div className="space-y-1">
                       <p><span className="text-muted-foreground">Razon social:</span> <b>{rucData.razonSocial}</b></p>
@@ -804,11 +1049,11 @@ export function PedidosPage() {
                     </div>
                   ) : null}
                   {rucError ? <p className="text-red-600">{rucError}</p> : null}
-                  {!rucData ? <p className="mt-1 text-xs text-muted-foreground">Puedes aprobar como boleta o nota de venta, o corregir el RUC para emitir factura.</p> : null}
+                  {!rucData ? <p className="mt-1 text-xs text-muted-foreground">El pedido solicito factura. Valida o corrige el RUC para emitir FACTURA.</p> : null}
                   {editingRuc ? (
                     <div className="mt-3 flex gap-2">
                       <Input value={rucInput} onChange={(event) => setRucInput(event.target.value.replace(/\D/g, "").slice(0, 11))} maxLength={11} className="h-9" />
-                      <Button type="button" size="sm" onClick={() => void consultarRuc(rucInput)} disabled={loadingRuc}>Verificar</Button>
+                      <Button type="button" size="sm" onClick={() => void consultarRuc(rucInput)} disabled={loadingDocumento}>Verificar</Button>
                     </div>
                   ) : (
                     <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => setEditingRuc(true)}>
@@ -816,6 +1061,55 @@ export function PedidosPage() {
                     </Button>
                   )}
                 </div>
+              ) : null}
+              {mostrarDniBoleta ? (
+                <div className="mt-3 border-t pt-3 text-sm dark:border-slate-700">
+                  {requiereDniBoleta ? <p className="mb-2 text-amber-700 dark:text-amber-300">Esta boleta supera S/ 700 y requiere DNI valido.</p> : null}
+                  {consumidorFinal ? (
+                    <div className="rounded-md border border-slate-200 bg-white p-2 text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                      <p><span className="text-muted-foreground">DNI enviado:</span> <b>{dniInput}</b></p>
+                      <p className="text-xs text-muted-foreground">Se emitira sin DNI.</p>
+                    </div>
+                  ) : null}
+                  {loadingDocumento && !consumidorFinal ? <p className="text-blue-600">Consultando DNI...</p> : null}
+                  {dniData && !consumidorFinal ? (
+                    <div className="space-y-1">
+                      <p><span className="text-muted-foreground">DNI:</span> <b>{dniData.dni}</b></p>
+                      <p><span className="text-muted-foreground">Cliente validado:</span> <b>{dniData.nombres} {dniData.apellidoPaterno} {dniData.apellidoMaterno}</b></p>
+                    </div>
+                  ) : null}
+                  {dniError && !consumidorFinal ? <p className="text-red-600">{dniError}</p> : null}
+                  {!consumidorFinal && (editingDni || requiereDniBoleta || !dniData) ? (
+                    <div className="mt-3 flex gap-2">
+                      <Input value={dniInput} onChange={(event) => setDniInput(event.target.value.replace(/\D/g, "").slice(0, 8))} maxLength={8} className="h-9" placeholder="DNI" />
+                      <Button type="button" size="sm" onClick={() => void consultarDni(dniInput)} disabled={loadingDocumento}>Verificar</Button>
+                    </div>
+                  ) : !consumidorFinal ? (
+                    <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => setEditingDni(true)}>
+                      Editar DNI
+                    </Button>
+                  ) : null}
+                  {puedeConsumidorFinal ? (
+                    <label className="mt-3 flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-white p-2 text-sm dark:border-slate-700 dark:bg-slate-900">
+                      <span>Emitir sin DNI</span>
+                      <input
+                        type="checkbox"
+                        checked={consumidorFinal}
+                        onChange={(event) => {
+                          setConsumidorFinal(event.target.checked)
+                          setDniError(null)
+                          if (!event.target.checked) void consultarDni(dniInput)
+                        }}
+                        className="peer sr-only"
+                      />
+                      <span className="relative h-6 w-11 rounded-full bg-slate-300 transition peer-checked:bg-blue-600 after:absolute after:left-1 after:top-1 after:h-4 after:w-4 after:rounded-full after:bg-white after:transition peer-checked:after:translate-x-5" />
+                    </label>
+                  ) : null}
+                </div>
+              ) : emitirComprobanteGenerico ? (
+                <p className="mt-3 border-t pt-3 text-sm text-muted-foreground dark:border-slate-700">
+                  Se emitira como consumidor final, sin DNI.
+                </p>
               ) : null}
             </section>
           ) : null}
@@ -831,9 +1125,9 @@ export function PedidosPage() {
           {errorComprobantes ? <p className="text-sm text-red-600">{errorComprobantes}</p> : null}
           <DialogFooter>
             <Button variant="outline" onClick={() => setAcceptTarget(null)} disabled={busy}>Cancelar</Button>
-            <Button onClick={() => void acceptPedido()} disabled={busy || loadingComprobantes || loadingRuc || !comprobanteSeleccionado || (comprobanteSeleccionado?.tipoComprobante === "FACTURA" && !rucData?.razonSocial)}>
+            <Button onClick={() => void acceptPedido()} disabled={busy || loadingComprobantes || (loadingDocumento && !consumidorFinal) || !comprobanteSeleccionado || (comprobanteSeleccionado?.tipoComprobante === "FACTURA" && !rucData?.razonSocial) || (requiereDniBoleta && !dniInput.match(/^\d{8}$/))}>
               {busy ? <ArrowPathIcon className="h-4 w-4 animate-spin" /> : null}
-              Aceptar pedido
+              {emitirComprobanteGenerico ? "Emitir boleta consumidor final" : "Emitir comprobante"}
             </Button>
           </DialogFooter>
         </DialogContent>
