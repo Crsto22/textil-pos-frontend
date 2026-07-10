@@ -18,6 +18,7 @@ import {
   MapPinIcon,
   PhoneIcon,
   ShoppingBagIcon,
+  TagIcon,
   TruckIcon,
   UserIcon,
   XMarkIcon,
@@ -114,6 +115,10 @@ function initials(pedido: EcommercePedidoAdmin) {
 
 function wantsInvoice(pedido: EcommercePedidoAdmin | null | undefined) {
   return Boolean(pedido?.cliente.deseaFactura && pedido.cliente.ruc)
+}
+
+function hasPromotionDiscount(pedido: EcommercePedidoAdmin | null | undefined) {
+  return Boolean(pedido && (Number(pedido.descuentoPromocion) > 0 || hasText(pedido.promocionResumen)))
 }
 
 function hasText(value: unknown) {
@@ -950,6 +955,35 @@ export function PedidosPage() {
                         </div>
                       )})}
                     </div>
+                    {hasPromotionDiscount(selected) ? (
+                      <div className="space-y-3 border-t border-slate-200 bg-emerald-50/60 p-4 dark:border-slate-800 dark:bg-emerald-950/20">
+                        <SectionTitle
+                          icon={TagIcon}
+                          tone="bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-200"
+                          title="Promocion aplicada"
+                          badge="Combo"
+                        />
+                        <div className="grid gap-2 rounded-xl bg-white p-3 text-sm dark:bg-slate-900">
+                          {hasText(selected.promocionResumen) ? (
+                            <p className="font-medium text-slate-950 dark:text-slate-100">{selected.promocionResumen}</p>
+                          ) : null}
+                          <div className="space-y-1 text-slate-600 dark:text-slate-300">
+                            <div className="flex items-center justify-between gap-3">
+                              <span>Subtotal sin promocion</span>
+                              <span className="font-semibold">{money(selected.subtotal)}</span>
+                            </div>
+                            <div className="flex items-center justify-between gap-3 text-emerald-700 dark:text-emerald-300">
+                              <span>Descuento por combo</span>
+                              <span className="font-bold">-{money(selected.descuentoPromocion)}</span>
+                            </div>
+                            <div className="flex items-center justify-between gap-3 border-t border-slate-200 pt-2 text-slate-950 dark:border-slate-800 dark:text-slate-100">
+                              <span className="font-semibold">Total final</span>
+                              <span className="font-black">{money(selected.total)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
                   </section>
                 </div>
 

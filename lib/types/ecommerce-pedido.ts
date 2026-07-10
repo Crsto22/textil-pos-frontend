@@ -15,6 +15,9 @@ export interface EcommercePedidoAdmin {
   estado: string
   fecha: string
   reservaExpiraAt: string
+  subtotal: number
+  descuentoPromocion: number
+  promocionResumen: string | null
   total: number
   metodoPago: string | null
   comprobanteUrl: string | null
