@@ -21,6 +21,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
@@ -82,7 +83,7 @@ interface ComboPageData {
   totalElements: number
 }
 
-type ComboVigencia = "ACTIVAS" | "VENCIDAS"
+type ComboVigencia = "TODAS" | "ACTIVAS" | "VENCIDAS"
 type DurationMode = "HOY" | "3_DIAS" | "7_DIAS" | "PERSONALIZADO"
 
 const EMPTY_COMBO_FORM: ComboFormState = {
@@ -264,20 +265,26 @@ function validateComboForm(form: ComboFormState) {
 }
 
 function ComboPromocionesTab() {
+  const [allCombos, setAllCombos] = useState<PromocionCombo[]>([])
   const [activeCombos, setActiveCombos] = useState<PromocionCombo[]>([])
   const [expiredCombos, setExpiredCombos] = useState<PromocionCombo[]>([])
+  const [allPage, setAllPage] = useState(0)
   const [activePage, setActivePage] = useState(0)
   const [expiredPage, setExpiredPage] = useState(0)
+  const [allTotalPages, setAllTotalPages] = useState(0)
   const [activeTotalPages, setActiveTotalPages] = useState(0)
   const [expiredTotalPages, setExpiredTotalPages] = useState(0)
+  const [allTotalElements, setAllTotalElements] = useState(0)
   const [activeTotalElements, setActiveTotalElements] = useState(0)
   const [expiredTotalElements, setExpiredTotalElements] = useState(0)
   const [form, setForm] = useState<ComboFormState>(EMPTY_COMBO_FORM)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<PromocionCombo | null>(null)
   const [durationMode, setDurationMode] = useState<DurationMode>("HOY")
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [search, setSearch] = useState("")
   const [products, setProducts] = useState<ProductoResumen[]>([])
   const [productPage, setProductPage] = useState(0)
@@ -313,7 +320,9 @@ function ComboPromocionesTab() {
   }, [])
 
   const fetchComboPage = useCallback(async (vigencia: ComboVigencia, page: number): Promise<ComboPageData | null> => {
-    const response = await authFetch(`/api/ecommerce/promociones-combo?vigencia=${vigencia}&page=${page}`)
+    const params = new URLSearchParams({ page: String(page) })
+    if (vigencia !== "TODAS") params.set("vigencia", vigencia)
+    const response = await authFetch(`/api/ecommerce/promociones-combo?${params.toString()}`)
     const data = await response.json().catch(() => null)
     if (!response.ok) {
       toast.error(data?.message ?? "No se pudieron cargar los combos")
@@ -329,10 +338,16 @@ function ComboPromocionesTab() {
 
   const fetchCombos = useCallback(async () => {
     setLoading(true)
-    const [activeData, expiredData] = await Promise.all([
+    const [allData, activeData, expiredData] = await Promise.all([
+      fetchComboPage("TODAS", allPage),
       fetchComboPage("ACTIVAS", activePage),
       fetchComboPage("VENCIDAS", expiredPage),
     ])
+    if (allData) {
+      setAllCombos(allData.content)
+      setAllTotalPages(allData.totalPages)
+      setAllTotalElements(allData.totalElements)
+    }
     if (activeData) {
       setActiveCombos(activeData.content)
       setActiveTotalPages(activeData.totalPages)
@@ -344,8 +359,8 @@ function ComboPromocionesTab() {
       setExpiredTotalElements(expiredData.totalElements)
     }
     setLoading(false)
-    void fetchProductMeta([...(activeData?.content ?? []), ...(expiredData?.content ?? [])])
-  }, [activePage, expiredPage, fetchComboPage, fetchProductMeta])
+    void fetchProductMeta([...(allData?.content ?? []), ...(activeData?.content ?? []), ...(expiredData?.content ?? [])])
+  }, [allPage, activePage, expiredPage, fetchComboPage, fetchProductMeta])
 
   useEffect(() => {
     let cancelled = false
@@ -362,7 +377,7 @@ function ComboPromocionesTab() {
 
     const timer = window.setTimeout(() => {
       setSearching(true)
-      authFetch(`/api/producto/buscar?q=${encodeURIComponent(search.trim())}&page=${productPage}`)
+      authFetch(`/api/producto/buscar?q=${encodeURIComponent(search.trim())}&page=${productPage}&publicarEcommerce=true`)
         .then(async (response) => {
           const data = await response.json().catch(() => null)
           if (!response.ok) throw new Error(data?.message ?? "No se pudo buscar productos")
@@ -496,20 +511,27 @@ function ComboPromocionesTab() {
       toast.error(data?.message ?? "No se pudo cambiar el estado")
       return
     }
+    toast.success(estado === "ACTIVO" ? "Combo activado" : "Combo desactivado")
     await fetchCombos()
   }
 
-  const deleteCombo = async (combo: PromocionCombo) => {
-    const response = await authFetch(`/api/ecommerce/promociones-combo/${combo.idPromocionCombo}`, {
+  const deleteCombo = async () => {
+    if (!deleteTarget) {
+      return
+    }
+    setDeleting(true)
+    const response = await authFetch(`/api/ecommerce/promociones-combo/${deleteTarget.idPromocionCombo}`, {
       method: "DELETE",
     })
     const data = await response.json().catch(() => null)
+    setDeleting(false)
     if (!response.ok) {
       toast.error(data?.message ?? "No se pudo eliminar el combo")
       return
     }
     toast.success("Combo eliminado")
-    if (editingId === combo.idPromocionCombo) resetForm()
+    if (editingId === deleteTarget.idPromocionCombo) resetForm()
+    setDeleteTarget(null)
     await fetchCombos()
   }
 
@@ -520,7 +542,7 @@ function ComboPromocionesTab() {
   const normalPreviewTotal = comboSlots.reduce((sum, item) => sum + (productMeta[item.idProducto]?.priceMin ?? 0), 0)
   const comboPreviewPrice = Number(form.precioCombo) || 0
   const previewSavings = normalPreviewTotal > 0 && comboPreviewPrice > 0 ? normalPreviewTotal - comboPreviewPrice : 0
-  const totalCombos = activeTotalElements + expiredTotalElements
+  const totalCombos = allTotalElements
 
   const renderComboSection = (
     title: string,
@@ -615,7 +637,7 @@ function ComboPromocionesTab() {
                   }}>
                     <PencilSquareIcon className="h-4 w-4" />
                   </Button>
-                  <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => void deleteCombo(combo)}>
+                  <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => setDeleteTarget(combo)}>
                     <TrashIcon className="h-4 w-4" />
                   </Button>
                 </div>
@@ -663,7 +685,7 @@ function ComboPromocionesTab() {
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-5xl">
           <DialogHeader>
             <DialogTitle>{editingId ? "Editar combo" : "Agregar combo"}</DialogTitle>
-            <DialogDescription>Solo productos globales. Las variantes no se configuran aqui.</DialogDescription>
+            <DialogDescription>Solo productos visibles en ecommerce. Las variantes no se configuran aqui.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 md:grid-cols-[280px_1fr]">
             <div className="space-y-4">
@@ -754,7 +776,7 @@ function ComboPromocionesTab() {
 
             <div className="space-y-4 rounded-lg border p-4">
               <div className="space-y-3">
-                <p className="text-xs font-semibold uppercase text-muted-foreground">Buscar y seleccionar productos globales</p>
+                <p className="text-xs font-semibold uppercase text-muted-foreground">Buscar productos visibles en ecommerce</p>
                 <input
                   value={search}
                   onChange={(event) => {
@@ -879,6 +901,26 @@ function ComboPromocionesTab() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={deleteTarget !== null} onOpenChange={(open) => !open && !deleting && setDeleteTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Eliminar combo</DialogTitle>
+            <DialogDescription>
+              Esta accion eliminara el combo {deleteTarget ? `"${deleteTarget.nombre}"` : ""}. No se puede deshacer.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="outline" disabled={deleting} onClick={() => setDeleteTarget(null)}>
+              Cancelar
+            </Button>
+            <Button type="button" variant="destructive" disabled={deleting} onClick={() => void deleteCombo()}>
+              {deleting ? <ArrowPathIcon className="h-4 w-4 animate-spin" /> : <TrashIcon className="h-4 w-4" />}
+              Eliminar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <div className="space-y-6">
         {loading ? (
           <div className="flex min-h-40 items-center justify-center">
@@ -892,11 +934,23 @@ function ComboPromocionesTab() {
             <p>No hay combos registrados.</p>
           </div>
         ) : (
-          <Tabs defaultValue="activas" className="space-y-4">
+          <Tabs defaultValue="todas" className="space-y-4">
             <TabsList>
+              <TabsTrigger value="todas">Todas</TabsTrigger>
               <TabsTrigger value="activas">Promociones activas</TabsTrigger>
               <TabsTrigger value="vencidas">Promociones vencidas</TabsTrigger>
             </TabsList>
+            <TabsContent value="todas">
+              {renderComboSection(
+                "Todas las promociones",
+                "Combos activos, inactivos y vencidos. Desactivar no elimina el combo.",
+                allCombos,
+                allPage,
+                allTotalPages,
+                allTotalElements,
+                setAllPage
+              )}
+            </TabsContent>
             <TabsContent value="activas">
               {renderComboSection(
                 "Promociones activas",

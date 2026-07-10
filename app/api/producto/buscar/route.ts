@@ -20,6 +20,7 @@ export async function GET(request: NextRequest) {
     const conOferta = searchParams.get("conOferta")
     const idSucursal = searchParams.get("idSucursal")
     const soloDisponibles = searchParams.get("soloDisponibles")
+    const publicarEcommerce = searchParams.get("publicarEcommerce")
 
     const authHeader = request.headers.get("authorization")
     const headers: HeadersInit = {}
@@ -52,6 +53,10 @@ export async function GET(request: NextRequest) {
 
       if (soloDisponibles?.trim()) {
         backendParams.set("soloDisponibles", soloDisponibles)
+      }
+
+      if (publicarEcommerce?.trim()) {
+        backendParams.set("publicarEcommerce", publicarEcommerce)
       }
 
       backendRes = await fetch(
