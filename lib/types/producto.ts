@@ -10,6 +10,8 @@ export interface Producto {
   guiaTallasUrl: string | null
   guiaTallasThumbUrl: string | null
   publicarEcommerce: boolean
+  preventa: boolean
+  fechaEnvioPreventa: string | null
   estado: string
   fechaCreacion: string
   idCategoria: number | null
@@ -83,6 +85,8 @@ export interface ProductoCreateRequest {
   guiaTallasUrl?: string | null
   guiaTallasThumbUrl?: string | null
   publicarEcommerce?: boolean
+  preventa?: boolean
+  fechaEnvioPreventa?: string | null
 }
 
 export interface ProductoVarianteCreateRequest {
@@ -117,6 +121,8 @@ export interface ProductoInsertarCompletoRequest {
   guiaTallasUrl?: string | null
   guiaTallasThumbUrl?: string | null
   publicarEcommerce?: boolean
+  preventa?: boolean
+  fechaEnvioPreventa?: string | null
   variantes: ProductoVarianteCreateRequest[]
   imagenes: ProductoImagenCreateRequest[]
 }
@@ -263,6 +269,8 @@ export interface ProductoUpdateRequest {
   guiaTallasUrl?: string | null
   guiaTallasThumbUrl?: string | null
   publicarEcommerce?: boolean
+  preventa?: boolean
+  fechaEnvioPreventa?: string | null
 }
 
 export interface ProductoDeleteResponse {

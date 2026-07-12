@@ -43,7 +43,15 @@ function EmptyStockList({ message }: { message: string }) {
   )
 }
 
-export function AdminDashboardContent({ data }: { data: DashboardAdminData }) {
+export function AdminDashboardContent({
+  data,
+  hideAmounts = false,
+}: {
+  data: DashboardAdminData
+  hideAmounts?: boolean
+}) {
+  const formatMoney = hideAmounts ? () => "S/ •••" : formatMonedaPen
+  const numericMoney = (value: number) => (hideAmounts ? undefined : value)
   const paymentChartData: RankingChartDatum[] = data.ingresosPorMetodoPago.map((item) => ({
     label: item.metodoPago.trim() || "Sin metodo",
     value: item.monto,
@@ -74,25 +82,33 @@ export function AdminDashboardContent({ data }: { data: DashboardAdminData }) {
       <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <MetricCard
           title="Ventas del filtro"
-          value={formatMonedaPen(data.kpis.ventasTotalesFiltro)}
+          value={formatMoney(data.kpis.ventasTotalesFiltro)}
+          numericValue={numericMoney(data.kpis.ventasTotalesFiltro)}
+          formatValue={formatMoney}
           icon={BanknotesIcon}
           iconColor="text-blue-600"
         />
         <MetricCard
           title="Ventas del periodo"
-          value={formatMonedaPen(data.kpis.ventasDelMes)}
+          value={formatMoney(data.kpis.ventasDelMes)}
+          numericValue={numericMoney(data.kpis.ventasDelMes)}
+          formatValue={formatMoney}
           icon={ShoppingBagIcon}
           iconColor="text-cyan-600"
         />
         <MetricCard
-          title="Ticket promedio"
-          value={formatMonedaPen(data.kpis.ticketPromedio)}
+          title="Ventas del mes anterior"
+          value={formatMoney(data.kpis.ventasMesAnterior)}
+          numericValue={numericMoney(data.kpis.ventasMesAnterior)}
+          formatValue={formatMoney}
           icon={CreditCardIcon}
           iconColor="text-emerald-600"
         />
         <MetricCard
           title="Comprobantes emitidos"
           value={String(data.kpis.comprobantesEmitidos)}
+          numericValue={data.kpis.comprobantesEmitidos}
+          formatValue={String}
           icon={ClipboardDocumentListIcon}
           iconColor="text-violet-600"
         />
@@ -102,24 +118,32 @@ export function AdminDashboardContent({ data }: { data: DashboardAdminData }) {
         <MetricCard
           title="Comprobantes anulados"
           value={String(data.kpis.comprobantesAnulados)}
+          numericValue={data.kpis.comprobantesAnulados}
+          formatValue={String}
           icon={ExclamationTriangleIcon}
           iconColor="text-rose-600"
         />
         <MetricCard
           title="Monto anulado"
-          value={formatMonedaPen(data.kpis.montoAnulado)}
+          value={formatMoney(data.kpis.montoAnulado)}
+          numericValue={numericMoney(data.kpis.montoAnulado)}
+          formatValue={formatMoney}
           icon={ArchiveBoxArrowDownIcon}
           iconColor="text-orange-600"
         />
         <MetricCard
           title="Unidades vendidas"
           value={String(data.kpis.unidadesVendidas)}
+          numericValue={data.kpis.unidadesVendidas}
+          formatValue={String}
           icon={CubeIcon}
           iconColor="text-sky-600"
         />
         <MetricCard
           title="Variantes vendidas"
           value={String(data.kpis.variantesVendidas)}
+          numericValue={data.kpis.variantesVendidas}
+          formatValue={String}
           icon={RectangleStackIcon}
           iconColor="text-teal-600"
         />

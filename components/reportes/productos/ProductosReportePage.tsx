@@ -204,24 +204,32 @@ export function ProductosReportePage() {
           <MetricCard
             title="Productos activos"
             value={formatPlainNumber(data.kpis.productosActivos)}
+            numericValue={data.kpis.productosActivos}
+            formatValue={formatPlainNumber}
             icon={CubeIcon}
             iconColor="text-blue-600"
           />
           <MetricCard
             title="Variantes activas"
             value={formatPlainNumber(data.kpis.variantesActivas)}
+            numericValue={data.kpis.variantesActivas}
+            formatValue={formatPlainNumber}
             icon={Squares2X2Icon}
             iconColor="text-cyan-600"
           />
           <MetricCard
             title="Sin stock"
             value={formatPlainNumber(data.kpis.variantesSinStock)}
+            numericValue={data.kpis.variantesSinStock}
+            formatValue={formatPlainNumber}
             icon={ExclamationTriangleIcon}
             iconColor="text-rose-600"
           />
           <MetricCard
             title="Rotacion promedio"
             value={formatRotation(data.kpis.rotacionPromedio)}
+            numericValue={data.kpis.rotacionPromedio}
+            formatValue={formatRotation}
             icon={ArrowTrendingUpIcon}
             iconColor="text-emerald-600"
           />

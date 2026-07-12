@@ -199,24 +199,32 @@ export function VentasReportePage() {
           <MetricCard
             title="Ventas del dia"
             value={formatMonedaPen(data.kpis.ventasDelDia)}
+            numericValue={data.kpis.ventasDelDia}
+            formatValue={formatMonedaPen}
             icon={BanknotesIcon}
             iconColor="text-blue-600"
           />
           <MetricCard
             title="Ventas del mes"
             value={formatMonedaPen(data.kpis.ventasDelMes)}
+            numericValue={data.kpis.ventasDelMes}
+            formatValue={formatMonedaPen}
             icon={ArrowTrendingUpIcon}
             iconColor="text-cyan-600"
           />
           <MetricCard
             title="Ticket promedio"
             value={formatMonedaPen(data.kpis.ticketPromedio)}
+            numericValue={data.kpis.ticketPromedio}
+            formatValue={formatMonedaPen}
             icon={CreditCardIcon}
             iconColor="text-emerald-600"
           />
           <MetricCard
             title="Comprobantes"
             value={formatPlainNumber(data.kpis.cantidadComprobantes)}
+            numericValue={data.kpis.cantidadComprobantes}
+            formatValue={formatPlainNumber}
             icon={ClipboardDocumentListIcon}
             iconColor="text-amber-600"
           />

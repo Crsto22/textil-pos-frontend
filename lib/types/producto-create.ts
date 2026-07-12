@@ -10,6 +10,8 @@ export interface ProductoCreateFormState {
   nombre: string
   descripcion: string
   publicarEcommerce: boolean
+  preventa: boolean
+  fechaEnvioPreventa: string
 }
 
 export interface VariantSucursalStockInput {

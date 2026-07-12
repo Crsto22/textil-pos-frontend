@@ -500,6 +500,8 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
     nombre: "",
     descripcion: "",
     publicarEcommerce: false,
+    preventa: false,
+    fechaEnvioPreventa: "",
   })
   const [loadingDetalle, setLoadingDetalle] = useState(isEditing)
   const [errorDetalle, setErrorDetalle] = useState<string | null>(null)
@@ -1041,6 +1043,8 @@ const activeStockSucursales = useMemo<VariantSucursalStockInput[]>(
           nombre: payload.producto.nombre ?? "",
           descripcion: payload.producto.descripcion ?? "",
           publicarEcommerce: payload.producto.publicarEcommerce === true,
+          preventa: payload.producto.preventa === true,
+          fechaEnvioPreventa: payload.producto.fechaEnvioPreventa ?? "",
         }))
         setSelectedColorCatalog((previous) => ({ ...previous, ...detailColorCatalog }))
         setSelectedTallaCatalog((previous) => ({ ...previous, ...detailTallaCatalog }))
@@ -1599,6 +1603,20 @@ const activeStockSucursales = useMemo<VariantSucursalStockInput[]>(
     setForm((previous) => ({ ...previous, publicarEcommerce: value }))
   }, [isAdmin])
 
+  const handlePreventaChange = useCallback((value: boolean) => {
+    if (!isAdmin) return
+    setForm((previous) => ({
+      ...previous,
+      preventa: value,
+      fechaEnvioPreventa: value ? previous.fechaEnvioPreventa : "",
+    }))
+  }, [isAdmin])
+
+  const handleFechaEnvioPreventaChange = useCallback((value: string) => {
+    if (!isAdmin) return
+    setForm((previous) => ({ ...previous, fechaEnvioPreventa: value }))
+  }, [isAdmin])
+
   const handleCreateCategoria = useCallback(
     async (payload: CategoriaCreateRequest) => {
       const result = await createCategoriaAndReturn(payload)
@@ -1693,6 +1711,11 @@ const activeStockSucursales = useMemo<VariantSucursalStockInput[]>(
 
     if (selectedTallas.length === 0) {
       toast.error("Debe seleccionar al menos una talla")
+      return false
+    }
+
+    if (form.preventa && form.fechaEnvioPreventa.trim() === "") {
+      toast.error("Debe seleccionar la fecha de envio de preventa")
       return false
     }
 
@@ -2034,6 +2057,12 @@ const activeStockSucursales = useMemo<VariantSucursalStockInput[]>(
         guiaTallasUrl,
         guiaTallasThumbUrl,
         ...(isAdmin ? { publicarEcommerce: form.publicarEcommerce } : {}),
+        ...(isAdmin
+          ? {
+              preventa: form.preventa,
+              fechaEnvioPreventa: form.preventa ? form.fechaEnvioPreventa : null,
+            }
+          : {}),
         ...(descripcion !== "" ? { descripcion } : {}),
       }
 
@@ -2084,6 +2113,8 @@ const activeStockSucursales = useMemo<VariantSucursalStockInput[]>(
     form.idCategoria,
     form.nombre,
     form.publicarEcommerce,
+    form.preventa,
+    form.fechaEnvioPreventa,
     isAdmin,
     isEditing,
     isAutoSkuEnabled,
@@ -2191,6 +2222,8 @@ const activeStockSucursales = useMemo<VariantSucursalStockInput[]>(
     handleNombreChange,
     handleDescripcionChange,
     handlePublicarEcommerceChange,
+    handlePreventaChange,
+    handleFechaEnvioPreventaChange,
     handleCreateCategoria,
     handleCreateColor,
     handleCreateTalla,

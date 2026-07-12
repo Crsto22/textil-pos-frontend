@@ -139,6 +139,11 @@ function normalizeProductoResumen(producto: Producto | ProductoResumen): Product
         ? producto.nombreSucursal
         : null,
     publicarEcommerce: producto.publicarEcommerce === true,
+    preventa: producto.preventa === true,
+    fechaEnvioPreventa:
+      typeof producto.fechaEnvioPreventa === "string" && producto.fechaEnvioPreventa.trim() !== ""
+        ? producto.fechaEnvioPreventa
+        : null,
     precioMin: typeof resumen.precioMin === "number" ? resumen.precioMin : null,
     precioMax: typeof resumen.precioMax === "number" ? resumen.precioMax : null,
     colores: normalizedColores,
@@ -411,6 +416,10 @@ export function useProductos(
             ...(payload.publicarEcommerce !== undefined
               ? { publicarEcommerce: payload.publicarEcommerce === true }
               : {}),
+            ...(payload.preventa !== undefined ? { preventa: payload.preventa === true } : {}),
+            ...(payload.fechaEnvioPreventa !== undefined
+              ? { fechaEnvioPreventa: payload.fechaEnvioPreventa }
+              : {}),
           }
         : {
             idCategoria: payload.idCategoria,
@@ -486,6 +495,10 @@ export function useProductos(
               : {}),
             ...(payload.publicarEcommerce !== undefined
               ? { publicarEcommerce: payload.publicarEcommerce === true }
+              : {}),
+            ...(payload.preventa !== undefined ? { preventa: payload.preventa === true } : {}),
+            ...(payload.fechaEnvioPreventa !== undefined
+              ? { fechaEnvioPreventa: payload.fechaEnvioPreventa }
               : {}),
           }
         : {
@@ -568,6 +581,8 @@ export function useProductos(
           guiaTallasUrl: producto.guiaTallasUrl,
           guiaTallasThumbUrl: producto.guiaTallasThumbUrl,
           publicarEcommerce,
+          preventa: producto.preventa,
+          fechaEnvioPreventa: producto.fechaEnvioPreventa,
         }
 
         const response = await authFetch(`/api/producto/actualizar/${producto.idProducto}`, {

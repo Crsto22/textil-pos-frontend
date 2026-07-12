@@ -40,6 +40,8 @@ interface ProductoGeneralInfoCardProps {
   onNombreChange: (value: string) => void
   onDescripcionChange: (value: string) => void
   onPublicarEcommerceChange: (value: boolean) => void
+  onPreventaChange: (value: boolean) => void
+  onFechaEnvioPreventaChange: (value: string) => void
   canManageEcommerce: boolean
   canCreateCategoria: boolean
   categoriaCreateDisabledReason?: string | null
@@ -76,6 +78,8 @@ export function ProductoGeneralInfoCard({
   onNombreChange,
   onDescripcionChange,
   onPublicarEcommerceChange,
+  onPreventaChange,
+  onFechaEnvioPreventaChange,
   canManageEcommerce,
   canCreateCategoria,
   categoriaCreateDisabledReason,
@@ -165,25 +169,58 @@ export function ProductoGeneralInfoCard({
         </div>
 
         {canManageEcommerce && (
-          <div className="flex items-center justify-between gap-4 rounded-2xl border bg-background/80 px-4 py-3">
-            <div className="min-w-0">
-              <Label
-                htmlFor="producto-create-page-ecommerce"
-                className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-sky-700 dark:text-sky-300"
-              >
-                <GlobeAltIcon className="h-4 w-4" />
-                Mostrar en ecommerce
-              </Label>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Quedara visible cuando exista stock en la sucursal ecommerce activa.
-              </p>
+          <div className="space-y-3 rounded-2xl border bg-background/80 px-4 py-3">
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <Label
+                  htmlFor="producto-create-page-ecommerce"
+                  className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-sky-700 dark:text-sky-300"
+                >
+                  <GlobeAltIcon className="h-4 w-4" />
+                  Mostrar en ecommerce
+                </Label>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Quedara visible cuando exista stock en la sucursal ecommerce activa.
+                </p>
+              </div>
+              <Switch
+                id="producto-create-page-ecommerce"
+                checked={form.publicarEcommerce}
+                onCheckedChange={onPublicarEcommerceChange}
+                aria-label="Mostrar producto en ecommerce"
+              />
             </div>
-            <Switch
-              id="producto-create-page-ecommerce"
-              checked={form.publicarEcommerce}
-              onCheckedChange={onPublicarEcommerceChange}
-              aria-label="Mostrar producto en ecommerce"
-            />
+
+            <div className="border-t pt-3">
+              <div className="flex items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <Label
+                    htmlFor="producto-create-page-preventa"
+                    className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground"
+                  >
+                    Preventa
+                  </Label>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Muestra la fecha desde la que se enviara en ecommerce.
+                  </p>
+                </div>
+                <Switch
+                  id="producto-create-page-preventa"
+                  checked={form.preventa}
+                  onCheckedChange={onPreventaChange}
+                  aria-label="Producto en preventa"
+                />
+              </div>
+              {form.preventa && (
+                <Input
+                  type="date"
+                  value={form.fechaEnvioPreventa}
+                  onChange={(event) => onFechaEnvioPreventaChange(event.target.value)}
+                  className="mt-3 h-10 rounded-xl shadow-none"
+                  aria-label="Fecha de envio de preventa"
+                />
+              )}
+            </div>
           </div>
         )}
 

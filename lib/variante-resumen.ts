@@ -340,6 +340,8 @@ export function mapVarianteResumenToProductoResumen(
     guiaTallasUrl: null,
     guiaTallasThumbUrl: null,
     publicarEcommerce: false,
+    preventa: false,
+    fechaEnvioPreventa: null,
     estado: item.estado || item.producto.estado,
     fechaCreacion: item.producto.fechaCreacion,
     idCategoria: item.producto.categoria?.idCategoria ?? null,

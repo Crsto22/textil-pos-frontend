@@ -5,6 +5,8 @@ import {
   ArrowPathIcon,
   BuildingStorefrontIcon,
   CalendarDaysIcon,
+  EyeIcon,
+  EyeSlashIcon,
 } from "@heroicons/react/24/outline"
 
 import { Button } from "@/components/ui/button"
@@ -47,6 +49,8 @@ interface DashboardFiltersProps {
   currentSucursalLabel: string | null
   loading: boolean
   onRefresh: () => void
+  hideAmounts: boolean
+  onToggleHideAmounts: () => void
 }
 
 const MOBILE_FILTERS: DashboardFilterOption[] = [
@@ -76,10 +80,13 @@ export function DashboardFilters({
   currentSucursalLabel,
   loading,
   onRefresh,
+  hideAmounts,
+  onToggleHideAmounts,
 }: DashboardFiltersProps) {
   const [showDateModal, setShowDateModal] = useState(false)
   const [modalDesde, setModalDesde] = useState(fechaDesde)
   const [modalHasta, setModalHasta] = useState(fechaHasta)
+  const HideAmountsIcon = hideAmounts ? EyeSlashIcon : EyeIcon
 
   function openDateModal() {
     setModalDesde(fechaDesde)
@@ -176,8 +183,19 @@ export function DashboardFilters({
               onClick={onRefresh}
               disabled={loading}
               className="ml-auto inline-flex h-8 w-8 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+              title={loading ? "Actualizando" : "Actualizar"}
             >
               <ArrowPathIcon className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+            </button>
+
+            <button
+              type="button"
+              onClick={onToggleHideAmounts}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+              aria-pressed={hideAmounts}
+              title={hideAmounts ? "Mostrar montos" : "Ocultar montos"}
+            >
+              <HideAmountsIcon className="h-3.5 w-3.5" />
             </button>
           </div>
 
@@ -307,6 +325,16 @@ export function DashboardFilters({
               >
                 <ArrowPathIcon className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
                 {loading ? "Actualizando..." : "Actualizar"}
+              </button>
+
+              <button
+                type="button"
+                onClick={onToggleHideAmounts}
+                className="inline-flex h-[46px] w-[46px] items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                aria-pressed={hideAmounts}
+                title={hideAmounts ? "Mostrar montos" : "Ocultar montos"}
+              >
+                <HideAmountsIcon className="h-4 w-4" />
               </button>
             </div>
           </div>

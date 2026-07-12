@@ -2,6 +2,7 @@
 
 import { ArrowTrendingUpIcon, ArrowTrendingDownIcon } from "@heroicons/react/24/outline"
 import type { ComponentType, SVGProps } from "react"
+import { useEffect, useState } from "react"
 
 interface MetricCardProps {
     title: string
@@ -12,10 +13,43 @@ interface MetricCardProps {
         label: string       // e.g. "vs período anterior"
     }
     iconColor?: string    // tailwind text color class
+    numericValue?: number
+    formatValue?: (value: number) => string
 }
 
-export function MetricCard({ title, value, icon: Icon, trend, iconColor = "text-[#3266E4]" }: MetricCardProps) {
+export function MetricCard({ title, value, icon: Icon, trend, iconColor = "text-[#3266E4]", numericValue, formatValue }: MetricCardProps) {
     const isPositive = trend && trend.value >= 0
+    const [animatedValue, setAnimatedValue] = useState(numericValue ?? 0)
+    const valueForDisplay =
+        typeof numericValue === "number" && Number.isInteger(numericValue)
+            ? Math.round(animatedValue)
+            : animatedValue
+    const displayValue =
+        typeof numericValue === "number" && formatValue
+            ? formatValue(valueForDisplay)
+            : value
+
+    useEffect(() => {
+        if (typeof numericValue !== "number" || !formatValue || !Number.isFinite(numericValue)) return
+        let frame = 0
+        const durationMs = 700
+        const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+
+        const tick = (startedAt: number, now: number) => {
+            const progress = Math.min((now - startedAt) / durationMs, 1)
+            setAnimatedValue(numericValue * progress)
+            if (progress < 1) frame = requestAnimationFrame((next) => tick(startedAt, next))
+        }
+
+        frame = requestAnimationFrame((startedAt) => {
+            if (reduceMotion) {
+                setAnimatedValue(numericValue)
+                return
+            }
+            tick(startedAt, startedAt)
+        })
+        return () => cancelAnimationFrame(frame)
+    }, [formatValue, numericValue])
 
     return (
         <div className="bg-white dark:bg-[oklch(0.15_0_0)] rounded-xl shadow-sm border border-gray-100 dark:border-[oklch(0.3_0_0)] p-5 flex flex-col gap-3 transition-shadow hover:shadow-md">
@@ -25,7 +59,7 @@ export function MetricCard({ title, value, icon: Icon, trend, iconColor = "text-
                     <Icon className="h-5 w-5" />
                 </div>
             </div>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white">{value}</p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-white">{displayValue}</p>
             {trend && (
                 <div className="flex items-center gap-1.5 text-xs">
                     {isPositive ? (

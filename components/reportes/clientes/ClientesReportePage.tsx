@@ -179,18 +179,24 @@ export function ClientesReportePage() {
           <MetricCard
             title="Clientes activos"
             value={formatPlainNumber(data.kpis.clientesActivos)}
+            numericValue={data.kpis.clientesActivos}
+            formatValue={formatPlainNumber}
             icon={UsersIcon}
             iconColor="text-blue-600"
           />
           <MetricCard
             title="Clientes nuevos del mes"
             value={formatPlainNumber(data.kpis.clientesNuevosMes)}
+            numericValue={data.kpis.clientesNuevosMes}
+            formatValue={formatPlainNumber}
             icon={UserPlusIcon}
             iconColor="text-cyan-600"
           />
           <MetricCard
             title="Recurrencia"
             value={formatPercentage(data.kpis.recurrenciaPct)}
+            numericValue={data.kpis.recurrenciaPct}
+            formatValue={formatPercentage}
             icon={ArrowTrendingUpIcon}
             iconColor="text-emerald-600"
           />

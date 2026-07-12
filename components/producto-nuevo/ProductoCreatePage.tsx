@@ -84,6 +84,8 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
     handleNombreChange,
     handleDescripcionChange,
     handlePublicarEcommerceChange,
+    handlePreventaChange,
+    handleFechaEnvioPreventaChange,
     handleCreateCategoria,
     handleCreateColor,
     handleCreateTalla,
@@ -245,6 +247,8 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
             onNombreChange={handleNombreChange}
             onDescripcionChange={handleDescripcionChange}
             onPublicarEcommerceChange={handlePublicarEcommerceChange}
+            onPreventaChange={handlePreventaChange}
+            onFechaEnvioPreventaChange={handleFechaEnvioPreventaChange}
             canManageEcommerce={isAdmin}
             canCreateCategoria={canCreateCategoria}
           />

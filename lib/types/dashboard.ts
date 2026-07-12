@@ -75,6 +75,7 @@ export interface DashboardAdminKpis {
   ventasTotalesFiltro: number
   ventasDelDia: number
   ventasDelMes: number
+  ventasMesAnterior: number
   ticketPromedio: number
   comprobantesEmitidos: number
   comprobantesAnulados: number

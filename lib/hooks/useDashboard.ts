@@ -188,6 +188,7 @@ function normalizeAdminKpis(value: unknown): DashboardAdminKpis {
     ),
     ventasDelDia: toFiniteNumber(payload?.ventasDelDia),
     ventasDelMes: toFiniteNumber(payload?.ventasDelMes),
+    ventasMesAnterior: toFiniteNumber(payload?.ventasMesAnterior),
     ticketPromedio: toFiniteNumber(payload?.ticketPromedio),
     comprobantesEmitidos: toFiniteNumber(payload?.comprobantesEmitidos),
     comprobantesAnulados: toFiniteNumber(payload?.comprobantesAnulados),

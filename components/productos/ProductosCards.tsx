@@ -49,6 +49,12 @@ function getTotalSkus(producto: ProductoResumen): number {
   return producto.colores.flatMap((c) => c.tallas).length
 }
 
+function formatPreventaDate(value: string | null | undefined): string {
+  if (!value) return ""
+  const [year, month, day] = value.split("-")
+  return year && month && day ? `${day}/${month}/${year}` : value
+}
+
 function getInitialColorIndex(
   producto: ProductoResumen,
   activeColorId?: number | null
@@ -181,6 +187,11 @@ function ProductoCard({
             <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">
               <GlobeAltIcon className="h-3 w-3" />
               Ecommerce
+            </span>
+          )}
+          {producto.preventa && (
+            <span className="inline-flex rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">
+              Preventa {formatPreventaDate(producto.fechaEnvioPreventa)}
             </span>
           )}
         </div>

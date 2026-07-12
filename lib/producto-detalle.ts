@@ -95,6 +95,8 @@ function parseProducto(value: unknown): Producto | null {
     guiaTallasUrl: pickNullableString(payload, ["guiaTallasUrl"]),
     guiaTallasThumbUrl: pickNullableString(payload, ["guiaTallasThumbUrl"]),
     publicarEcommerce: payload?.publicarEcommerce === true,
+    preventa: payload?.preventa === true,
+    fechaEnvioPreventa: pickNullableString(payload, ["fechaEnvioPreventa"]),
     estado: pickString(payload, ["estado"], "ACTIVO"),
     fechaCreacion: pickString(payload, ["fechaCreacion", "createdAt"]),
     idCategoria:

@@ -44,6 +44,8 @@ const FILTER_OPTIONS: { key: DashboardFiltro; label: string }[] = [
   { key: "ULT_30_DIAS", label: "Ultimos 30 dias" },
 ]
 
+const DASHBOARD_HIDE_AMOUNTS_KEY = "dashboard:hide-amounts"
+
 function getTodayDateValue(): string {
   const now = new Date()
   const timezoneOffsetMs = now.getTimezoneOffset() * 60_000
@@ -66,31 +68,48 @@ function buildTopProductsChartData(topList?: DashboardTopProduct[]): RankingChar
   }))
 }
 
-function VentasDashboardContent({ data }: { data: DashboardVentasData }) {
+function VentasDashboardContent({
+  data,
+  hideAmounts = false,
+}: {
+  data: DashboardVentasData
+  hideAmounts?: boolean
+}) {
+  const formatMoney = hideAmounts ? () => "S/ •••" : formatMonedaPen
+  const numericMoney = (value: number) => (hideAmounts ? undefined : value)
+
   return (
     <div className="space-y-4 sm:space-y-6">
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <MetricCard
           title="Mis ventas totales"
-          value={formatMonedaPen(data.misVentasTotales)}
+          value={formatMoney(data.misVentasTotales)}
+          numericValue={numericMoney(data.misVentasTotales)}
+          formatValue={formatMoney}
           icon={CurrencyDollarIcon}
           iconColor="text-green-600"
         />
         <MetricCard
           title="Mis productos vendidos"
           value={String(data.misProductosVendidos)}
+          numericValue={data.misProductosVendidos}
+          formatValue={String}
           icon={CubeIcon}
           iconColor="text-blue-600"
         />
         <MetricCard
           title="Mi promedio de venta"
-          value={formatMonedaPen(data.miPromedioVenta)}
+          value={formatMoney(data.miPromedioVenta)}
+          numericValue={numericMoney(data.miPromedioVenta)}
+          formatValue={formatMoney}
           icon={PresentationChartLineIcon}
           iconColor="text-purple-600"
         />
         <MetricCard
           title="Cotizaciones abiertas"
           value={String(data.misCotizacionesAbiertas)}
+          numericValue={data.misCotizacionesAbiertas}
+          formatValue={String}
           icon={TicketIcon}
           iconColor="text-orange-500"
         />
@@ -198,24 +217,32 @@ function AlmacenDashboardContent({ data }: { data: DashboardAlmacenData }) {
         <MetricCard
           title="Total fisico en tienda"
           value={String(data.totalFisicoEnTienda)}
+          numericValue={data.totalFisicoEnTienda}
+          formatValue={String}
           icon={ArchiveBoxArrowDownIcon}
           iconColor="text-blue-600"
         />
         <MetricCard
           title="Variantes disponibles"
           value={String(data.variantesDisponibles)}
+          numericValue={data.variantesDisponibles}
+          formatValue={String}
           icon={CubeIcon}
           iconColor="text-green-600"
         />
         <MetricCard
           title="Variantes agotadas"
           value={String(data.variantesAgotadas)}
+          numericValue={data.variantesAgotadas}
+          formatValue={String}
           icon={ExclamationTriangleIcon}
           iconColor="text-red-600"
         />
         <MetricCard
           title="Stock bajo"
           value={String(data.stockBajo)}
+          numericValue={data.stockBajo}
+          formatValue={String}
           icon={ArrowTrendingUpIcon}
           iconColor="text-orange-500"
         />
@@ -227,24 +254,32 @@ function AlmacenDashboardContent({ data }: { data: DashboardAlmacenData }) {
           <MetricCard
             title="Total movimientos"
             value={String(resumen.totalMovimientos)}
+            numericValue={resumen.totalMovimientos}
+            formatValue={String}
             icon={ClipboardDocumentListIcon}
             iconColor="text-slate-500"
           />
           <MetricCard
             title="Unidades entrada"
             value={String(resumen.unidadesEntrada)}
+            numericValue={resumen.unidadesEntrada}
+            formatValue={String}
             icon={ArrowUpTrayIcon}
             iconColor="text-green-600"
           />
           <MetricCard
             title="Unidades salida"
             value={String(resumen.unidadesSalida)}
+            numericValue={resumen.unidadesSalida}
+            formatValue={String}
             icon={ArrowDownTrayIcon}
             iconColor="text-red-600"
           />
           <MetricCard
             title="Traslados entrada"
             value={String(resumen.unidadesTrasladoEntrada)}
+            numericValue={resumen.unidadesTrasladoEntrada}
+            formatValue={String}
             icon={ArrowsRightLeftIcon}
             iconColor="text-cyan-600"
           />
@@ -362,6 +397,10 @@ export function DashboardPage() {
   const [useCustomRange, setUseCustomRange] = useState(false)
   const [fechaDesde, setFechaDesde] = useState(getTodayDateValue())
   const [fechaHasta, setFechaHasta] = useState(getTodayDateValue())
+  const [hideAmounts, setHideAmounts] = useState(() => {
+    if (typeof window === "undefined") return false
+    return window.localStorage.getItem(DASHBOARD_HIDE_AMOUNTS_KEY) === "1"
+  })
   const [selectedSucursalId, setSelectedSucursalId] = useState<number | null>(
     userHasSucursal ? user.idSucursal : null
   )
@@ -417,6 +456,14 @@ export function DashboardPage() {
     [getSucursalOptionById, selectedSucursalId, sucursalOptions]
   )
 
+  const toggleHideAmounts = () => {
+    setHideAmounts((current) => {
+      const next = !current
+      window.localStorage.setItem(DASHBOARD_HIDE_AMOUNTS_KEY, next ? "1" : "0")
+      return next
+    })
+  }
+
   if (!user) return null
 
   if (loading && !data) {
@@ -453,6 +500,8 @@ export function DashboardPage() {
           onRefresh={() => {
             void refresh()
           }}
+          hideAmounts={hideAmounts}
+          onToggleHideAmounts={toggleHideAmounts}
         />
       ) : null}
 
@@ -480,8 +529,8 @@ export function DashboardPage() {
         </section>
       ) : null}
 
-      {data?.dashboard === "ADMIN" ? <AdminDashboardContent data={data} /> : null}
-      {data?.dashboard === "VENTAS" ? <VentasDashboardContent data={data} /> : null}
+      {data?.dashboard === "ADMIN" ? <AdminDashboardContent data={data} hideAmounts={hideAmounts} /> : null}
+      {data?.dashboard === "VENTAS" ? <VentasDashboardContent data={data} hideAmounts={hideAmounts} /> : null}
       {data?.dashboard === "ALMACEN" ? <AlmacenDashboardContent data={data} /> : null}
       {data?.dashboard === "SISTEMA" ? <SistemaDashboardContent data={data} /> : null}
     </div>
