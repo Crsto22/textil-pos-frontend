@@ -32,7 +32,7 @@ export interface EmpresaPublica {
   logoUrl?: string | null
 }
 
-export interface EmpresaCreateRequest extends EmpresaBase {}
+export type EmpresaCreateRequest = EmpresaBase
 
 export interface EmpresaUpdateRequest extends EmpresaCreateRequest {
   logoUrl?: string | null

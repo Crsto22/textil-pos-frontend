@@ -12,7 +12,10 @@ export function useGlobalBarcodeScanner({ onScan }: UseGlobalBarcodeScannerOptio
   const bufferRef = useRef("")
   const lastKeyTimeRef = useRef(0)
   const onScanRef = useRef(onScan)
-  onScanRef.current = onScan
+
+  useEffect(() => {
+    onScanRef.current = onScan
+  }, [onScan])
 
   const toggle = useCallback(() => {
     setActive((prev) => !prev)

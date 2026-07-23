@@ -36,6 +36,7 @@ export function TurnoCreateDialog({
       nombre: "",
       horaInicio: "",
       horaFin: "",
+      toleranciaMinutos: 10,
       dias: [],
       horariosDias: [],
     }),
@@ -87,6 +88,7 @@ export function TurnoCreateDialog({
         nombre: form.nombre.trim(),
         horaInicio: normalizeTurnoTime(form.horaInicio),
         horaFin: normalizeTurnoTime(form.horaFin),
+        toleranciaMinutos: form.toleranciaMinutos,
         dias: form.dias,
         ...(horariosDias.length > 0 ? { horariosDias } : {}),
       })
@@ -118,6 +120,23 @@ export function TurnoCreateDialog({
               value={form.nombre}
               onChange={(event) =>
                 setForm((previous) => ({ ...previous, nombre: event.target.value }))
+              }
+            />
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="turno-create-tolerancia">Tolerancia (minutos)</Label>
+            <Input
+              id="turno-create-tolerancia"
+              type="number"
+              min={0}
+              max={180}
+              value={form.toleranciaMinutos}
+              onChange={(event) =>
+                setForm((previous) => ({
+                  ...previous,
+                  toleranciaMinutos: Math.min(180, Math.max(0, Number(event.target.value))),
+                }))
               }
             />
           </div>

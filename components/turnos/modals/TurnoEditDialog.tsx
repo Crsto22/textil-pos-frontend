@@ -54,6 +54,7 @@ export function TurnoEditDialog({
     nombre: "",
     horaInicio: "",
     horaFin: "",
+    toleranciaMinutos: 10,
     dias: [],
     horariosDias: [],
     estado: "ACTIVO",
@@ -67,6 +68,7 @@ export function TurnoEditDialog({
       nombre: turno.nombre,
       horaInicio: turno.horaInicio,
       horaFin: turno.horaFin,
+      toleranciaMinutos: turno.toleranciaMinutos ?? 10,
       dias: Array.isArray(turno.dias) ? [...turno.dias] : [],
       horariosDias: getSpecialHorarios(turno),
       estado: turno.estado,
@@ -121,6 +123,7 @@ export function TurnoEditDialog({
         nombre: form.nombre.trim(),
         horaInicio: normalizeTurnoTime(form.horaInicio),
         horaFin: normalizeTurnoTime(form.horaFin),
+        toleranciaMinutos: form.toleranciaMinutos,
         dias: form.dias,
         ...(horariosDias.length > 0 ? { horariosDias } : {}),
         estado: form.estado,
@@ -151,6 +154,23 @@ export function TurnoEditDialog({
               value={form.nombre}
               onChange={(event) =>
                 setForm((previous) => ({ ...previous, nombre: event.target.value }))
+              }
+            />
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="turno-edit-tolerancia">Tolerancia (minutos)</Label>
+            <Input
+              id="turno-edit-tolerancia"
+              type="number"
+              min={0}
+              max={180}
+              value={form.toleranciaMinutos}
+              onChange={(event) =>
+                setForm((previous) => ({
+                  ...previous,
+                  toleranciaMinutos: Math.min(180, Math.max(0, Number(event.target.value))),
+                }))
               }
             />
           </div>

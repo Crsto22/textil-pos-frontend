@@ -14,6 +14,8 @@ const PEDIDOS_ROUTES = [
 
 const ADMIN_ONLY_ROUTES = [
   "/configuracion/ecommerce",
+  "/asistencias",
+  "/turnos",
 ]
 
 interface RoleConfig {

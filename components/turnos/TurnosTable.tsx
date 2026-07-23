@@ -42,6 +42,9 @@ function TurnosTableComponent({
                 Dias
               </th>
               <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Tolerancia
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">
                 Estado
               </th>
               <th className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider text-muted-foreground">
@@ -104,6 +107,9 @@ function TurnosTableComponent({
                           <span className="text-xs text-muted-foreground">-</span>
                         )}
                       </div>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
+                      {turno.toleranciaMinutos ?? 10} min
                     </td>
                     <td className="px-4 py-3">
                       <span

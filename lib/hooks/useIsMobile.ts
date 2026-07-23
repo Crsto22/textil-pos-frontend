@@ -1,15 +1,16 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useSyncExternalStore } from "react"
 
 export function useIsMobile(breakpoint = 640) {
-  const [isMobile, setIsMobile] = useState(false)
-  useEffect(() => {
+  const subscribe = useCallback((onChange: () => void) => {
     const mq = window.matchMedia(`(max-width: ${breakpoint - 1}px)`)
-    setIsMobile(mq.matches)
-    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches)
-    mq.addEventListener("change", handler)
-    return () => mq.removeEventListener("change", handler)
+    mq.addEventListener("change", onChange)
+    return () => mq.removeEventListener("change", onChange)
   }, [breakpoint])
-  return isMobile
+  const getSnapshot = useCallback(
+    () => window.matchMedia(`(max-width: ${breakpoint - 1}px)`).matches,
+    [breakpoint]
+  )
+  return useSyncExternalStore(subscribe, getSnapshot, () => false)
 }

@@ -35,17 +35,6 @@ interface ClienteRfmScatterChartProps {
   emptyMessage?: string
 }
 
-interface ScatterTooltipPayload {
-  payload: {
-    cliente: string
-    recenciaDias: number
-    frecuencia: number
-    monto: number
-    nroDocumento: string | null
-    ultimaCompra: string | null
-  }
-}
-
 const NUMBER_FORMATTER = new Intl.NumberFormat("es-PE")
 const COMPACT_CURRENCY_FORMATTER = new Intl.NumberFormat("es-PE", {
   notation: "compact",
@@ -242,7 +231,7 @@ export function ClienteRfmScatterChart({
           <ZAxis type="number" dataKey="bubbleSize" range={[90, 420]} />
           <Tooltip
             cursor={{ strokeDasharray: "3 3" }}
-            content={(props: any) => {
+            content={(props) => {
               const { active, payload } = props
               const item = payload?.[0]?.payload
               if (!active || !item) return null

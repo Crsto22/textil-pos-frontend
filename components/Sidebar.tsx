@@ -41,6 +41,8 @@ import {
     ArrowsRightLeftIcon,
     ShoppingBagIcon,
     GlobeAltIcon,
+    FingerPrintIcon,
+    ComputerDesktopIcon,
 } from "@heroicons/react/24/outline"
 import {
     BanknotesIcon as BanknotesIconSolid,
@@ -70,6 +72,8 @@ import {
     ArrowsRightLeftIcon as ArrowsRightLeftIconSolid,
     ShoppingBagIcon as ShoppingBagIconSolid,
     GlobeAltIcon as GlobeAltIconSolid,
+    FingerPrintIcon as FingerPrintIconSolid,
+    ComputerDesktopIcon as ComputerDesktopIconSolid,
 } from "@heroicons/react/24/solid"
 
 interface SidebarProps {
@@ -180,10 +184,20 @@ export const navSections: SidebarSection[] = [
         ],
     },
     {
+        subtitle: "Asistencias",
+        items: [
+            { label: "Resumen", href: "/asistencias/resumen", icon: ChartBarIcon, iconActive: ChartBarIconSolid },
+            { label: "Analisis", href: "/asistencias/analisis", icon: ChartPieIcon, iconActive: ChartPieIconSolid },
+            { label: "Marcaciones", href: "/asistencias/marcaciones", icon: FingerPrintIcon, iconActive: FingerPrintIconSolid },
+            { label: "Trabajadores", href: "/asistencias/trabajadores", icon: UsersIcon, iconActive: UsersIconSolid },
+            { label: "Dispositivos", href: "/asistencias/dispositivos", icon: ComputerDesktopIcon, iconActive: ComputerDesktopIconSolid },
+            { label: "Turnos", href: "/turnos", icon: CalendarDaysIcon, iconActive: CalendarDaysIconSolid },
+        ],
+    },
+    {
         subtitle: "Administracion",
         items: [
             { label: "Sucursales", href: "/sucursales", icon: BuildingOffice2Icon, iconActive: BuildingOffice2IconSolid },
-            { label: "Turnos", href: "/turnos", icon: CalendarDaysIcon, iconActive: CalendarDaysIconSolid },
             { label: "Usuarios", href: "/usuarios", icon: WrenchScrewdriverIcon, iconActive: WrenchScrewdriverIconSolid },
         ],
     },

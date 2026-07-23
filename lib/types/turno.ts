@@ -31,6 +31,7 @@ export interface Turno {
   nombre: string
   horaInicio: string
   horaFin: string
+  toleranciaMinutos: number
   dias: DiaSemana[]
   horariosDias?: TurnoHorarioDia[] | null
   estado: string
@@ -41,6 +42,7 @@ export interface TurnoCreateRequest {
   nombre: string
   horaInicio: string
   horaFin: string
+  toleranciaMinutos: number
   dias: DiaSemana[]
   horariosDias?: TurnoHorarioDia[]
 }
