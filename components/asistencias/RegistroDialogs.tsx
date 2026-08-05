@@ -50,10 +50,9 @@ export function TrabajadorDialog({ open, worker, onOpenChange, onSave }: WorkerD
   }, [clearDniError, open, worker])
 
   const branchOptions = useMemo<ComboboxOption[]>(() => [
-    ...(form.rotativo ? [{ value: "SIN_BASE", label: "Sin sucursal base" }] : []),
     ...(form.idSucursal !== null && form.idSucursal > 0 && !sucursales.sucursalOptions.some((option) => option.value === String(form.idSucursal)) ? [sucursales.getSucursalOptionById(form.idSucursal, worker?.sucursal ?? undefined)] : []),
     ...sucursales.sucursalOptions,
-  ], [form.idSucursal, form.rotativo, sucursales, worker?.sucursal])
+  ], [form.idSucursal, sucursales, worker?.sucursal])
   const turnoOptions = useMemo<ComboboxOption[]>(() => [
     ...(form.idTurno !== null && form.idTurno > 0 && !turnos.turnoOptions.some((option) => option.value === String(form.idTurno)) ? [turnos.getTurnoOptionById(form.idTurno, worker?.turno ?? undefined)] : []),
     ...turnos.turnoOptions,
@@ -110,7 +109,7 @@ export function TrabajadorDialog({ open, worker, onOpenChange, onSave }: WorkerD
     if (!valid) return
     setSaving(true)
     try {
-      if (await onSave({ ...form, nombres: form.nombres.trim(), apellidos: form.apellidos.trim() })) onOpenChange(false)
+      if (await onSave({ ...form, idSucursal: form.rotativo ? null : form.idSucursal, nombres: form.nombres.trim(), apellidos: form.apellidos.trim() })) onOpenChange(false)
     } finally { setSaving(false) }
   }
 
@@ -146,7 +145,7 @@ export function TrabajadorDialog({ open, worker, onOpenChange, onSave }: WorkerD
           <Field label="Nombres"><Input value={form.nombres} maxLength={100} onChange={(e) => setForm({ ...form, nombres: e.target.value })} /></Field>
           <Field label="Apellidos"><Input value={form.apellidos} maxLength={100} onChange={(e) => setForm({ ...form, apellidos: e.target.value })} /></Field>
           <div className="grid gap-2 sm:col-span-2"><Label>Cargo</Label><Combobox value={form.idCargo ? String(form.idCargo) : ""} options={cargoOptions} searchValue={cargos.search} onSearchValueChange={cargos.setSearch} onValueChange={(value) => setForm({ ...form, idCargo: Number(value) })} placeholder="Seleccionar cargo" searchPlaceholder="Buscar cargo..." loading={cargos.loading} emptyMessage="No se encontraron cargos activos" />{!form.idCargo ? <p className="text-xs text-amber-600 dark:text-amber-400">Selecciona un cargo para continuar.</p> : worker?.cargoEstado === "INACTIVO" && form.idCargo === worker.idCargo ? <p className="text-xs text-amber-600 dark:text-amber-400">Este cargo esta inactivo; se conservara mientras no selecciones otro.</p> : null}</div>
-          <Field label={form.rotativo ? "Sucursal base (opcional)" : "Sucursal base"}><Combobox value={form.idSucursal ? String(form.idSucursal) : form.rotativo ? "SIN_BASE" : ""} options={branchOptions} searchValue={sucursales.searchSucursal} onSearchValueChange={sucursales.setSearchSucursal} onValueChange={(value) => setForm({ ...form, idSucursal: value === "SIN_BASE" ? null : Number(value) })} placeholder={form.rotativo ? "Sin sucursal base" : "Seleccionar sucursal"} loading={sucursales.loadingSucursales} /></Field>
+          {!form.rotativo ? <Field label="Sucursal base"><Combobox value={form.idSucursal ? String(form.idSucursal) : ""} options={branchOptions} searchValue={sucursales.searchSucursal} onSearchValueChange={sucursales.setSearchSucursal} onValueChange={(value) => setForm({ ...form, idSucursal: Number(value) })} placeholder="Seleccionar sucursal" loading={sucursales.loadingSucursales} /></Field> : null}
           <div className="flex items-center justify-between gap-4 rounded-lg border px-3 py-3 sm:col-span-2">
             <div className="min-w-0"><p className="text-sm font-medium">Tiene turno</p><p className="text-xs text-muted-foreground">Activalo para controlar horario, tardanza y faltas.</p></div>
             <Switch checked={hasShift} onCheckedChange={(checked) => { setHasShift(checked); if (!checked) setForm((previous) => ({ ...previous, idTurno: null })) }} />
@@ -154,7 +153,7 @@ export function TrabajadorDialog({ open, worker, onOpenChange, onSave }: WorkerD
           {hasShift ? <div className="grid gap-2 sm:col-span-2"><Label>Turno</Label><Combobox value={form.idTurno ? String(form.idTurno) : ""} options={turnoOptions} searchValue={turnos.searchTurno} onSearchValueChange={turnos.setSearchTurno} onValueChange={(value) => setForm({ ...form, idTurno: Number(value) })} placeholder="Seleccionar turno" loading={turnos.loadingTurnos} /></div> : null}
           <div className="flex items-center justify-between gap-4 rounded-lg border px-3 py-3 sm:col-span-2">
             <div className="min-w-0"><p className="text-sm font-medium">Trabajador rotativo</p><p className="text-xs text-muted-foreground">Calcula entradas y salidas por cada sucursal visitada.</p></div>
-            <Switch checked={form.rotativo} onCheckedChange={(checked) => setForm({ ...form, rotativo: checked })} />
+            <Switch checked={form.rotativo} onCheckedChange={(checked) => setForm({ ...form, rotativo: checked, idSucursal: checked ? null : form.idSucursal })} />
           </div>
           {worker ? <div className="flex items-center justify-between rounded-lg border px-3 py-2 sm:col-span-2"><span className="text-sm font-medium">Trabajador activo</span><Switch checked={form.estado === "ACTIVO"} onCheckedChange={(checked) => setForm({ ...form, estado: checked ? "ACTIVO" : "INACTIVO" })} /></div> : null}
         </div>
