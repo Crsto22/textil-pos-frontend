@@ -747,7 +747,7 @@ export default function ProductModal({
                           onClick={() => setSelectedColorId(color.colorId)}
                           variant="outline"
                           size="sm"
-                          className={`inline-flex items-center gap-2 text-xs font-semibold transition-colors ${
+                          className={`cursor-pointer inline-flex items-center gap-2 text-xs font-semibold transition-colors ${
                             selectedColorId === color.colorId
                               ? "border-blue-400 bg-blue-50 text-blue-700 dark:border-blue-500/50 dark:bg-blue-500/15 dark:text-blue-300"
                               : "border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
@@ -799,7 +799,7 @@ export default function ProductModal({
                               key={variante.idProductoVariante}
                               onClick={() => setSelectedTallaId(variante.tallaId)}
                               variant="outline"
-                              className={`h-auto flex-col items-stretch justify-start rounded-xl px-3 py-2 text-left transition-colors ${
+                              className={`cursor-pointer h-auto flex-col items-stretch justify-start rounded-xl px-3 py-2 text-left transition-colors ${
                                 selected
                                   ? "border-blue-400 bg-blue-50 dark:border-blue-500/50 dark:bg-blue-500/15"
                                   : "border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
@@ -815,23 +815,6 @@ export default function ProductModal({
                                   />
                                   {stockVariante} u.
                                 </span>
-                              </div>
-
-                              <div className="mt-2">
-                                {showOfferPrice ? (
-                                  <div className="space-y-1">
-                                    <p className="text-xs font-medium leading-none text-slate-500 line-through dark:text-slate-400">
-                                      {formatMonedaPen(variante.precio)}
-                                    </p>
-                                    <p className="text-xl font-extrabold leading-none text-emerald-700 dark:text-emerald-300">
-                                      {formatMonedaPen(variante.precioOferta)}
-                                    </p>
-                                  </div>
-                                ) : (
-                                  <p className="text-xl font-extrabold leading-none text-blue-700 dark:text-blue-300">
-                                    {formatMonedaPen(variante.precio)}
-                                  </p>
-                                )}
                               </div>
                               {offerCopy && (
                                 <p className="mt-2 text-[11px] font-medium leading-snug text-emerald-600 dark:text-emerald-400">
