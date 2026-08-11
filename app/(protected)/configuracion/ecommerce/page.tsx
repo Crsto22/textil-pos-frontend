@@ -34,6 +34,7 @@ import { authFetch } from "@/lib/auth/auth-fetch"
 import { resolveBackendUrl } from "@/lib/resolve-backend-url"
 import type { ProductoDetalleResponse, ProductoResumen } from "@/lib/types/producto"
 import { toast } from "sonner"
+import { OfertasEcommerceTab } from "@/components/ecommerce/OfertasEcommerceTab"
 
 interface EcommercePortada {
   idEcommercePortada: number
@@ -265,16 +266,12 @@ function validateComboForm(form: ComboFormState) {
 }
 
 function ComboPromocionesTab() {
-  const [allCombos, setAllCombos] = useState<PromocionCombo[]>([])
   const [activeCombos, setActiveCombos] = useState<PromocionCombo[]>([])
   const [expiredCombos, setExpiredCombos] = useState<PromocionCombo[]>([])
-  const [allPage, setAllPage] = useState(0)
   const [activePage, setActivePage] = useState(0)
   const [expiredPage, setExpiredPage] = useState(0)
-  const [allTotalPages, setAllTotalPages] = useState(0)
   const [activeTotalPages, setActiveTotalPages] = useState(0)
   const [expiredTotalPages, setExpiredTotalPages] = useState(0)
-  const [allTotalElements, setAllTotalElements] = useState(0)
   const [activeTotalElements, setActiveTotalElements] = useState(0)
   const [expiredTotalElements, setExpiredTotalElements] = useState(0)
   const [form, setForm] = useState<ComboFormState>(EMPTY_COMBO_FORM)
@@ -338,16 +335,10 @@ function ComboPromocionesTab() {
 
   const fetchCombos = useCallback(async () => {
     setLoading(true)
-    const [allData, activeData, expiredData] = await Promise.all([
-      fetchComboPage("TODAS", allPage),
+    const [activeData, expiredData] = await Promise.all([
       fetchComboPage("ACTIVAS", activePage),
       fetchComboPage("VENCIDAS", expiredPage),
     ])
-    if (allData) {
-      setAllCombos(allData.content)
-      setAllTotalPages(allData.totalPages)
-      setAllTotalElements(allData.totalElements)
-    }
     if (activeData) {
       setActiveCombos(activeData.content)
       setActiveTotalPages(activeData.totalPages)
@@ -359,8 +350,8 @@ function ComboPromocionesTab() {
       setExpiredTotalElements(expiredData.totalElements)
     }
     setLoading(false)
-    void fetchProductMeta([...(allData?.content ?? []), ...(activeData?.content ?? []), ...(expiredData?.content ?? [])])
-  }, [allPage, activePage, expiredPage, fetchComboPage, fetchProductMeta])
+    void fetchProductMeta([...(activeData?.content ?? []), ...(expiredData?.content ?? [])])
+  }, [activePage, expiredPage, fetchComboPage, fetchProductMeta])
 
   useEffect(() => {
     let cancelled = false
@@ -542,7 +533,7 @@ function ComboPromocionesTab() {
   const normalPreviewTotal = comboSlots.reduce((sum, item) => sum + (productMeta[item.idProducto]?.priceMin ?? 0), 0)
   const comboPreviewPrice = Number(form.precioCombo) || 0
   const previewSavings = normalPreviewTotal > 0 && comboPreviewPrice > 0 ? normalPreviewTotal - comboPreviewPrice : 0
-  const totalCombos = allTotalElements
+  const totalCombos = activeTotalElements + expiredTotalElements
 
   const renderComboSection = (
     title: string,
@@ -564,86 +555,106 @@ function ComboPromocionesTab() {
           <p>No hay promociones en esta seccion.</p>
         </div>
       ) : (
-        <div className="grid gap-3 xl:grid-cols-2">
-          {rows.map((combo) => (
-            <Card key={combo.idPromocionCombo}>
-              <CardContent className="grid gap-4 p-4 lg:grid-cols-[1fr_auto] lg:items-start">
-                <div className="flex min-w-0 items-center gap-3">
-                  <div className="flex shrink-0 -space-x-2">
-                    {combo.items.map((item) => (
-                      <div key={item.idProducto} className="h-12 w-12 overflow-hidden rounded-full border-2 border-background bg-muted">
-                        {productMeta[item.idProducto]?.imageUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={resolveBackendUrl(productMeta[item.idProducto].imageUrl) ?? ""}
-                            alt={item.nombreProducto}
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center text-xs font-bold text-muted-foreground">
-                            {item.nombreProducto.slice(0, 1).toUpperCase()}
+        <div className="overflow-hidden rounded-lg border">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-muted/50">
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-muted-foreground">Productos</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-muted-foreground">Nombre</th>
+                  <th className="hidden px-4 py-3 text-left text-xs font-semibold uppercase text-muted-foreground md:table-cell">Vigencia</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase text-muted-foreground">Precio</th>
+                  <th className="hidden px-4 py-3 text-center text-xs font-semibold uppercase text-muted-foreground sm:table-cell">Estado</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase text-muted-foreground">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {rows.map((combo) => {
+                  const descuento = discountPercent(combo, productMeta)
+                  const normal = comboNormalTotal(combo, productMeta)
+                  return (
+                  <tr key={combo.idPromocionCombo} className="bg-background transition-colors hover:bg-muted/30">
+                    <td className="px-4 py-3">
+                      <div className="flex -space-x-2">
+                        {combo.items.map((item) => (
+                          <div key={item.idProducto} className="h-9 w-9 overflow-hidden rounded-full border-2 border-background bg-muted">
+                            {productMeta[item.idProducto]?.imageUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={resolveBackendUrl(productMeta[item.idProducto].imageUrl) ?? ""}
+                                alt={item.nombreProducto}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center text-[10px] font-bold text-muted-foreground">
+                                {item.nombreProducto.slice(0, 1).toUpperCase()}
+                              </div>
+                            )}
                           </div>
-                        )}
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="truncate text-base font-bold">{combo.nombre}</h3>
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${combo.estado === "ACTIVO" ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"}`}>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="min-w-0 max-w-48">
+                        <p className="truncate font-semibold">{combo.nombre}</p>
+                        <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                          {descuento !== null && (
+                            <span className="rounded-full bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-700">
+                              -{descuento}%
+                            </span>
+                          )}
+                          {combo.items.map((item) => (
+                            <span key={item.idProducto} className="text-xs text-muted-foreground">
+                              {item.nombreProducto} x{item.cantidadRequerida}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="hidden px-4 py-3 md:table-cell">
+                      <p className="text-xs font-medium text-amber-600 whitespace-nowrap">{formatTimeLeft(combo.fechaFin)}</p>
+                      {combo.fechaFin && (
+                        <p className="text-[10px] text-muted-foreground whitespace-nowrap">
+                          {new Date(combo.fechaFin).toLocaleDateString("es-PE")}
+                        </p>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <p className="font-bold">{formatMoney(combo.precioCombo)}</p>
+                      {normal !== null && (
+                        <p className="text-xs text-muted-foreground line-through">{formatMoney(normal)}</p>
+                      )}
+                    </td>
+                    <td className="hidden px-4 py-3 text-center sm:table-cell">
+                      <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${combo.estado === "ACTIVO" ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"}`}>
                         {combo.estado}
                       </span>
-                      {discountPercent(combo, productMeta) !== null && (
-                        <span className="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-semibold text-rose-700">
-                          -{discountPercent(combo, productMeta)}%
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-1 text-sm text-muted-foreground">{combo.regla}</p>
-                    <p className="mt-1 text-xs font-medium text-amber-600">{formatTimeLeft(combo.fechaFin)}</p>
-                  </div>
-                </div>
-                <div className="lg:text-right">
-                  <p className="text-xs font-medium uppercase text-muted-foreground">Precio combo</p>
-                  <p className="text-lg font-black">{formatMoney(combo.precioCombo)}</p>
-                  {comboNormalTotal(combo, productMeta) !== null && (
-                    <p className="text-xs text-muted-foreground">
-                      Normal {formatMoney(comboNormalTotal(combo, productMeta) as number)}
-                    </p>
-                  )}
-                </div>
-                <div className="space-y-2 text-sm text-muted-foreground lg:col-span-2">
-                  {combo.items.map((item) => (
-                    <div key={item.idProducto} className="min-w-0">
-                      <p className="truncate font-medium text-foreground">{item.nombreProducto} x{item.cantidadRequerida}</p>
-                      <p className="text-xs">{priceLabel(productMeta[item.idProducto])}</p>
-                    </div>
-                  ))}
-                </div>
-                <div className="flex flex-wrap items-center gap-2 lg:col-span-2 lg:justify-end">
-                  <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                    <Switch
-                      checked={combo.estado === "ACTIVO"}
-                      onCheckedChange={() => void changeEstado(combo)}
-                      aria-label={`${combo.estado === "ACTIVO" ? "Desactivar" : "Activar"} ${combo.nombre}`}
-                    />
-                    Activo
-                  </label>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => {
-                    setEditingId(combo.idPromocionCombo)
-                    setDurationMode("PERSONALIZADO")
-                    setForm(formFromCombo(combo))
-                    setDialogOpen(true)
-                  }}>
-                    <PencilSquareIcon className="h-4 w-4" />
-                  </Button>
-                  <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => setDeleteTarget(combo)}>
-                    <TrashIcon className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <Switch
+                          checked={combo.estado === "ACTIVO"}
+                          onCheckedChange={() => void changeEstado(combo)}
+                          aria-label={`${combo.estado === "ACTIVO" ? "Desactivar" : "Activar"} ${combo.nombre}`}
+                        />
+                        <Button type="button" variant="ghost" size="sm" onClick={() => {
+                          setEditingId(combo.idPromocionCombo)
+                          setDurationMode("PERSONALIZADO")
+                          setForm(formFromCombo(combo))
+                          setDialogOpen(true)
+                        }}>
+                          <PencilSquareIcon className="h-4 w-4" />
+                        </Button>
+                        <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => setDeleteTarget(combo)}>
+                          <TrashIcon className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                )})}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
       <PaginationResponsive
@@ -934,23 +945,11 @@ function ComboPromocionesTab() {
             <p>No hay combos registrados.</p>
           </div>
         ) : (
-          <Tabs defaultValue="todas" className="space-y-4">
+          <Tabs defaultValue="activas" className="space-y-4">
             <TabsList>
-              <TabsTrigger value="todas">Todas</TabsTrigger>
               <TabsTrigger value="activas">Promociones activas</TabsTrigger>
               <TabsTrigger value="vencidas">Promociones vencidas</TabsTrigger>
             </TabsList>
-            <TabsContent value="todas">
-              {renderComboSection(
-                "Todas las promociones",
-                "Combos activos, inactivos y vencidos. Desactivar no elimina el combo.",
-                allCombos,
-                allPage,
-                allTotalPages,
-                allTotalElements,
-                setAllPage
-              )}
-            </TabsContent>
             <TabsContent value="activas">
               {renderComboSection(
                 "Promociones activas",
@@ -984,6 +983,7 @@ export default function EcommercePage() {
   const { user, isLoading } = useAuth()
   const canManage = user?.rol === "ADMINISTRADOR" || user?.rol === "SISTEMA"
   const [portadas, setPortadas] = useState<EcommercePortada[]>([])
+  const [portadaDialogOpen, setPortadaDialogOpen] = useState(false)
   const [desktop, setDesktop] = useState<File | null>(null)
   const [mobile, setMobile] = useState<File | null>(null)
   const [loading, setLoading] = useState(true)
@@ -1044,6 +1044,7 @@ export default function EcommercePage() {
 
     setDesktop(null)
     setMobile(null)
+    setPortadaDialogOpen(false)
     toast.success("Portada subida correctamente")
     await fetchPortadas()
   }
@@ -1097,110 +1098,149 @@ export default function EcommercePage() {
         <h1 className="text-2xl font-black tracking-tight text-foreground sm:text-3xl">Administracion ecommerce</h1>
       </div>
 
-      <Tabs defaultValue="portadas" className="space-y-5">
+      <Tabs defaultValue="combos" className="space-y-5">
         <TabsList>
-          <TabsTrigger value="portadas">Portadas</TabsTrigger>
           <TabsTrigger value="combos">Combos ofertas</TabsTrigger>
+          <TabsTrigger value="portadas">Portadas</TabsTrigger>
+          <TabsTrigger value="ofertas">Ofertas</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="portadas" className="space-y-5">
-          <Card>
-            <CardContent className="space-y-4 p-5">
-              <div className="grid gap-4 lg:grid-cols-2">
-                <FilePicker
-                  label="Portada pantalla grande"
-                  dimensions="1672 x 941 px"
-                  aspectClass="aspect-[1672/941]"
-                  templateUrl={DESKTOP_TEMPLATE_URL}
-                  icon={ComputerDesktopIcon}
-                  file={desktop}
-                  onChange={setDesktop}
-                />
-                <FilePicker
-                  label="Portada celular"
-                  dimensions="1254 x 1254 px"
-                  aspectClass="aspect-square"
-                  templateUrl={MOBILE_TEMPLATE_URL}
-                  icon={DevicePhoneMobileIcon}
-                  file={mobile}
-                  onChange={setMobile}
-                />
-              </div>
-              <Button onClick={handleCreate} disabled={saving || loading} className="gap-2">
-                {saving ? <ArrowPathIcon className="h-4 w-4 animate-spin" /> : <ArrowUpTrayIcon className="h-4 w-4" />}
-                Subir portada
-              </Button>
-            </CardContent>
-          </Card>
+        <TabsContent value="combos">
+          <ComboPromocionesTab />
+        </TabsContent>
 
-          <div className="grid gap-4">
-            {loading ? (
-              <Card>
-                <CardContent className="p-5 text-sm text-muted-foreground">Cargando portadas...</CardContent>
-              </Card>
-            ) : portadas.length === 0 ? (
-              <Card>
-                <CardContent className="p-5 text-sm text-muted-foreground">No hay portadas registradas.</CardContent>
-              </Card>
-            ) : (
-              portadas.map((portada) => (
-                <Card key={portada.idEcommercePortada}>
-                  <CardContent className="grid gap-4 p-4 lg:grid-cols-[1fr_180px_auto] lg:items-center">
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      {[
-                        {
-                          label: "Desktop",
-                          dimensions: "1672 x 941 px",
-                          aspectClass: "aspect-[1672/941]",
-                          url: portada.desktopThumbUrl ?? portada.desktopUrl,
-                        },
-                        {
-                          label: "Mobile",
-                          dimensions: "1254 x 1254 px",
-                          aspectClass: "aspect-square",
-                          url: portada.mobileThumbUrl ?? portada.mobileUrl,
-                        },
-                      ].map((item) => (
-                        <div key={item.label} className="overflow-hidden rounded-md border bg-muted">
-                          <div className="border-b bg-background px-2 py-1 text-[11px] font-medium text-muted-foreground">
-                            {item.label} - {item.dimensions}
-                          </div>
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={resolveBackendUrl(item.url) ?? ""}
-                            alt={`${item.label} portada`}
-                            className={`${item.aspectClass} w-full object-cover`}
-                          />
-                        </div>
-                      ))}
+        <TabsContent value="portadas" className="space-y-5">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">{portadas.length} portada{portadas.length !== 1 ? "s" : ""} registrada{portadas.length !== 1 ? "s" : ""}</p>
+            <Button
+              onClick={() => {
+                setDesktop(null)
+                setMobile(null)
+                setPortadaDialogOpen(true)
+              }}
+              className="gap-2"
+              disabled={loading}
+            >
+              <PlusIcon className="h-4 w-4" />
+              Agregar portada
+            </Button>
+          </div>
+
+          <Dialog
+            open={portadaDialogOpen}
+            onOpenChange={(open) => {
+              if (!open && !saving) {
+                setPortadaDialogOpen(false)
+                setDesktop(null)
+                setMobile(null)
+              }
+            }}
+          >
+            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Agregar portada</DialogTitle>
+                <DialogDescription>Subi las imagenes desktop y mobile para la portada del ecommerce.</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <FilePicker
+                    label="Portada pantalla grande"
+                    dimensions="1672 x 941 px"
+                    aspectClass="aspect-[1672/941]"
+                    templateUrl={DESKTOP_TEMPLATE_URL}
+                    icon={ComputerDesktopIcon}
+                    file={desktop}
+                    onChange={setDesktop}
+                  />
+                  <FilePicker
+                    label="Portada celular"
+                    dimensions="1254 x 1254 px"
+                    aspectClass="aspect-square"
+                    templateUrl={MOBILE_TEMPLATE_URL}
+                    icon={DevicePhoneMobileIcon}
+                    file={mobile}
+                    onChange={setMobile}
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" disabled={saving} onClick={() => { setDesktop(null); setMobile(null); setPortadaDialogOpen(false) }}>
+                  Cancelar
+                </Button>
+                <Button onClick={handleCreate} disabled={saving} className="gap-2">
+                  {saving ? <ArrowPathIcon className="h-4 w-4 animate-spin" /> : <ArrowUpTrayIcon className="h-4 w-4" />}
+                  {saving ? "Subiendo..." : "Subir portada"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {loading ? (
+            <div className="flex min-h-40 items-center justify-center">
+              <LoaderSpinner size="sm" />
+            </div>
+          ) : portadas.length === 0 ? (
+            <div className="flex min-h-40 flex-col items-center justify-center gap-3 rounded-lg border text-center text-sm text-muted-foreground">
+              <PhotoIcon className="h-8 w-8" />
+              <p>No hay portadas registradas.</p>
+            </div>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {portadas.map((portada) => (
+                <Card key={portada.idEcommercePortada} className="group overflow-hidden">
+                  <div className="relative">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={resolveBackendUrl(portada.desktopThumbUrl ?? portada.desktopUrl) ?? ""}
+                      alt={`Portada #${portada.orden}`}
+                      className="aspect-[1672/941] w-full object-cover"
+                    />
+                    <div className="absolute inset-x-0 top-0 flex items-start justify-between p-2">
+                      <span className="rounded-full bg-black/60 px-2 py-0.5 text-[11px] font-semibold text-white backdrop-blur-sm">
+                        #{portada.orden}
+                      </span>
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold backdrop-blur-sm ${portada.estado === "ACTIVO" ? "bg-emerald-500/80 text-white" : "bg-muted-foreground/60 text-white"}`}>
+                        {portada.estado}
+                      </span>
                     </div>
-                    <div>
-                      <p className="text-sm font-semibold">Portada #{portada.orden}</p>
-                      <p className="text-xs text-muted-foreground">{portada.estado}</p>
+                    <div className="absolute bottom-2 left-2">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={resolveBackendUrl(portada.mobileThumbUrl ?? portada.mobileUrl) ?? ""}
+                        alt={`Mobile portada #${portada.orden}`}
+                        className="h-14 w-14 rounded-lg border-2 border-white/80 object-cover shadow-md"
+                      />
                     </div>
-                    <div className="flex gap-2 lg:justify-end">
-                      <Button type="button" variant="outline" onClick={() => void handleEstado(portada)}>
+                    <div className="absolute inset-x-0 bottom-0 flex items-center justify-end gap-1 bg-gradient-to-t from-black/70 to-transparent p-2 pt-6 opacity-0 transition-opacity group-hover:opacity-100">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        className="h-8 text-xs"
+                        onClick={() => void handleEstado(portada)}
+                      >
                         {portada.estado === "ACTIVO" ? "Desactivar" : "Activar"}
                       </Button>
                       <Button
                         type="button"
-                        variant="ghost"
-                        className="text-destructive"
+                        size="sm"
+                        variant="destructive"
+                        className="h-8 text-xs"
                         aria-label="Eliminar portada"
                         onClick={() => void handleDelete(portada)}
                       >
-                        <TrashIcon className="h-4 w-4" />
+                        <TrashIcon className="h-3.5 w-3.5" />
                       </Button>
                     </div>
-                  </CardContent>
+                  </div>
                 </Card>
-              ))
-            )}
-          </div>
+              ))}
+            </div>
+          )}
         </TabsContent>
 
-        <TabsContent value="combos">
-          <ComboPromocionesTab />
+        <TabsContent value="ofertas">
+          <OfertasEcommerceTab />
         </TabsContent>
       </Tabs>
     </div>
