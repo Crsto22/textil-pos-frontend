@@ -16,7 +16,7 @@ import {
 } from "@heroicons/react/24/outline"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card } from "@/components/ui/card"
 import {
   Dialog,
   DialogContent,
@@ -44,6 +44,12 @@ interface EcommercePortada {
   mobileThumbUrl: string | null
   orden: number
   estado: "ACTIVO" | "INACTIVO"
+}
+
+interface EcommerceContacto {
+  configurado: boolean
+  whatsappCelular: string | null
+  whatsappNumeroInternacional: string | null
 }
 
 interface PromocionComboItem {
@@ -263,6 +269,113 @@ function validateComboForm(form: ComboFormState) {
   if (total !== 2) return "El combo debe sumar exactamente 2 unidades"
   if (form.items.length === 0) return "Agrega al menos un producto"
   return null
+}
+
+function ContactoEcommerceTab() {
+  const [contacto, setContacto] = useState<EcommerceContacto | null>(null)
+  const [whatsappCelular, setWhatsappCelular] = useState("")
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+
+  const fetchContacto = useCallback(async () => {
+    setLoading(true)
+    const response = await authFetch("/api/config/ecommerce/contacto")
+    const data = await response.json().catch(() => null)
+    setLoading(false)
+
+    if (!response.ok) {
+      toast.error(data?.message ?? "No se pudo cargar el contacto")
+      return
+    }
+
+    setContacto(data)
+    setWhatsappCelular(data?.whatsappCelular ?? "")
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    queueMicrotask(() => {
+      if (!cancelled) void fetchContacto()
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [fetchContacto])
+
+  const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setWhatsappCelular(event.target.value.replace(/\D/g, "").slice(0, 9))
+  }
+
+  const handleSave = async () => {
+    const value = whatsappCelular.trim()
+    if (value && value.length !== 9) {
+      toast.error("El celular WhatsApp debe tener 9 digitos")
+      return
+    }
+
+    setSaving(true)
+    const response = await authFetch("/api/config/ecommerce/contacto", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ whatsappCelular: value || null }),
+    })
+    const data = await response.json().catch(() => null)
+    setSaving(false)
+
+    if (!response.ok) {
+      toast.error(data?.message ?? "No se pudo guardar el contacto")
+      return
+    }
+
+    setContacto(data)
+    setWhatsappCelular(data?.whatsappCelular ?? "")
+    toast.success(data?.configurado ? "Contacto WhatsApp actualizado" : "Contacto WhatsApp desactivado")
+  }
+
+  if (loading) {
+    return (
+      <div className="flex min-h-40 items-center justify-center">
+        <LoaderSpinner size="sm" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="max-w-xl space-y-5 rounded-lg border bg-background p-5">
+      <div>
+        <h2 className="text-lg font-bold">Contacto WhatsApp</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Este numero se mostrara en el ecommerce como acceso rapido a WhatsApp.
+        </p>
+      </div>
+
+      <label className="block space-y-2">
+        <span className="text-sm font-medium">Celular WhatsApp</span>
+        <div className="flex overflow-hidden rounded-md border bg-background">
+          <span className="flex items-center border-r bg-muted px-3 text-sm text-muted-foreground">+51</span>
+          <input
+            value={whatsappCelular}
+            onChange={handleChange}
+            inputMode="numeric"
+            maxLength={9}
+            placeholder="999999999"
+            className="h-11 min-w-0 flex-1 bg-transparent px-3 text-sm outline-none"
+          />
+        </div>
+      </label>
+
+      {contacto?.configurado && contacto.whatsappNumeroInternacional ? (
+        <p className="text-sm text-muted-foreground">Activo: +{contacto.whatsappNumeroInternacional}</p>
+      ) : (
+        <p className="text-sm text-muted-foreground">Sin numero activo. El ecommerce ocultara WhatsApp.</p>
+      )}
+
+      <Button onClick={handleSave} disabled={saving} className="gap-2">
+        {saving ? <ArrowPathIcon className="h-4 w-4 animate-spin" /> : <DevicePhoneMobileIcon className="h-4 w-4" />}
+        {saving ? "Guardando..." : "Guardar contacto"}
+      </Button>
+    </div>
+  )
 }
 
 function ComboPromocionesTab() {
@@ -1103,6 +1216,7 @@ export default function EcommercePage() {
           <TabsTrigger value="combos">Combos ofertas</TabsTrigger>
           <TabsTrigger value="portadas">Portadas</TabsTrigger>
           <TabsTrigger value="ofertas">Ofertas</TabsTrigger>
+          <TabsTrigger value="contacto">Contacto</TabsTrigger>
         </TabsList>
 
         <TabsContent value="combos">
@@ -1241,6 +1355,10 @@ export default function EcommercePage() {
 
         <TabsContent value="ofertas">
           <OfertasEcommerceTab />
+        </TabsContent>
+
+        <TabsContent value="contacto">
+          <ContactoEcommerceTab />
         </TabsContent>
       </Tabs>
     </div>
