@@ -381,11 +381,7 @@ export function OfertasEcommerceTab() {
                             <div className="min-w-0 flex-1">
                               <p className="truncate font-medium">{p.nombre}</p>
                               <p className="text-xs text-muted-foreground">
-                                {p.precioMin !== undefined && p.precioMax !== undefined
-                                  ? p.precioMin === p.precioMax
-                                    ? formatMoney(p.precioMin)
-                                    : `${formatMoney(p.precioMin)} - ${formatMoney(p.precioMax)}`
-                                  : "Sin precio"}
+                                {getPriceRangeLabel(p.precioMin ?? null, p.precioMax ?? null)}
                               </p>
                             </div>
                             <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
@@ -429,11 +425,7 @@ export function OfertasEcommerceTab() {
                     <div className="min-w-0">
                       <p className="truncate text-base font-bold">{selectedProduct.nombre}</p>
                       <p className="text-sm text-muted-foreground">
-                        {selectedProduct.precioMin !== undefined && selectedProduct.precioMax !== undefined
-                          ? selectedProduct.precioMin === selectedProduct.precioMax
-                            ? formatMoney(selectedProduct.precioMin)
-                            : `${formatMoney(selectedProduct.precioMin)} - ${formatMoney(selectedProduct.precioMax)}`
-                          : "Sin precio"}
+                        {getPriceRangeLabel(selectedProduct.precioMin ?? null, selectedProduct.precioMax ?? null)}
                       </p>
                     </div>
                   </div>

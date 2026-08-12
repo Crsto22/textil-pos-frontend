@@ -132,7 +132,7 @@ export function useOfertasEcommerce() {
 
         if (!response.ok) break
 
-        const content = Array.isArray(data?.content) ? data.content : []
+        const content: unknown[] = Array.isArray(data?.content) ? data.content : []
         const parsed = content
           .map((item: unknown) => parseProductoVarianteOferta(item))
           .filter((item): item is ProductoVarianteOferta => item !== null)

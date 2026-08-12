@@ -579,7 +579,7 @@ export default function ProductModal({
       }}
     >
       <DialogContent
-        className="max-h-[92vh]  xl:max-w-[70rem] overflow-hidden rounded-3xl border border-slate-200 bg-white p-0 shadow-2xl dark:border-slate-700 dark:bg-slate-900"
+        className="max-h-[92vh] xl:max-w-[70rem] overflow-hidden rounded-3xl border-0 bg-white p-0 shadow-2xl dark:bg-slate-900"
         showCloseButton={false}
       >
         <DialogHeader className="sr-only">
@@ -599,7 +599,7 @@ export default function ProductModal({
         </Button>
 
         <div className="flex max-h-[92vh] w-full flex-col overflow-hidden sm:flex-row">
-        <section className="relative h-[300px] w-full shrink-0 overflow-hidden border-b border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/40 sm:h-auto sm:w-[44%] sm:border-b-0 sm:border-r">
+        <section className="relative h-[300px] w-full shrink-0 overflow-hidden sm:h-auto sm:w-[44%]">
           {detalleLoading && !detalle ? (
             <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-slate-200 via-slate-100 to-slate-200 dark:from-slate-800 dark:via-slate-700 dark:to-slate-800" />
           ) : galleryImages.length > 0 ? (
@@ -609,7 +609,7 @@ export default function ProductModal({
               fill
               unoptimized
               sizes="(max-width: 1024px) 100vw, 42vw"
-              className="object-contain p-6"
+              className="object-cover"
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center">
@@ -642,8 +642,9 @@ export default function ProductModal({
           )}
         </section>
 
-        <section className="flex min-h-0 flex-1 flex-col overflow-y-auto p-5 sm:p-7">
+        <section className="flex min-h-0 flex-1 flex-col">
           {detalleLoading && !detalle ? (
+            <div className="flex-1 overflow-y-auto p-5 sm:p-7">
             <div className="space-y-5">
               <div className="h-3 w-24 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
               <div className="h-8 w-2/3 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
@@ -670,8 +671,12 @@ export default function ProductModal({
 
               <div className="h-12 w-full animate-pulse rounded-2xl bg-slate-200 dark:bg-slate-700" />
             </div>
-          ) : (
-            <>
+            </div>
+          ) : null}
+
+          {(!detalleLoading || detalle) && (
+            <div className="flex min-h-0 flex-1 flex-col">
+              <div className="flex-1 overflow-y-auto p-5 sm:p-7">
               <div className="space-y-1.5">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:bg-slate-800 dark:text-slate-300">
@@ -682,17 +687,17 @@ export default function ProductModal({
                   </span>
                 </div>
 
-                <h3 className="text-2xl font-bold leading-tight text-slate-900 dark:text-white">
+                <h3 className="text-3xl leading-tight text-slate-900 dark:text-white" style={{ fontWeight: 900 }}>
                   {detalle?.producto.nombre || product.nombre}
                 </h3>
 
-                <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400 dark:text-slate-500">
                   {selectedVariante?.sku ? (
-                    <span className="rounded-md border border-slate-200 px-2 py-0.5 font-mono dark:border-slate-700">
+                    <span className="font-mono">
                       SKU: {selectedVariante.sku}
                     </span>
                   ) : (
-                    <span className="rounded-md border border-slate-200 px-2 py-0.5 font-mono dark:border-slate-700">
+                    <span className="font-mono">
                       SKU por variante
                     </span>
                   )}
@@ -733,7 +738,9 @@ export default function ProductModal({
 
               <div className="mt-5 space-y-4">
                 <div className="space-y-2">
-                  <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Color</p>
+                  <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                    Color{selectedColor ? `: ${selectedColor.nombre}` : ""}
+                  </p>
                   <div className="flex flex-wrap gap-2">
                     {colorOptions.length === 0 ? (
                       <span className="rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
@@ -741,44 +748,38 @@ export default function ProductModal({
                       </span>
                     ) : (
                       colorOptions.map((color) => (
-                        <Button
-                          type="button"
-                          key={color.colorId}
-                          onClick={() => setSelectedColorId(color.colorId)}
-                          variant="outline"
-                          size="sm"
-                          className={`cursor-pointer inline-flex items-center gap-2 text-xs font-semibold transition-colors ${
-                            selectedColorId === color.colorId
-                              ? "border-blue-400 bg-blue-50 text-blue-700 dark:border-blue-500/50 dark:bg-blue-500/15 dark:text-blue-300"
-                              : "border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-                          }`}
-                        >
-                          <span
-                            className="h-3.5 w-3.5 rounded-full border border-white/70"
+                        <div key={color.colorId} className="group relative flex flex-col items-center">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedColorId(color.colorId)}
                             style={{ backgroundColor: color.hex }}
-                            aria-hidden="true"
+                            className={`cursor-pointer h-11 w-11 rounded-full transition-colors border-2 border-white/30 dark:border-white/20 ${
+                              selectedColorId === color.colorId
+                                ? "ring-2 ring-blue-400 dark:ring-blue-400"
+                                : "hover:ring-2 hover:ring-slate-300 dark:hover:ring-slate-600"
+                            }`}
+                            aria-label={color.nombre}
                           />
-                          {color.nombre}
-                        </Button>
+                          <span className="pointer-events-none absolute -bottom-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-800 px-2 py-1 text-[11px] font-medium text-white opacity-0 transition-opacity group-hover:opacity-100 dark:bg-white dark:text-slate-800 z-10">
+                            {color.nombre}
+                          </span>
+                        </div>
                       ))
                     )}
                   </div>
                 </div>
 
                 {selectedColor && (
-                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 dark:border-slate-700 dark:bg-slate-800/40">
-                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-                        {selectedColor.nombre}
-                      </p>
+                  <div className="p-3">
+                    <div className="mb-2 flex items-center justify-end">
                       <p className="text-[11px] text-slate-500 dark:text-slate-400">
                         Stock color: {variantesPorColor.reduce((sum, item) => sum + getEffectiveStock(item, idSucursal), 0)}
                       </p>
                     </div>
 
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                       {variantesPorColor.length === 0 ? (
-                        <div className="rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                        <div className="col-span-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
                           Sin tallas registradas para este color
                         </div>
                       ) : (
@@ -799,25 +800,23 @@ export default function ProductModal({
                               key={variante.idProductoVariante}
                               onClick={() => setSelectedTallaId(variante.tallaId)}
                               variant="outline"
-                              className={`cursor-pointer h-auto flex-col items-stretch justify-start rounded-xl px-3 py-2 text-left transition-colors ${
+                              className={`cursor-pointer h-auto flex-col items-center justify-center rounded-xl px-3 py-2 text-center transition-colors ${
                                 selected
                                   ? "border-blue-400 bg-blue-50 dark:border-blue-500/50 dark:bg-blue-500/15"
                                   : "border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
                               } ${agotado ? "opacity-60" : ""}`}
                             >
-                              <div className="flex w-full items-center justify-between gap-2">
-                                <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">
-                                  Talla {variante.tallaNombre}
-                                </span>
-                                <span className="inline-flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400">
-                                  <span
-                                    className={`h-2 w-2 rounded-full ${getStockLevelClass(stockVariante)}`}
-                                  />
-                                  {stockVariante} u.
-                                </span>
-                              </div>
+                              <span className="text-base font-bold text-slate-800 dark:text-slate-100">
+                                {variante.tallaNombre}
+                              </span>
+                              <span className="mt-1 inline-flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400">
+                                <span
+                                  className={`h-2 w-2 rounded-full ${getStockLevelClass(stockVariante)}`}
+                                />
+                                {stockVariante} Disp.
+                              </span>
                               {offerCopy && (
-                                <p className="mt-2 text-[11px] font-medium leading-snug text-emerald-600 dark:text-emerald-400">
+                                <p className="mt-1 text-[10px] font-medium leading-snug text-emerald-600 dark:text-emerald-400">
                                   {offerCopy}
                                 </p>
                               )}
@@ -828,10 +827,14 @@ export default function ProductModal({
                     </div>
                   </div>
                 )}
+              </div>
+              </div>
 
-                <div className="space-y-2">
-                  <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Cantidad</p>
-                  <div className="flex items-center justify-between gap-4">
+              {selectedColor && (
+                <div className="shrink-0 border-t border-slate-200 p-4 dark:border-slate-700">
+                <div className="flex items-end gap-3">
+                  <div>
+                    <p className="mb-1 text-sm font-semibold text-slate-700 dark:text-slate-200">Cantidad</p>
                     <div className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-slate-800">
                       <Button
                         type="button"
@@ -858,33 +861,27 @@ export default function ProductModal({
                         <PlusIcon className="h-4 w-4" />
                       </Button>
                     </div>
-
-                    <div className="text-right">
-                      <p className="text-xs text-slate-500 dark:text-slate-400">Subtotal</p>
-                      <p className="text-xl font-extrabold tabular-nums text-slate-900 dark:text-white">
-                        {formatMonedaPen(subtotal)}
-                      </p>
-                    </div>
                   </div>
-                </div>
 
-                <Button
-                  type="button"
-                  onClick={handleConfirm}
-                  disabled={!canConfirm}
-                  className="mt-2 h-12 w-full rounded-2xl text-sm font-bold"
-                >
-                  <ShoppingBagIcon className="h-4 w-4" />
-                  {canConfirm
-                    ? `Agregar al pedido - ${formatMonedaPen(subtotal)}`
-                    : !selectedColorId
-                      ? "Selecciona un color"
-                      : !selectedTallaId
-                        ? "Selecciona una talla"
-                        : "Sin stock disponible"}
-                </Button>
+                  <Button
+                    type="button"
+                    onClick={handleConfirm}
+                    disabled={!canConfirm}
+                    className="h-11 flex-1 rounded-2xl text-sm font-bold"
+                  >
+                    <ShoppingBagIcon className="h-4 w-4" />
+                    {canConfirm
+                      ? `Agregar al pedido - ${formatMonedaPen(subtotal)}`
+                      : !selectedColorId
+                        ? "Selecciona un color"
+                        : !selectedTallaId
+                          ? "Selecciona una talla"
+                          : "Sin stock disponible"}
+                  </Button>
+                </div>
               </div>
-            </>
+            )}
+            </div>
           )}
         </section>
         </div>
