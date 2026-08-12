@@ -128,7 +128,7 @@ export default function CartItem({
                         fill
                         unoptimized
                         sizes="48px"
-                        className="object-contain p-1"
+                        className="object-cover"
                     />
                 ) : (
                     <div className="flex h-full w-full items-center justify-center text-slate-400 dark:text-slate-500">

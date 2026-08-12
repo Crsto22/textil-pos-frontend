@@ -63,7 +63,7 @@ function getInitialColorIndex(
   }
 
   const colorWithImageIdx = producto.colores.findIndex(
-    (color) => Boolean(color.imagenPrincipal?.urlThumb || color.imagenPrincipal?.url)
+    (color) => Boolean(color.imagenPrincipal?.url || color.imagenPrincipal?.urlThumb)
   )
   if (colorWithImageIdx >= 0) return colorWithImageIdx
 
@@ -111,10 +111,10 @@ function ProductoRow({
   const tallaActiva = tallas[tallaActivaIdx] ?? null
 
   const imagenSrc =
-    colorActivo?.imagenPrincipal?.urlThumb ??
     colorActivo?.imagenPrincipal?.url ??
-    fallbackColor?.imagenPrincipal?.urlThumb ??
+    colorActivo?.imagenPrincipal?.urlThumb ??
     fallbackColor?.imagenPrincipal?.url ??
+    fallbackColor?.imagenPrincipal?.urlThumb ??
     null
   const estadoActivo = producto.estado === "ACTIVO"
   const totalSkus = getTotalSkus(producto)
@@ -144,7 +144,7 @@ function ProductoRow({
                 alt={`${producto.nombre} - ${colorActivo?.nombre ?? "Color"}`}
                 loading="lazy"
                 decoding="async"
-                className="h-full w-full object-contain p-1.5"
+                className="h-full w-full object-cover"
                 onError={(e) => {
                   e.currentTarget.style.display = "none"
                   setImgError(true)

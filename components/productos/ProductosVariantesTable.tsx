@@ -165,7 +165,7 @@ function ProductosVariantesTableComponent({
                               alt={`${variant.productName} - ${variant.colorName}`}
                               fill
                               sizes="56px"
-                              className="object-contain p-1.5"
+                              className="object-cover"
                             />
                           ) : (
                             <div className="flex h-full w-full items-center justify-center">

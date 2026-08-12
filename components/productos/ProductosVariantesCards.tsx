@@ -96,7 +96,7 @@ function VarianteCard({ variant, onEditVariante, onDeleteVariante, onShowBarcode
             alt={`${variant.productName} - ${variant.colorName}`}
             fill
             sizes="(max-width: 768px) 100vw, (max-width: 1700px) 50vw, 20vw"
-            className={cn("object-contain p-4", (noStock || noStockRegistered) && "opacity-50")}
+            className={cn("object-cover", (noStock || noStockRegistered) && "opacity-50")}
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center">

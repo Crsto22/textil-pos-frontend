@@ -171,7 +171,7 @@ export default function ProductCard({ product, onAdd, variantItem, onAddStock, c
             fill
             unoptimized
             sizes="(max-width: 768px) 100vw, (max-width: 1700px) 33vw, 25vw"
-            className="object-contain p-4"
+            className="object-cover"
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center">
