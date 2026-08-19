@@ -17,6 +17,7 @@ import {
   MapPinIcon,
   MinusIcon,
   MoonIcon,
+  NoSymbolIcon,
   QuestionMarkCircleIcon,
   PencilSquareIcon,
   UserGroupIcon,
@@ -45,13 +46,14 @@ import {
   SearchInput,
   TableMessage,
 } from "@/components/asistencias/AsistenciaShared";
-import { formatDurationSeconds, formatMinutes, todayInLima } from "@/lib/asistencia-utils";
+import { formatDateTime, formatDurationSeconds, formatMinutes, todayInLima } from "@/lib/asistencia-utils";
 import { AsistenciaExcelDialog } from "@/components/asistencias/AsistenciaExcelDialog";
-import { MarcacionManualDialog } from "@/components/asistencias/MarcacionDialogs";
+import { AnularMarcacionDialog, MarcacionManualDialog } from "@/components/asistencias/MarcacionDialogs";
 import { useAsistenciaPage } from "@/lib/hooks/useAsistenciaData";
 import { SEARCH_DEBOUNCE_MS, useDebouncedValue } from "@/lib/hooks/useDebouncedValue";
 import { useSucursalOptions } from "@/lib/hooks/useSucursalOptions";
 import type {
+  MarcacionAsistencia,
   ResumenAsistencia,
   ResumenSemanalAsistencia,
 } from "@/lib/types/asistencia";
@@ -432,6 +434,7 @@ function WeeklyTable({
       <AttendanceDetailDialog
         detail={detail}
         onOpenChange={(open) => !open && setDetail(null)}
+        onSaved={data.refresh}
         onManual={(day) => {
           setManualDefaults({
             idTrabajador: day.idTrabajador,
@@ -641,85 +644,158 @@ function attendanceVisual(day: ResumenAsistencia) {
 function AttendanceDetailDialog({
   detail,
   onOpenChange,
+  onSaved,
   onManual,
 }: {
   detail: { day: ResumenAsistencia; worker: string } | null;
   onOpenChange: (open: boolean) => void;
+  onSaved: () => void;
   onManual: (day: ResumenAsistencia) => void;
 }) {
   const day = detail?.day;
   const visual = day ? attendanceVisual(day) : null;
   const StatusIcon = visual?.icon;
+  const marksEndpoint = useMemo(() => {
+    if (!day || day.estado !== "REQUIERE_REVISION") return "";
+    const params = new URLSearchParams({
+      desde: `${day.fecha}T00:00:00`,
+      hasta: `${day.fecha}T23:59:59`,
+      idTrabajador: String(day.idTrabajador),
+      page: "0",
+      size: "200",
+    });
+    return `/api/asistencia/marcaciones?${params}`;
+  }, [day]);
+  const marks = useAsistenciaPage<MarcacionAsistencia>(marksEndpoint);
+  const [annulTarget, setAnnulTarget] = useState<MarcacionAsistencia | null>(null);
   return (
-    <Dialog open={detail !== null} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
-        <DialogHeader>
-          <DialogTitle>{detail?.worker}</DialogTitle>
-          <DialogDescription>
-            {day ? `${formatFullDate(day.fecha)} - ${day.cantidadMarcaciones} marcaciones` : ""}
-          </DialogDescription>
-        </DialogHeader>
-        {day ? (
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3 text-sm">
-              <span className={`inline-flex items-center gap-2 rounded-full px-2.5 py-1 font-medium ${visual?.className}`}>
-                {StatusIcon ? <StatusIcon className="h-4 w-4" /> : null}
-                {visual?.label}
-              </span>
-              <span className="text-muted-foreground">
-                Total: {day.segundosTrabajados > 0 ? formatDurationSeconds(day.segundosTrabajados) : "Pendiente"}
-              </span>
-            </div>
-            {day.cantidadMarcaciones < 2 && day.fecha <= todayInLima() ? (
-              <Button type="button" className="w-full" onClick={() => onManual(day)}>
-                <PencilSquareIcon className="h-4 w-4" />
-                Registrar {day.cantidadMarcaciones === 0 ? "entrada" : "salida"} manual
-              </Button>
-            ) : null}
-            {day.estado === "REQUIERE_REVISION" ? (
-              <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
-                No se calcularon horas. Anula las marcaciones incorrectas desde la pantalla Marcaciones.
-              </p>
-            ) : null}
-            {day.horaProgramadaEntrada || day.horaProgramadaSalida ? (
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div>
-                  <span className="block text-xs font-medium uppercase text-muted-foreground">Entrada programada</span>
-                  <span className="font-medium">{day.horaProgramadaEntrada?.slice(0, 5) ?? "No definida"}</span>
-                </div>
-                <div>
-                  <span className="block text-xs font-medium uppercase text-muted-foreground">Salida programada</span>
-                  <span className="font-medium">{day.horaProgramadaSalida?.slice(0, 5) ?? "No definida"}</span>
-                </div>
+    <>
+      <Dialog open={detail !== null} onOpenChange={onOpenChange}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>{detail?.worker}</DialogTitle>
+            <DialogDescription>
+              {day ? `${formatFullDate(day.fecha)} - ${day.cantidadMarcaciones} marcaciones` : ""}
+            </DialogDescription>
+          </DialogHeader>
+          {day ? (
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3 text-sm">
+                <span className={`inline-flex items-center gap-2 rounded-full px-2.5 py-1 font-medium ${visual?.className}`}>
+                  {StatusIcon ? <StatusIcon className="h-4 w-4" /> : null}
+                  {visual?.label}
+                </span>
+                <span className="text-muted-foreground">
+                  Total: {day.segundosTrabajados > 0 ? formatDurationSeconds(day.segundosTrabajados) : "Pendiente"}
+                </span>
               </div>
-            ) : null}
-            {day.sesiones.length > 0 ? (
-              <div className="divide-y">
-                {day.sesiones.map((session, index) => (
-                  <div key={`${session.idSucursal}-${session.entrada}-${index}`} className="py-4 first:pt-0 last:pb-0">
-                    <div className="mb-2 flex items-center justify-between gap-3">
-                      <span className="flex min-w-0 items-center gap-2 font-medium">
-                        <MapPinIcon className="h-4 w-4 shrink-0 text-emerald-600" />
-                        <span className="truncate">{session.sucursal}</span>
-                      </span>
-                      <span className={session.completa ? "text-sm font-medium" : "text-sm text-orange-600"}>
-                        {session.completa ? formatDurationSeconds(session.segundosTrabajados) : "Salida pendiente"}
-                      </span>
-                    </div>
-                    <div className="grid gap-2 text-sm sm:grid-cols-2">
-                      <SessionMark label="Entrada" value={session.entrada} device={session.dispositivoEntrada} branch={session.sucursal} />
-                      <SessionMark label="Salida" value={session.salida} device={session.dispositivoSalida} branch={session.sucursalSalida} />
-                    </div>
+              {day.cantidadMarcaciones < 2 && day.fecha <= todayInLima() ? (
+                <Button type="button" className="w-full" onClick={() => onManual(day)}>
+                  <PencilSquareIcon className="h-4 w-4" />
+                  Registrar {day.cantidadMarcaciones === 0 ? "entrada" : "salida"} manual
+                </Button>
+              ) : null}
+              {day.estado === "REQUIERE_REVISION" ? (
+                <RevisionMarksPanel marks={marks} onAnnul={setAnnulTarget} />
+              ) : null}
+              {day.horaProgramadaEntrada || day.horaProgramadaSalida ? (
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <span className="block text-xs font-medium uppercase text-muted-foreground">Entrada programada</span>
+                    <span className="font-medium">{day.horaProgramadaEntrada?.slice(0, 5) ?? "No definida"}</span>
                   </div>
-                ))}
+                  <div>
+                    <span className="block text-xs font-medium uppercase text-muted-foreground">Salida programada</span>
+                    <span className="font-medium">{day.horaProgramadaSalida?.slice(0, 5) ?? "No definida"}</span>
+                  </div>
+                </div>
+              ) : null}
+              {day.sesiones.length > 0 ? (
+                <div className="divide-y">
+                  {day.sesiones.map((session, index) => (
+                    <div key={`${session.idSucursal}-${session.entrada}-${index}`} className="py-4 first:pt-0 last:pb-0">
+                      <div className="mb-2 flex items-center justify-between gap-3">
+                        <span className="flex min-w-0 items-center gap-2 font-medium">
+                          <MapPinIcon className="h-4 w-4 shrink-0 text-emerald-600" />
+                          <span className="truncate">{session.sucursal}</span>
+                        </span>
+                        <span className={session.completa ? "text-sm font-medium" : "text-sm text-orange-600"}>
+                          {session.completa ? formatDurationSeconds(session.segundosTrabajados) : "Salida pendiente"}
+                        </span>
+                      </div>
+                      <div className="grid gap-2 text-sm sm:grid-cols-2">
+                        <SessionMark label="Entrada" value={session.entrada} device={session.dispositivoEntrada} branch={session.sucursal} />
+                        <SessionMark label="Salida" value={session.salida} device={session.dispositivoSalida} branch={session.sucursalSalida} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="py-4 text-center text-sm text-muted-foreground">No hay recorrido registrado.</p>
+              )}
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+      <AnularMarcacionDialog
+        mark={annulTarget}
+        onOpenChange={(open) => !open && setAnnulTarget(null)}
+        onSaved={() => {
+          marks.refresh();
+          onSaved();
+        }}
+      />
+    </>
+  );
+}
+
+function RevisionMarksPanel({
+  marks,
+  onAnnul,
+}: {
+  marks: ReturnType<typeof useAsistenciaPage<MarcacionAsistencia>>;
+  onAnnul: (mark: MarcacionAsistencia) => void;
+}) {
+  return (
+    <div className="rounded-md border border-red-200 bg-red-50/70 p-3 dark:border-red-500/30 dark:bg-red-500/10">
+      <div className="mb-3 flex items-start gap-2 text-sm text-red-800 dark:text-red-300">
+        <ExclamationTriangleIcon className="mt-0.5 h-4 w-4 shrink-0" />
+        <span>No se calcularon horas. Anula aqui las marcaciones incorrectas.</span>
+      </div>
+      {marks.error ? <p className="text-sm text-red-600">{marks.error}</p> : null}
+      {marks.loading ? (
+        <p className="text-sm text-muted-foreground">Cargando marcaciones...</p>
+      ) : marks.content.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No se encontraron marcaciones para este dia.</p>
+      ) : (
+        <div className="divide-y rounded-md border bg-background">
+          {marks.content.map((mark) => (
+            <div key={mark.idMarcacion} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+              <div className="min-w-0">
+                <span className="block font-medium">{formatDateTime(mark.fechaHora)}</span>
+                <span className="block truncate text-xs text-muted-foreground">
+                  {mark.tipoEvento ?? "Sin tipo"} - {mark.sucursal ?? "Sin sucursal"} - {mark.dispositivo ?? "Sin dispositivo"}
+                </span>
               </div>
-            ) : (
-              <p className="py-4 text-center text-sm text-muted-foreground">No hay recorrido registrado.</p>
-            )}
-          </div>
-        ) : null}
-      </DialogContent>
-    </Dialog>
+              {mark.estadoCalculo !== "ANULADA" ? (
+                <button
+                  type="button"
+                  onClick={() => onAnnul(mark)}
+                  title="Anular marcacion"
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-red-600 hover:bg-red-100 dark:hover:bg-red-500/10"
+                >
+                  <NoSymbolIcon className="h-5 w-5" />
+                </button>
+              ) : (
+                <span className="shrink-0 rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-600 dark:bg-slate-500/15 dark:text-slate-300">
+                  Anulada
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
