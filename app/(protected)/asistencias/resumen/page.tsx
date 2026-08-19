@@ -774,7 +774,10 @@ function RevisionMarksPanel({
               <div className="min-w-0">
                 <span className="block font-medium">{formatDateTime(mark.fechaHora)}</span>
                 <span className="block truncate text-xs text-muted-foreground">
-                  {mark.tipoEvento ?? "Sin tipo"} - {mark.sucursal ?? "Sin sucursal"} - {mark.dispositivo ?? "Sin dispositivo"}
+                  {mark.tipoEvento ?? "Sin tipo"} - {mark.sucursal ?? "Sin sucursal"}
+                </span>
+                <span className="block truncate text-xs text-muted-foreground">
+                  {mark.dispositivo ?? "Sin dispositivo"}
                 </span>
               </div>
               {mark.estadoCalculo !== "ANULADA" ? (
