@@ -9,6 +9,7 @@ const ALLOWED_QUERY_KEYS = [
   "periodo",
   "desde",
   "hasta",
+  "idUsuario",
   "idSucursal",
   "idCliente",
   "tipoComprobante",

@@ -151,6 +151,7 @@ export function VentasHistorialPage({ lockedTipos, hideSunat = false, showReport
         periodo: "RANGO",
         desde: filters.fechaDesde,
         hasta: filters.fechaHasta,
+        idUsuario: filters.idUsuario,
         idSucursal: filters.idSucursal,
         idCliente: filters.idCliente,
         tiposComprobante: reporteTiposComprobante,
@@ -168,6 +169,7 @@ export function VentasHistorialPage({ lockedTipos, hideSunat = false, showReport
         periodo: "RANGO",
         desde: filters.fecha,
         hasta: filters.fecha,
+        idUsuario: filters.idUsuario,
         idSucursal: filters.idSucursal,
         idCliente: filters.idCliente,
         tiposComprobante: reporteTiposComprobante,
@@ -177,6 +179,7 @@ export function VentasHistorialPage({ lockedTipos, hideSunat = false, showReport
 
     await exportReporteExcel({
       periodo: filters.periodo,
+      idUsuario: filters.idUsuario,
       idSucursal: filters.idSucursal,
       idCliente: filters.idCliente,
       tiposComprobante: reporteTiposComprobante,
