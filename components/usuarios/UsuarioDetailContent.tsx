@@ -1,6 +1,7 @@
 import {
   BuildingStorefrontIcon,
   CalendarDaysIcon,
+  ChatBubbleLeftRightIcon,
   EnvelopeIcon,
   IdentificationIcon,
   KeyIcon,
@@ -58,6 +59,7 @@ export function UsuarioDetailContent({
     selectedUser.horaFinTurno,
     selectedUser.diasTurno
   )
+  const accesoCrm = selectedUser.rol === "ADMINISTRADOR" || selectedUser.accesoCrm === true
 
   const headerClassName = compact
     ? "flex flex-col items-center pb-4 pt-2"
@@ -150,6 +152,17 @@ export function UsuarioDetailContent({
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+          <div className="flex items-start gap-3">
+            <ChatBubbleLeftRightIcon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+            <div>
+              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                Acceso CRM
+              </p>
+              <p className="text-sm font-medium">
+                {accesoCrm ? "Habilitado" : "Sin acceso"}
+              </p>
             </div>
           </div>
           <div className="flex items-start gap-3">

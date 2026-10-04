@@ -71,6 +71,7 @@ export async function POST(request: NextRequest) {
       diasTurno: "diasTurno" in data ? (data.diasTurno as string[] | null) : null,
       horariosTurno: "horariosTurno" in data ? data.horariosTurno ?? null : null,
       puedeAceptarPedidos: "puedeAceptarPedidos" in data ? data.puedeAceptarPedidos === true : false,
+      accesoCrm: "accesoCrm" in data ? data.accesoCrm === true : false,
     }
 
     const response = NextResponse.json(

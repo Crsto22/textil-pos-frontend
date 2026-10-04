@@ -61,8 +61,27 @@ function getPriceRangeLabel(min: number | null, max: number | null) {
   return `${formatMoney(min)} - ${formatMoney(max)}`
 }
 
+function getProductStock(product: ProductoResumen) {
+  return product.colores.reduce(
+    (total, color) => total + color.tallas.reduce((sum, size) => sum + Math.max(0, Number(size.stock) || 0), 0),
+    0,
+  )
+}
+
+type OfferDuration = "HOY" | "3_DIAS" | "7_DIAS" | "STOCK" | "PERSONALIZADO"
+
+function toDatetimeLocal(date: Date) {
+  const offsetMs = date.getTimezoneOffset() * 60_000
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16)
+}
+
+function toApiLocalDateTime(value: string) {
+  if (!value) return ""
+  return value.length === 16 ? `${value}:00` : value
+}
+
 export function OfertasEcommerceTab() {
-  const { ofertas, loading, saving, fetchOfertas, crearOfertaProducto, eliminarOfertaProducto } = useOfertasEcommerce()
+  const { ofertas, loading, saving, crearOfertaProducto, eliminarOfertaProducto } = useOfertasEcommerce()
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<ProductoOfertaAgrupada | null>(null)
@@ -77,16 +96,21 @@ export function OfertasEcommerceTab() {
 
   const [priceMode, setPriceMode] = useState<"PRECIO_FIJO" | "DESCUENTO_PORCENTAJE">("DESCUENTO_PORCENTAJE")
   const [priceValue, setPriceValue] = useState("")
-  const [duration, setDuration] = useState<"HOY" | "3_DIAS" | "7_DIAS" | "PERSONALIZADO">("7_DIAS")
+  const [duration, setDuration] = useState<OfferDuration>("7_DIAS")
   const [fechaInicio, setFechaInicio] = useState("")
   const [fechaFin, setFechaFin] = useState("")
 
-  const applyDuration = (mode: "HOY" | "3_DIAS" | "7_DIAS" | "PERSONALIZADO") => {
+  const applyDuration = (mode: OfferDuration) => {
     setDuration(mode)
     if (mode === "PERSONALIZADO") return
 
     const now = new Date()
-    const start = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+    const start = toDatetimeLocal(now)
+    if (mode === "STOCK") {
+      setFechaInicio(start)
+      setFechaFin("")
+      return
+    }
     const end = new Date(now)
 
     if (mode === "HOY") {
@@ -98,7 +122,7 @@ export function OfertasEcommerceTab() {
     }
 
     setFechaInicio(start)
-    setFechaFin(new Date(end.getTime() - end.getTimezoneOffset() * 60000).toISOString().slice(0, 16))
+    setFechaFin(toDatetimeLocal(end))
   }
 
   const resetForm = () => {
@@ -125,7 +149,7 @@ export function OfertasEcommerceTab() {
 
     const timer = window.setTimeout(() => {
       setSearching(true)
-      authFetch(`/api/producto/buscar?q=${encodeURIComponent(productSearch.trim())}&page=${productPage}&publicarEcommerce=true`)
+      authFetch(`/api/producto/buscar?q=${encodeURIComponent(productSearch.trim())}&page=${productPage}&publicarEcommerce=true&soloDisponibles=true`)
         .then(async (res) => {
           const data = await res.json().catch(() => null)
           if (!res.ok) throw new Error(data?.message ?? "Error al buscar")
@@ -166,27 +190,12 @@ export function OfertasEcommerceTab() {
       return
     }
 
-    let inicioStr = ""
-    let finStr = ""
+    const inicioStr = toApiLocalDateTime(fechaInicio || toDatetimeLocal(new Date()))
+    const finStr = duration === "STOCK" ? "" : toApiLocalDateTime(fechaFin)
 
-    if (duration === "PERSONALIZADO") {
-      inicioStr = fechaInicio ? new Date(fechaInicio).toISOString().slice(0, 19) : ""
-      finStr = fechaFin ? new Date(fechaFin).toISOString().slice(0, 19) : ""
-    } else {
-      const now = new Date()
-      inicioStr = now.toISOString().slice(0, 19)
-      const end = new Date(now)
-      if (duration === "HOY") {
-        end.setHours(23, 59, 0, 0)
-      } else if (duration === "3_DIAS") {
-        end.setDate(end.getDate() + 3)
-      } else {
-        end.setDate(end.getDate() + 7)
-      }
-      finStr = end.toISOString().slice(0, 19)
-    }
+    const created = await crearOfertaProducto(selectedProduct.idProducto, priceMode, val, inicioStr, finStr, duration === "STOCK")
+    if (!created) return
 
-    await crearOfertaProducto(selectedProduct.idProducto, priceMode, val, inicioStr, finStr)
     setDialogOpen(false)
     resetForm()
   }
@@ -199,14 +208,14 @@ export function OfertasEcommerceTab() {
     setDeleteTarget(null)
   }
 
-  const ofertasActivas = ofertas.filter((o) => o.estado === "activa" || o.estado === "programada")
+  const ofertasActivas = ofertas.filter((o) => o.estado === "activa" || o.estado === "programada" || o.estado === "indefinida")
   const ofertasVencidas = ofertas.filter((o) => o.estado === "vencida")
-  const ofertasOtras = ofertas.filter((o) => o.estado !== "activa" && o.estado !== "programada" && o.estado !== "vencida")
+  const ofertasOtras = ofertas.filter((o) => o.estado !== "activa" && o.estado !== "programada" && o.estado !== "indefinida" && o.estado !== "vencida")
 
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">{ofertas.length} producto{ofertas.length !== 1 ? "s" : ""} con oferta</p>
+        <p className="text-sm text-muted-foreground">{ofertasActivas.length} producto{ofertasActivas.length !== 1 ? "s" : ""} con oferta vigente</p>
         <Button onClick={openDialog} className="gap-2">
           <PlusIcon className="h-4 w-4" />
           Agregar oferta
@@ -290,6 +299,7 @@ export function OfertasEcommerceTab() {
                     ["HOY", "Hoy"] as const,
                     ["3_DIAS", "3 dias"] as const,
                     ["7_DIAS", "7 dias"] as const,
+                    ["STOCK", "Hasta agotar stock"] as const,
                     ["PERSONALIZADO", "Personalizado"] as const,
                   ].map(([val, label]) => (
                     <Button
@@ -297,6 +307,7 @@ export function OfertasEcommerceTab() {
                       type="button"
                       variant={duration === val ? "default" : "outline"}
                       size="sm"
+                      className="h-auto min-h-9 whitespace-normal px-2 py-2 text-xs"
                       onClick={() => applyDuration(val)}
                     >
                       {label}
@@ -383,6 +394,7 @@ export function OfertasEcommerceTab() {
                               <p className="text-xs text-muted-foreground">
                                 {getPriceRangeLabel(p.precioMin ?? null, p.precioMax ?? null)}
                               </p>
+                              <p className="text-[10px] text-emerald-600">Stock ecommerce: {getProductStock(p)}</p>
                             </div>
                             <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
                               {isSelected ? <span className="text-xs font-bold text-primary">&radic;</span> : <PlusIcon className="h-4 w-4" />}
@@ -427,6 +439,7 @@ export function OfertasEcommerceTab() {
                       <p className="text-sm text-muted-foreground">
                         {getPriceRangeLabel(selectedProduct.precioMin ?? null, selectedProduct.precioMax ?? null)}
                       </p>
+                      <p className="text-xs font-medium text-emerald-600">Stock ecommerce: {getProductStock(selectedProduct)}</p>
                     </div>
                   </div>
                   {canSave && previewPrice !== null && (
@@ -471,7 +484,7 @@ export function OfertasEcommerceTab() {
         <div className="flex min-h-40 items-center justify-center">
           <LoaderSpinner size="sm" />
         </div>
-      ) : ofertas.length === 0 ? (
+      ) : ofertasActivas.length === 0 ? (
         <div className="flex min-h-40 flex-col items-center justify-center gap-3 rounded-lg border text-center text-sm text-muted-foreground">
           <TagIcon className="h-8 w-8" />
           <p>No hay ofertas registradas en ecommerce.</p>
@@ -538,15 +551,15 @@ export function OfertasEcommerceTab() {
                         </td>
                         <td className="hidden px-4 py-3 lg:table-cell">
                           <div className="text-xs">
-                            <p>{formatearRangoOferta(oferta.fechaInicio, oferta.fechaFin)}</p>
-                            {oferta.estado === "activa" && obtenerCountdownOfertaResumido({ ofertaInicio: oferta.fechaInicio, ofertaFin: oferta.fechaFin }) && (
+                            <p>{oferta.hastaAgotarStock ? "Hasta agotar stock" : formatearRangoOferta(oferta.fechaInicio, oferta.fechaFin)}</p>
+                            {!oferta.hastaAgotarStock && oferta.estado === "activa" && obtenerCountdownOfertaResumido({ ofertaInicio: oferta.fechaInicio, ofertaFin: oferta.fechaFin }) && (
                               <p className="font-medium text-amber-600">{obtenerCountdownOfertaResumido({ ofertaInicio: oferta.fechaInicio, ofertaFin: oferta.fechaFin })?.texto}</p>
                             )}
                           </div>
                         </td>
                         <td className="hidden px-4 py-3 text-center sm:table-cell">
                           <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${getEstadoBadge(oferta.estado)}`}>
-                            {getEstadoLabel(oferta.estado)}
+                            {oferta.hastaAgotarStock ? "Hasta stock" : getEstadoLabel(oferta.estado)}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-right">
@@ -568,7 +581,7 @@ export function OfertasEcommerceTab() {
             </div>
           )}
 
-          {ofertasVencidas.length > 0 && (
+          {false && (
             <div className="space-y-2">
               <h3 className="text-sm font-semibold text-muted-foreground">Ofertas vencidas ({ofertasVencidas.length})</h3>
               <div className="overflow-hidden rounded-lg border">
@@ -647,7 +660,7 @@ export function OfertasEcommerceTab() {
             </div>
           )}
 
-          {ofertasOtras.length > 0 && (
+          {false && (
             <div className="space-y-2">
               <h3 className="text-sm font-semibold text-muted-foreground">Otras ofertas ({ofertasOtras.length})</h3>
               <div className="overflow-hidden rounded-lg border">

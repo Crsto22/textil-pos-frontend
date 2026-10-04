@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { forwardCookies } from "../_helpers"
+import { clearRefreshTokenCookie, clearSessionUserCookie, forwardCookies } from "../_helpers"
 
 const BACKEND_URL = process.env.BACKEND_URL
 
@@ -7,14 +7,8 @@ export async function POST(request: NextRequest) {
   try {
     const cookieHeader = request.headers.get("cookie")
     const clearSessionCookies = (response: NextResponse) => {
-      response.cookies.set("refresh_token", "", {
-        httpOnly: true,
-        sameSite: "lax",
-        secure: process.env.NODE_ENV === "production",
-        path: "/api/auth",
-        maxAge: 0,
-      })
-      response.cookies.set("session_user", "", { path: "/", maxAge: 0 })
+      clearRefreshTokenCookie(response)
+      clearSessionUserCookie(response)
     }
 
     // Llamar al backend para invalidar el refresh_token

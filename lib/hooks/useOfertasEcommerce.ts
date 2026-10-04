@@ -20,6 +20,7 @@ export interface ProductoOfertaAgrupada {
   descuentoPromedio: number | null
   fechaInicio: string | null
   fechaFin: string | null
+  hastaAgotarStock: boolean
   estado: string
   varianteIds: number[]
 }
@@ -37,6 +38,7 @@ interface ProductDetailResponse {
     precioOferta?: number | null
     ofertaInicio?: string | null
     ofertaFin?: string | null
+    ofertaHastaAgotarStock?: boolean
   }>
 }
 
@@ -99,6 +101,7 @@ function agruparOfertas(variants: ProductoVarianteOferta[]): ProductoOfertaAgrup
       descuentoPromedio,
       fechaInicio: fechasInicio.length > 0 ? fechasInicio[0] : null,
       fechaFin: fechasFin.length > 0 ? fechasFin[fechasFin.length - 1] : null,
+      hastaAgotarStock: items.some((item) => item.ofertaHastaAgotarStock),
       estado: estadoAgrupado,
       varianteIds: items.map((v) => v.idProductoVariante),
     }
@@ -172,6 +175,7 @@ export function useOfertasEcommerce() {
     value: number,
     fechaInicio: string,
     fechaFin: string,
+    hastaAgotarStock = false,
   ) => {
     setSaving(true)
 
@@ -181,8 +185,7 @@ export function useOfertasEcommerce() {
 
       if (!detailRes.ok || !detail?.variantes?.length) {
         toast.error("No se pudieron cargar las variantes del producto")
-        setSaving(false)
-        return
+        return false
       }
 
       const items = detail.variantes.map((variante) => {
@@ -196,13 +199,13 @@ export function useOfertasEcommerce() {
           precioOferta: precioOferta > 0 && precioOferta < variante.precio ? precioOferta : null,
           ofertaInicio: fechaInicio || null,
           ofertaFin: fechaFin || null,
+          ofertaHastaAgotarStock: hastaAgotarStock,
         }
       }).filter((item) => item.precioOferta !== null)
 
       if (items.length === 0) {
         toast.error("El precio de oferta debe ser menor al precio regular en todas las variantes")
-        setSaving(false)
-        return
+        return false
       }
 
       const batchRes = await authFetch("/api/variante/ofertas/lote", {
@@ -218,15 +221,16 @@ export function useOfertasEcommerce() {
           ? batchData.message
           : "No se pudo crear la oferta"
         toast.error(message)
-        setSaving(false)
-        return
+        return false
       }
 
       toast.success(`Oferta creada para ${items.length} variantes`)
-      setSaving(false)
       await fetchOfertas()
+      return true
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error al crear la oferta")
+      return false
+    } finally {
       setSaving(false)
     }
   }, [fetchOfertas])
@@ -237,6 +241,7 @@ export function useOfertasEcommerce() {
       precioOferta: null,
       ofertaInicio: null,
       ofertaFin: null,
+      ofertaHastaAgotarStock: false,
     }))
 
     const response = await authFetch("/api/variante/ofertas/lote", {

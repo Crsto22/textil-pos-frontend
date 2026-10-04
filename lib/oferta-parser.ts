@@ -26,6 +26,7 @@ function pickNullableNumber(source: Record<string, unknown> | null, keys: string
   if (!source) return null
 
   for (const key of keys) {
+    if (source[key] === null || source[key] === undefined || source[key] === "") continue
     const parsed = Number(source[key])
     if (Number.isFinite(parsed)) {
       return parsed
@@ -109,6 +110,7 @@ export function parseProductoVarianteOferta(value: unknown): ProductoVarianteOfe
     usuarioCreacionId: pickNullableNumber(payload, ["usuarioCreacionId"]),
     usuarioCreacionNombre: pickNullableString(payload, ["usuarioCreacionNombre"]),
     usuarioCreacionCorreo: pickNullableString(payload, ["usuarioCreacionCorreo"]),
+    ofertaHastaAgotarStock: pickBoolean(payload, "ofertaHastaAgotarStock"),
   }
 }
 

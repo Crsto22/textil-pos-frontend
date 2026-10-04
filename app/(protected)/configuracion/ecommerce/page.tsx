@@ -67,6 +67,7 @@ interface PromocionCombo {
   estado: "ACTIVO" | "INACTIVO"
   fechaInicio: string | null
   fechaFin: string | null
+  hastaAgotarStock: boolean
   items: PromocionComboItem[]
 }
 
@@ -91,7 +92,7 @@ interface ComboPageData {
 }
 
 type ComboVigencia = "TODAS" | "ACTIVAS" | "VENCIDAS"
-type DurationMode = "HOY" | "3_DIAS" | "7_DIAS" | "PERSONALIZADO"
+type DurationMode = "HOY" | "3_DIAS" | "7_DIAS" | "STOCK" | "PERSONALIZADO"
 
 const EMPTY_COMBO_FORM: ComboFormState = {
   nombre: "",
@@ -203,6 +204,13 @@ function priceLabel(meta: ComboProductMeta | undefined) {
   return formatMoney(meta.priceMin)
 }
 
+function getProductStock(product: ProductoResumen) {
+  return product.colores.reduce(
+    (total, color) => total + color.tallas.reduce((sum, size) => sum + Math.max(0, Number(size.stock) || 0), 0),
+    0,
+  )
+}
+
 function comboNormalTotal(combo: PromocionCombo, metaByProduct: Record<number, ComboProductMeta>) {
   const total = combo.items.reduce((sum, item) => {
     const price = metaByProduct[item.idProducto]?.priceMin
@@ -226,13 +234,14 @@ function toDatetimeLocal(date: Date) {
   return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16)
 }
 
-function comboPayload(form: ComboFormState) {
+function comboPayload(form: ComboFormState, durationMode: DurationMode) {
   return {
     nombre: form.nombre.trim(),
     precioCombo: Number(form.precioCombo),
     estado: "ACTIVO",
     fechaInicio: normalizeDateTime(form.fechaInicio),
-    fechaFin: normalizeDateTime(form.fechaFin),
+    fechaFin: durationMode === "STOCK" ? null : normalizeDateTime(form.fechaFin),
+    hastaAgotarStock: durationMode === "STOCK",
     items: form.items.map((item) => ({
       idProducto: item.idProducto,
       cantidadRequerida: item.cantidadRequerida,
@@ -253,6 +262,7 @@ function formFromCombo(combo: PromocionCombo): ComboFormState {
 function normalizeCombo(combo: PromocionCombo): PromocionCombo {
   return {
     ...combo,
+    hastaAgotarStock: Boolean(combo.hastaAgotarStock),
     items: combo.items.map((item) => ({
       ...item,
       nombreProducto: item.nombreProducto ?? item.productoNombre ?? "Producto",
@@ -380,13 +390,9 @@ function ContactoEcommerceTab() {
 
 function ComboPromocionesTab() {
   const [activeCombos, setActiveCombos] = useState<PromocionCombo[]>([])
-  const [expiredCombos, setExpiredCombos] = useState<PromocionCombo[]>([])
   const [activePage, setActivePage] = useState(0)
-  const [expiredPage, setExpiredPage] = useState(0)
   const [activeTotalPages, setActiveTotalPages] = useState(0)
-  const [expiredTotalPages, setExpiredTotalPages] = useState(0)
   const [activeTotalElements, setActiveTotalElements] = useState(0)
-  const [expiredTotalElements, setExpiredTotalElements] = useState(0)
   const [form, setForm] = useState<ComboFormState>(EMPTY_COMBO_FORM)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -448,23 +454,15 @@ function ComboPromocionesTab() {
 
   const fetchCombos = useCallback(async () => {
     setLoading(true)
-    const [activeData, expiredData] = await Promise.all([
-      fetchComboPage("ACTIVAS", activePage),
-      fetchComboPage("VENCIDAS", expiredPage),
-    ])
+    const activeData = await fetchComboPage("ACTIVAS", activePage)
     if (activeData) {
       setActiveCombos(activeData.content)
       setActiveTotalPages(activeData.totalPages)
       setActiveTotalElements(activeData.totalElements)
     }
-    if (expiredData) {
-      setExpiredCombos(expiredData.content)
-      setExpiredTotalPages(expiredData.totalPages)
-      setExpiredTotalElements(expiredData.totalElements)
-    }
     setLoading(false)
-    void fetchProductMeta([...(activeData?.content ?? []), ...(expiredData?.content ?? [])])
-  }, [activePage, expiredPage, fetchComboPage, fetchProductMeta])
+    void fetchProductMeta(activeData?.content ?? [])
+  }, [activePage, fetchComboPage, fetchProductMeta])
 
   useEffect(() => {
     let cancelled = false
@@ -481,7 +479,7 @@ function ComboPromocionesTab() {
 
     const timer = window.setTimeout(() => {
       setSearching(true)
-      authFetch(`/api/producto/buscar?q=${encodeURIComponent(search.trim())}&page=${productPage}&publicarEcommerce=true`)
+      authFetch(`/api/producto/buscar?q=${encodeURIComponent(search.trim())}&page=${productPage}&publicarEcommerce=true&soloDisponibles=true`)
         .then(async (response) => {
           const data = await response.json().catch(() => null)
           if (!response.ok) throw new Error(data?.message ?? "No se pudo buscar productos")
@@ -509,6 +507,10 @@ function ComboPromocionesTab() {
     setDurationMode(mode)
     if (mode === "PERSONALIZADO") return
     const start = new Date()
+    if (mode === "STOCK") {
+      setForm((current) => ({ ...current, fechaInicio: toDatetimeLocal(start), fechaFin: "" }))
+      return
+    }
     const end = new Date(start)
     if (mode === "HOY") {
       end.setHours(23, 59, 0, 0)
@@ -586,7 +588,7 @@ function ComboPromocionesTab() {
       {
         method: editingId ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(comboPayload(form)),
+        body: JSON.stringify(comboPayload(form, durationMode)),
       }
     )
     const data = await response.json().catch(() => null)
@@ -646,7 +648,7 @@ function ComboPromocionesTab() {
   const normalPreviewTotal = comboSlots.reduce((sum, item) => sum + (productMeta[item.idProducto]?.priceMin ?? 0), 0)
   const comboPreviewPrice = Number(form.precioCombo) || 0
   const previewSavings = normalPreviewTotal > 0 && comboPreviewPrice > 0 ? normalPreviewTotal - comboPreviewPrice : 0
-  const totalCombos = activeTotalElements + expiredTotalElements
+  const totalCombos = activeTotalElements
 
   const renderComboSection = (
     title: string,
@@ -725,8 +727,8 @@ function ComboPromocionesTab() {
                       </div>
                     </td>
                     <td className="hidden px-4 py-3 md:table-cell">
-                      <p className="text-xs font-medium text-amber-600 whitespace-nowrap">{formatTimeLeft(combo.fechaFin)}</p>
-                      {combo.fechaFin && (
+                      <p className="text-xs font-medium text-amber-600 whitespace-nowrap">{combo.hastaAgotarStock ? "Hasta agotar stock" : formatTimeLeft(combo.fechaFin)}</p>
+                      {!combo.hastaAgotarStock && combo.fechaFin && (
                         <p className="text-[10px] text-muted-foreground whitespace-nowrap">
                           {new Date(combo.fechaFin).toLocaleDateString("es-PE")}
                         </p>
@@ -752,7 +754,7 @@ function ComboPromocionesTab() {
                         />
                         <Button type="button" variant="ghost" size="sm" onClick={() => {
                           setEditingId(combo.idPromocionCombo)
-                          setDurationMode("PERSONALIZADO")
+                          setDurationMode(combo.hastaAgotarStock ? "STOCK" : "PERSONALIZADO")
                           setForm(formFromCombo(combo))
                           setDialogOpen(true)
                         }}>
@@ -848,6 +850,7 @@ function ComboPromocionesTab() {
                     ["HOY", "Hoy"],
                     ["3_DIAS", "3 dias"],
                     ["7_DIAS", "7 dias"],
+                    ["STOCK", "Hasta agotar stock"],
                     ["PERSONALIZADO", "Personalizado"],
                   ].map(([value, label]) => (
                     <Button
@@ -855,6 +858,7 @@ function ComboPromocionesTab() {
                       type="button"
                       variant={durationMode === value ? "default" : "outline"}
                       size="sm"
+                      className="h-auto min-h-9 whitespace-normal px-2 py-2 text-xs"
                       onClick={() => applyDuration(value as DurationMode)}
                     >
                       {label}
@@ -948,6 +952,7 @@ function ComboPromocionesTab() {
                                   priceMax: product.precioMax ?? null,
                                 })}
                               </p>
+                              <p className="text-[10px] text-emerald-600">Stock ecommerce: {getProductStock(product)}</p>
                             </div>
                             <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
                               {selected ? selected.cantidadRequerida : <PlusIcon className="h-4 w-4" />}
@@ -1058,34 +1063,15 @@ function ComboPromocionesTab() {
             <p>No hay combos registrados.</p>
           </div>
         ) : (
-          <Tabs defaultValue="activas" className="space-y-4">
-            <TabsList>
-              <TabsTrigger value="activas">Promociones activas</TabsTrigger>
-              <TabsTrigger value="vencidas">Promociones vencidas</TabsTrigger>
-            </TabsList>
-            <TabsContent value="activas">
-              {renderComboSection(
-                "Promociones activas",
-                "Combos disponibles por estado y vigencia actual.",
-                activeCombos,
-                activePage,
-                activeTotalPages,
-                activeTotalElements,
-                setActivePage
-              )}
-            </TabsContent>
-            <TabsContent value="vencidas">
-              {renderComboSection(
-                "Promociones vencidas",
-                "Combos con fecha fin anterior a hoy.",
-                expiredCombos,
-                expiredPage,
-                expiredTotalPages,
-                expiredTotalElements,
-                setExpiredPage
-              )}
-            </TabsContent>
-          </Tabs>
+          renderComboSection(
+            "Promociones vigentes",
+            "Combos disponibles por estado, vigencia y stock actual.",
+            activeCombos,
+            activePage,
+            activeTotalPages,
+            activeTotalElements,
+            setActivePage
+          )
         )}
       </div>
     </div>

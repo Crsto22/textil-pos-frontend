@@ -36,6 +36,21 @@ export function setSessionUserCookie(
   })
 }
 
+export function clearRefreshTokenCookie(nextRes: NextResponse): void {
+  nextRes.cookies.set("refresh_token", "", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/api/auth",
+    maxAge: 0,
+    ...(process.env.COOKIE_DOMAIN ? { domain: process.env.COOKIE_DOMAIN } : {}),
+  })
+}
+
+export function clearSessionUserCookie(nextRes: NextResponse): void {
+  nextRes.cookies.set("session_user", "", { path: "/", maxAge: 0 })
+}
+
 interface CookieOptions {
   path?: string
   maxAge?: number

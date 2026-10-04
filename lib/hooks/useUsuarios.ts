@@ -277,6 +277,7 @@ export function useUsuarios() {
         idSucursal: usuarioRolRequiresSucursal(payload.rol) ? payload.idSucursal : null,
         idsSucursales: usuarioRolRequiresSucursal(payload.rol) ? (payload.idsSucursales ?? []) : null,
         puedeAceptarPedidos: usuarioRolPuedeAceptarPedidos(payload.rol) && payload.puedeAceptarPedidos === true,
+        accesoCrm: payload.rol !== "ADMINISTRADOR" && payload.accesoCrm === true,
       }
 
       const validation = validateUsuarioRoleAssignment(
@@ -332,6 +333,7 @@ export function useUsuarios() {
         idSucursal: usuarioRolRequiresSucursal(payload.rol) ? payload.idSucursal : null,
         idsSucursales: usuarioRolRequiresSucursal(payload.rol) ? (payload.idsSucursales ?? []) : null,
         puedeAceptarPedidos: usuarioRolPuedeAceptarPedidos(payload.rol) && payload.puedeAceptarPedidos === true,
+        accesoCrm: payload.rol !== "ADMINISTRADOR" && payload.accesoCrm === true,
       }
 
       const validation = validateUsuarioRoleAssignment(

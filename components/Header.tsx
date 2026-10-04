@@ -174,6 +174,19 @@ const getSectionLabel = (pathname: string) => {
   return "Principal"
 }
 
+function WhatsAppIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      className={className}
+      fill="currentColor"
+    >
+      <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.46 1.33 4.96L2 22l5.25-1.38a9.88 9.88 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91S17.51 2 12.04 2Zm0 18.16h-.01a8.2 8.2 0 0 1-4.19-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.2 8.2 0 0 1-1.25-4.39 8.25 8.25 0 1 1 8.24 8.25Zm4.52-6.18c-.25-.12-1.47-.73-1.7-.81-.23-.08-.39-.12-.56.12-.16.25-.64.81-.78.98-.14.16-.29.18-.54.06-.25-.12-1.04-.38-1.98-1.22-.73-.65-1.23-1.46-1.37-1.71-.14-.25-.02-.38.11-.51.11-.11.25-.29.37-.43.12-.14.16-.25.25-.41.08-.16.04-.31-.02-.43-.06-.12-.56-1.34-.76-1.84-.2-.48-.4-.42-.56-.43h-.47c-.16 0-.43.06-.66.31-.23.25-.87.85-.87 2.08s.89 2.41 1.02 2.58c.12.16 1.76 2.69 4.27 3.77.6.26 1.06.41 1.42.53.6.19 1.14.16 1.57.1.48-.07 1.47-.6 1.68-1.18.21-.58.21-1.08.14-1.18-.06-.1-.23-.16-.48-.28Z" />
+    </svg>
+  )
+}
+
 export function Header({ onMenuToggle }: HeaderProps) {
   const pathname = usePathname()
   const router = useRouter()
@@ -215,6 +228,7 @@ export function Header({ onMenuToggle }: HeaderProps) {
       CURRENT_NOTIFICATION_BADGE_IDS.includes(notification.id) &&
       !seenNotificationIds.includes(notification.id)
   ).length
+  const showCrmWhatsapp = user?.rol === "ADMINISTRADOR" || user?.accesoCrm === true
 
   useEffect(() => {
     if (isSearchOpen) {
@@ -538,6 +552,18 @@ export function Header({ onMenuToggle }: HeaderProps) {
                   </div>
                 </DropdownMenuContent>
               </DropdownMenu>
+
+              {showCrmWhatsapp && (
+                <button
+                  type="button"
+                  className="relative inline-flex h-9 w-9 items-center justify-center rounded-lg text-emerald-600 outline-none ring-emerald-500/40 transition-colors hover:bg-emerald-50 hover:text-emerald-700 focus-visible:ring-2 dark:text-emerald-400 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-300"
+                  aria-label="WhatsApp CRM"
+                  title="WhatsApp CRM"
+                >
+                  <WhatsAppIcon className="h-5 w-5" />
+                  <span className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-rose-500 ring-2 ring-white dark:ring-[oklch(0.13_0_0)]" />
+                </button>
+              )}
 
               <span className="mx-0.5 hidden h-5 w-px bg-slate-200 sm:block dark:bg-white/10" />
 

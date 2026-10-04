@@ -104,6 +104,7 @@ export function normalizeUsuario(value: unknown): Usuario | null {
       : null,
     horariosTurno: normalizeHorariosTurno(value.horariosTurno),
     puedeAceptarPedidos: value.puedeAceptarPedidos === true,
+    accesoCrm: value.accesoCrm === true,
   }
 }
 

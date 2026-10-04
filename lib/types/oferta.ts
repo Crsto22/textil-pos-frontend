@@ -14,6 +14,7 @@ export interface ProductoVarianteOferta extends ProductoDetalleVariante {
   usuarioCreacionId: number | null
   usuarioCreacionNombre: string | null
   usuarioCreacionCorreo: string | null
+  ofertaHastaAgotarStock: boolean
 }
 
 export type ProductoVarianteOfertaPageResponse = PageResponse<ProductoVarianteOferta>
@@ -23,6 +24,7 @@ export interface ProductoVarianteOfertaLoteItemRequest {
   precioOferta: number | null
   ofertaInicio: string | null
   ofertaFin: string | null
+  ofertaHastaAgotarStock?: boolean
 }
 
 export interface ProductoVarianteOfertaLoteRequest {

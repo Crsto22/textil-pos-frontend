@@ -40,6 +40,7 @@ function pickNullableNumber(source: Record<string, unknown> | null, keys: string
   if (!source) return null
 
   for (const key of keys) {
+    if (source[key] === null || source[key] === undefined || source[key] === "") continue
     const parsed = Number(source[key])
     if (Number.isFinite(parsed)) {
       return parsed

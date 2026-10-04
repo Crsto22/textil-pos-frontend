@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label"
 import { SucursalMultiSelect } from "@/components/ui/sucursal-multi-select"
 import { Switch } from "@/components/ui/switch"
 import { RoleMasterDetail } from "@/components/usuarios/RoleMasterDetail"
+import { useAuth } from "@/lib/auth/auth-context"
 import { useSucursalOptions } from "@/lib/hooks/useSucursalOptions"
 import { useTurnoOptions } from "@/lib/hooks/useTurnoOptions"
 import {
@@ -48,6 +49,7 @@ export function UsuarioEditDialog({
   onOpenChange,
   onUpdate,
 }: UsuarioEditDialogProps) {
+  const { user: currentUser } = useAuth()
   const [form, setForm] = useState<UsuarioUpdateFormState>(emptyUpdateForm)
   const [isUpdating, setIsUpdating] = useState(false)
 
@@ -186,6 +188,7 @@ export function UsuarioEditDialog({
       idsSucursales: initialIdsSucursales,
       idTurno: user.idTurno,
       puedeAceptarPedidos: usuarioRolPuedeAceptarPedidos(initialRole) && user.puedeAceptarPedidos === true,
+      accesoCrm: initialRole !== "ADMINISTRADOR" && user.accesoCrm === true,
     })
     setSearchSucursal("")
     setSearchSucursalesAdicionales("")
@@ -194,6 +197,9 @@ export function UsuarioEditDialog({
 
   const showSucursalField = form.rol !== "" && form.rol !== "ADMINISTRADOR"
   const showPedidosPermission = usuarioRolPuedeAceptarPedidos(form.rol)
+  const isCurrentUserAdmin = currentUser?.rol === "ADMINISTRADOR"
+  const crmAccessChecked = form.rol === "ADMINISTRADOR" || form.accesoCrm === true
+  const crmAccessDisabled = form.rol === "ADMINISTRADOR" || !isCurrentUserAdmin
 
   const isEditValid = useMemo(
     () =>
@@ -226,6 +232,7 @@ export function UsuarioEditDialog({
       idsSucursales: form.rol === "ADMINISTRADOR" ? null : (form.idsSucursales ?? []),
       idTurno: form.idTurno,
       puedeAceptarPedidos: showPedidosPermission && form.puedeAceptarPedidos === true,
+      accesoCrm: form.rol !== "ADMINISTRADOR" && form.accesoCrm === true,
     }
 
     setIsUpdating(true)
@@ -382,9 +389,35 @@ export function UsuarioEditDialog({
                   rol: value,
                   idSucursal: value === "ADMINISTRADOR" ? null : p.idSucursal,
                   puedeAceptarPedidos: usuarioRolPuedeAceptarPedidos(value) ? p.puedeAceptarPedidos : false,
+                  accesoCrm: value === "ADMINISTRADOR" ? false : p.accesoCrm,
                 }))
               }}
             />
+
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 dark:border-white/10">
+              <div>
+                <Label
+                  htmlFor="e-acceso-crm"
+                  className="text-sm font-medium"
+                >
+                  Habilitar acceso al CRM
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  {form.rol === "ADMINISTRADOR"
+                    ? "El administrador tiene acceso completo automatico."
+                    : "Permite entrar al CRM solo para atender el chat."}
+                </p>
+              </div>
+              <Switch
+                id="e-acceso-crm"
+                checked={crmAccessChecked}
+                disabled={crmAccessDisabled}
+                onCheckedChange={(checked) =>
+                  setForm((p) => ({ ...p, accesoCrm: checked }))
+                }
+                aria-label="Habilitar acceso al CRM"
+              />
+            </div>
 
             <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 dark:border-white/10">
               <div>

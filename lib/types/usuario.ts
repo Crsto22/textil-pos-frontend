@@ -208,6 +208,7 @@ interface UsuarioBaseResponse {
   diasTurno: string[] | null
   horariosTurno: TurnoUsuarioHorario[] | null
   puedeAceptarPedidos: boolean
+  accesoCrm: boolean
 }
 
 export interface TurnoUsuarioHorario {
@@ -239,6 +240,7 @@ export interface UsuarioCreateRequest {
   idsSucursales?: number[] | null
   idTurno?: number | null
   puedeAceptarPedidos?: boolean
+  accesoCrm?: boolean
 }
 
 export interface UsuarioUpdateRequest {
@@ -253,6 +255,7 @@ export interface UsuarioUpdateRequest {
   idsSucursales?: number[] | null
   idTurno?: number | null
   puedeAceptarPedidos?: boolean
+  accesoCrm?: boolean
 }
 
 export interface UsuarioCreateFormState
@@ -283,6 +286,7 @@ export const emptyCreate: UsuarioCreateRequest = {
   idsSucursales: [],
   idTurno: null,
   puedeAceptarPedidos: false,
+  accesoCrm: false,
 }
 
 export const emptyCreateForm: UsuarioCreateFormState = {
@@ -302,6 +306,7 @@ export const emptyUpdate: UsuarioUpdateRequest = {
   idsSucursales: [],
   idTurno: null,
   puedeAceptarPedidos: false,
+  accesoCrm: false,
 }
 
 export const emptyUpdateForm: UsuarioUpdateFormState = {
