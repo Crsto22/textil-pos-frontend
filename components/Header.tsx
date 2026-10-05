@@ -66,6 +66,7 @@ const textColorByFase: Record<TurnoFase, string> = {
 }
 
 const NOTIFICATIONS_STORAGE_KEY = "textil-pos.notifications.seen.v1"
+const CRM_URL = process.env.NEXT_PUBLIC_CRM_URL || "https://crm.kiments.tech/"
 const NOTA_VENTA_CONVERSION_NOTIFICATION_ID =
   "nota-venta-conversion-comprobante-2026-06-06"
 const notaVentaConversionGuideSteps = [
@@ -554,15 +555,14 @@ export function Header({ onMenuToggle }: HeaderProps) {
               </DropdownMenu>
 
               {showCrmWhatsapp && (
-                <button
-                  type="button"
+                <a
+                  href={CRM_URL}
                   className="relative inline-flex h-9 w-9 items-center justify-center rounded-lg text-emerald-600 outline-none ring-emerald-500/40 transition-colors hover:bg-emerald-50 hover:text-emerald-700 focus-visible:ring-2 dark:text-emerald-400 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-300"
-                  aria-label="WhatsApp CRM"
-                  title="WhatsApp CRM"
+                  aria-label="Abrir Kiments CRM"
+                  title="Abrir Kiments CRM"
                 >
                   <WhatsAppIcon className="h-5 w-5" />
-                  <span className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-rose-500 ring-2 ring-white dark:ring-[oklch(0.13_0_0)]" />
-                </button>
+                </a>
               )}
 
               <span className="mx-0.5 hidden h-5 w-px bg-slate-200 sm:block dark:bg-white/10" />
