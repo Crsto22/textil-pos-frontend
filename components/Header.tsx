@@ -557,6 +557,8 @@ export function Header({ onMenuToggle }: HeaderProps) {
               {showCrmWhatsapp && (
                 <a
                   href={CRM_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="relative inline-flex h-9 w-9 items-center justify-center rounded-lg text-emerald-600 outline-none ring-emerald-500/40 transition-colors hover:bg-emerald-50 hover:text-emerald-700 focus-visible:ring-2 dark:text-emerald-400 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-300"
                   aria-label="Abrir Kiments CRM"
                   title="Abrir Kiments CRM"
