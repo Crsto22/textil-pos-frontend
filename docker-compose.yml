@@ -23,6 +23,7 @@ services:
       - NEXT_PUBLIC_BACKEND_URL=https://storage.kiments.com.pe
       - BACKEND_URL=https://api.kiments.tech
       - BACKEND_PUBLIC_URL=https://api.kiments.tech
+      - COOKIE_DOMAIN=.kiments.tech
 
     restart: unless-stopped
 

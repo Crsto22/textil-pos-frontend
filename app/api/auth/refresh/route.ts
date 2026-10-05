@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
-import { forwardCookies, safeParseJson } from "../_helpers"
+import { forwardCookies, safeParseJson, setSessionUserCookie } from "../_helpers"
 import type { AuthUser } from "@/lib/auth/types"
+import { normalizeAssetUrlField } from "@/lib/server/public-asset-url"
 
 const BACKEND_URL = process.env.BACKEND_URL
 
@@ -49,25 +50,49 @@ export async function POST(request: NextRequest) {
       return response
     }
 
-    // Refresh exitoso
+    // Refresh exitoso. Consultar el usuario permite abrir este frontend usando
+    // una sesion iniciada previamente en otro subdominio de Kiments.
     const data = await backendRes.json()
-
-    // Recuperar datos de usuario de la cookie session_user del BFF
-    let user: AuthUser | null = null
-    const sessionUserCookie = request.cookies.get("session_user")?.value
-    if (sessionUserCookie) {
-      try {
-        user = JSON.parse(sessionUserCookie)
-      } catch { /* cookie corrupta, ignorar */ }
+    let meRes: Response
+    try {
+      meRes = await fetch(`${BACKEND_URL}/api/auth/me`, {
+        method: "GET",
+        cache: "no-store",
+        headers: { Authorization: `Bearer ${data.access_token}` },
+      })
+    } catch {
+      return NextResponse.json(
+        { message: "No se pudo conectar al servidor." },
+        { status: 503 }
+      )
     }
+
+    if (!meRes.ok) {
+      const { message } = await safeParseJson(
+        meRes,
+        "Error al obtener usuario autenticado"
+      )
+      const response = NextResponse.json(
+        { message },
+        { status: meRes.status >= 400 ? meRes.status : 400 }
+      )
+      forwardCookies(backendRes, response)
+      return response
+    }
+
+    const user = normalizeAssetUrlField(
+      (await meRes.json()) as AuthUser,
+      "fotoPerfilUrl"
+    ) as AuthUser
 
     const response = NextResponse.json(
       { access_token: data.access_token, user },
       { status: 200 }
     )
 
-    // Reenviar Set-Cookie del backend (refresh_token rotado)
+    // Reenviar la cookie compartida y mantener el cache local de usuario.
     forwardCookies(backendRes, response)
+    setSessionUserCookie(response, user)
 
     return response
   } catch (error) {
