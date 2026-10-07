@@ -76,6 +76,26 @@ export function isSunatNotApplicable(estado: string | null | undefined): boolean
   return normalizeSunatEstado(estado) === "NO_APLICA"
 }
 
+export type VentaOrigenLabel = "POS" | "WEB" | "CRM"
+
+export function getVentaOrigenLabel(origen: string | null | undefined): VentaOrigenLabel {
+  const normalized = (origen ?? "").trim().toUpperCase()
+  if (normalized === "WEB") return "WEB"
+  if (normalized === "CRM" || normalized === "CRM_WHATSAPP") return "CRM"
+  return "POS"
+}
+
+export function getVentaOrigenBadgeClass(origen: string | null | undefined): string {
+  const label = getVentaOrigenLabel(origen)
+  if (label === "WEB") {
+    return "bg-purple-100 text-purple-700 ring-purple-200 dark:bg-purple-500/15 dark:text-purple-300 dark:ring-purple-500/20"
+  }
+  if (label === "CRM") {
+    return "bg-sky-100 text-sky-700 ring-sky-200 dark:bg-sky-500/15 dark:text-sky-300 dark:ring-sky-500/20"
+  }
+  return "bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-500/15 dark:text-slate-300 dark:ring-slate-500/20"
+}
+
 export function formatMonto(value: number, currency = "PEN"): string {
   return new Intl.NumberFormat("es-PE", {
     style: "currency",

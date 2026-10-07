@@ -26,6 +26,8 @@ import {
   formatFechaHora,
   formatMonto,
   getEstadoBadgeClass,
+  getVentaOrigenBadgeClass,
+  getVentaOrigenLabel,
   getSunatBadgeClass,
   getSunatEstadoLabel,
   isSunatNotApplicable,
@@ -108,17 +110,11 @@ function normalizeValue(value: string | null | undefined): string {
 }
 
 function OrigenBadge({ origen }: { origen: string | null | undefined }) {
-  const normalized = normalizeValue(origen) || "POS"
-  const isWeb = normalized === "WEB"
   return (
     <span
-      className={`mt-1 inline-flex w-fit rounded-full px-2 py-0.5 text-[10px] font-bold ring-1 ${
-        isWeb
-          ? "bg-purple-100 text-purple-700 ring-purple-200 dark:bg-purple-500/15 dark:text-purple-300 dark:ring-purple-500/20"
-          : "bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-500/15 dark:text-slate-300 dark:ring-slate-500/20"
-      }`}
+      className={`mt-1 inline-flex w-fit rounded-full px-2 py-0.5 text-[10px] font-bold ring-1 ${getVentaOrigenBadgeClass(origen)}`}
     >
-      {isWeb ? "WEB" : "POS"}
+      {getVentaOrigenLabel(origen)}
     </span>
   )
 }

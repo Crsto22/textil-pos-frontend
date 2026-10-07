@@ -29,6 +29,8 @@ import {
   formatMonto,
   getSunatBadgeClass,
   getSunatEstadoLabel,
+  getVentaOrigenBadgeClass,
+  getVentaOrigenLabel,
   isSunatNotApplicable,
   normalizeSunatEstado,
 } from "@/components/ventas/historial/historial.utils"
@@ -261,12 +263,8 @@ export function VentaDetalleContent({
                     <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground sm:text-xs sm:tracking-[0.16em]">
                       Emitido el {formatFechaHora(detalle.fecha)}
                     </p>
-                    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-bold ring-1 ${
-                      detalle.origen?.trim().toUpperCase() === "WEB"
-                        ? "bg-purple-100 text-purple-700 ring-purple-200 dark:bg-purple-500/15 dark:text-purple-300 dark:ring-purple-500/20"
-                        : "bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-500/15 dark:text-slate-300 dark:ring-slate-500/20"
-                    }`}>
-                      {detalle.origen?.trim().toUpperCase() === "WEB" ? "WEB" : "POS"}
+                    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-bold ring-1 ${getVentaOrigenBadgeClass(detalle.origen)}`}>
+                      {getVentaOrigenLabel(detalle.origen)}
                     </span>
                   </div>
                   <div className="mt-3">
@@ -442,7 +440,7 @@ export function VentaDetalleContent({
                 <DetailMetaItem
                   icon={DocumentTextIcon}
                   label="Origen"
-                  value={detalle.origen?.trim().toUpperCase() === "WEB" ? "WEB" : "POS"}
+                  value={getVentaOrigenLabel(detalle.origen)}
                   secondary="Canal de venta"
                 />
                 <DetailMetaItem
