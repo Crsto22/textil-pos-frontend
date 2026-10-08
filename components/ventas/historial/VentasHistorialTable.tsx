@@ -150,7 +150,7 @@ export function VentasHistorialTable({
 }: VentasHistorialTableProps) {
   const canGoPrev = page > 0
   const canGoNext = page + 1 < totalPages
-  const colSpan = hideSunat ? 9 : 10
+  const colSpan = hideSunat ? 10 : 11
 
   return (
     <section className="space-y-3 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-700/60 dark:bg-slate-800/80">
@@ -171,6 +171,7 @@ export function VentasHistorialTable({
         <table className="w-full min-w-[980px] text-sm">
           <thead>
             <tr className="border-b bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
+              <th className="px-3 py-3 text-left">N.º pedido</th>
               <th className="px-3 py-3 text-left">Fecha</th>
               <th className="px-3 py-3 text-left">Comprobante</th>
               <th className="px-3 py-3 text-left">Cliente</th>
@@ -199,6 +200,7 @@ export function VentasHistorialTable({
             ) : (
               ventas.map((venta) => (
                 <tr key={venta.idVenta} className="border-b last:border-0 hover:bg-muted/20">
+                  <td className="px-3 py-3 font-semibold">#{venta.idVenta}</td>
                   <td className="px-3 py-3 font-medium">{formatFechaHora(venta.fecha)}</td>
                   <td className="px-3 py-3">
                     <div className="flex flex-col">
@@ -305,6 +307,9 @@ export function VentasHistorialTable({
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">
                         {venta.nombreCliente || "Sin cliente"}
+                      </p>
+                      <p className="mt-1 text-xs font-semibold text-blue-600 dark:text-blue-400">
+                        Pedido #{venta.idVenta}
                       </p>
                       <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                         {formatFechaHora(venta.fecha)}

@@ -274,6 +274,9 @@ export function VentaDetalleContent({
                         {formatComprobante(detalle)}
                       </span>
                     </h3>
+                    <p className="mt-2 text-sm font-semibold text-blue-600 dark:text-blue-400 sm:text-base">
+                      Pedido #{detalle.idVenta}
+                    </p>
                     {detalle.conversionOrigen && (
                       <p className="mt-2 text-xs font-semibold text-amber-700 dark:text-amber-300 sm:text-sm">
                         Convertido desde {detalle.conversionOrigen.tipoComprobante}{" "}
@@ -429,7 +432,6 @@ export function VentaDetalleContent({
                   icon={UserIcon}
                   label="Usuario"
                   value={detalle.nombreUsuario || "Sin usuario"}
-                  secondary={`Venta #${detalle.idVenta}`}
                 />
                 <DetailMetaItem
                   icon={BuildingOffice2Icon}
