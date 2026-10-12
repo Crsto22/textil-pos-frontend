@@ -9,6 +9,9 @@ export interface Producto {
   imagenGlobalThumbUrl: string | null
   guiaTallasUrl: string | null
   guiaTallasThumbUrl: string | null
+  sizeGuideAnalysisStatus?: "NOT_ANALYZED" | "PROCESSING" | "AVAILABLE" | "FAILED" | string
+  sizeGuideAnalysisAt?: string | null
+  sizeGuideMeasurementType?: "CUERPO" | "PRENDA" | "INDETERMINADO" | string | null
   publicarEcommerce: boolean
   preventa: boolean
   fechaEnvioPreventa: string | null

@@ -11,6 +11,7 @@ import type {
   VentaDetalleItem,
   VentaDetallePago,
   VentaDetalleResponse,
+  VentaEntregaResponse,
   VentaSunatRetryResponse,
 } from "@/lib/types/venta"
 
@@ -104,6 +105,27 @@ function parseDetallePagos(value: unknown): VentaDetallePago[] {
     .filter((item): item is VentaDetallePago => item !== null)
 }
 
+function parseEntrega(value: unknown): VentaEntregaResponse | null {
+  const data = asRecord(value)
+  if (!data) return null
+
+  return {
+    metodo: stringOrNull(data.metodo),
+    destinatario: stringOrNull(data.destinatario),
+    documento: stringOrNull(data.documento),
+    celular: stringOrNull(data.celular),
+    idSucursalRecojo: nullableNumber(data.idSucursalRecojo),
+    sucursalRecojo: stringOrNull(data.sucursalRecojo),
+    idAgenciaShalom: nullableNumber(data.idAgenciaShalom),
+    agenciaShalom: stringOrNull(data.agenciaShalom),
+    direccionAgenciaShalom: stringOrNull(data.direccionAgenciaShalom),
+    destinoShalom: stringOrNull(data.destinoShalom),
+    estadoFilm: stringOrNull(data.estadoFilm),
+    montoFilm: nullableNumber(data.montoFilm),
+    filmPagado: data.filmPagado === true,
+  }
+}
+
 function parseVentaDetalle(value: unknown): VentaDetalleResponse | null {
   const payload = unwrapResponsePayload(value)
   if (!payload) return null
@@ -149,6 +171,7 @@ function parseVentaDetalle(value: unknown): VentaDetalleResponse | null {
     idSucursal: nullableNumber(payload.idSucursal),
     nombreSucursal: stringOr(payload.nombreSucursal, "Sin sucursal"),
     origen: stringOr(payload.origen, "POS"),
+    entrega: parseEntrega(payload.entrega),
     idCanalVenta: nullableNumber(payload.idCanalVenta),
     nombreCanalVenta: stringOrNull(payload.nombreCanalVenta),
     plataformaCanalVenta: stringOrNull(payload.plataformaCanalVenta),

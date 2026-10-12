@@ -70,6 +70,8 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
     mediaByColor,
     globalMedia,
     guiaTallasMedia,
+    sizeGuideAnalysisStatus,
+    sizeGuideMeasurementType,
     replaceMediaByColor,
     replaceGlobalMedia,
     replaceGuiaTallasMedia,
@@ -232,6 +234,8 @@ export function ProductoCreatePage({ productoId = null }: ProductoCreatePageProp
             activePreviewColorId={activePreviewColorId}
             activePreviewImageUrl={activePreviewImageUrl}
             sizeGuidePreviewImageUrl={sizeGuidePreviewImageUrl}
+            sizeGuideAnalysisStatus={isEditing ? sizeGuideAnalysisStatus : null}
+            sizeGuideMeasurementType={sizeGuideMeasurementType}
             onOpenImages={handleOpenMediaSidebar}
             onOpenColors={() => {
               handleOpenAttributesSidebar("colors")

@@ -5,10 +5,14 @@ import {
   ArrowDownTrayIcon,
   ArrowPathIcon,
   BuildingOffice2Icon,
+  BuildingStorefrontIcon,
+  CheckCircleIcon,
   ChevronDownIcon,
   CreditCardIcon,
   CubeIcon,
   DocumentTextIcon,
+  ExclamationCircleIcon,
+  MapPinIcon,
   PencilSquareIcon,
   UserIcon,
 } from "@heroicons/react/24/outline"
@@ -117,6 +121,25 @@ function DetailMetaItem({ icon: Icon, label, value, secondary }: DetailMetaItemP
   )
 }
 
+function getFilmPresentation(status: string | null, paid: boolean) {
+  if (paid) {
+    return {
+      label: status === "PAID_PENDING_REVIEW" ? "Film pagado · por revisar" : "Film pagado",
+      className: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300",
+    }
+  }
+  if (status === "AWAITING_PAYMENT" || status === "OFFERED") {
+    return {
+      label: "Film pendiente",
+      className: "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300",
+    }
+  }
+  return {
+    label: "Sin film protector",
+    className: "border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300",
+  }
+}
+
 export function VentaDetalleContent({
   detalle,
   loading,
@@ -214,6 +237,10 @@ export function VentaDetalleContent({
     (acc, item) => acc + item.cantidad * item.precioUnitario,
     0
   ) ?? 0;
+  const isShalomDelivery = detalle?.entrega?.metodo === "SHALOM"
+  const filmPresentation = detalle?.entrega
+    ? getFilmPresentation(detalle.entrega.estadoFilm, detalle.entrega.filmPagado)
+    : null
 
   const handleOpenNotaCredito = () => {
     if (!detalle) return
@@ -235,12 +262,18 @@ export function VentaDetalleContent({
         )}
 
         {!loading && error && (
-          <div className="space-y-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-4 dark:border-rose-900/60 dark:bg-rose-900/20">
-            <p className="text-sm font-medium text-rose-700 dark:text-rose-300">{error}</p>
+          <div className="flex min-h-[55vh] flex-col items-center justify-center px-4 py-12 text-center">
+            <span className="flex h-16 w-16 items-center justify-center rounded-full border border-rose-200 text-rose-500 dark:border-rose-800 dark:text-rose-400">
+              <ExclamationCircleIcon className="h-9 w-9" />
+            </span>
+            <p className="mt-5 text-base font-semibold text-foreground">{error}</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Verifica el número del pedido e inténtalo nuevamente.
+            </p>
             <button
               type="button"
               onClick={onRetry}
-              className="inline-flex items-center gap-2 rounded-lg border border-rose-300 px-3 py-1.5 text-xs font-semibold text-rose-700 transition-colors hover:bg-rose-100 dark:border-rose-700 dark:text-rose-300 dark:hover:bg-rose-900/40"
+              className="mt-5 inline-flex h-10 items-center gap-2 rounded-xl border border-slate-300 px-4 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
             >
               <ArrowPathIcon className="h-4 w-4" />
               Reintentar
@@ -419,6 +452,78 @@ export function VentaDetalleContent({
                 </div>
               )}
             </header>
+
+            {detalle.entrega && (
+              <section className="border-b border-border/60 bg-sky-50/40 px-4 py-5 dark:bg-sky-950/10 sm:px-6">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border bg-white shadow-sm dark:bg-slate-950">
+                    {isShalomDelivery ? (
+                      <Image
+                        src="/img/shalom-delivery.png"
+                        alt="Envío por Shalom"
+                        width={56}
+                        height={56}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <BuildingStorefrontIcon className="h-7 w-7 text-emerald-600" />
+                    )}
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                        Modalidad de entrega
+                      </p>
+                      {isShalomDelivery && filmPresentation ? (
+                        <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold ${filmPresentation.className}`}>
+                          <CheckCircleIcon className="h-4 w-4" />
+                          {filmPresentation.label}
+                        </span>
+                      ) : null}
+                    </div>
+
+                    <h4 className="mt-1 text-lg font-bold text-foreground">
+                      {isShalomDelivery ? "Envío por Shalom" : "Recojo en tienda"}
+                    </h4>
+
+                    {isShalomDelivery ? (
+                      <div className="mt-3 grid gap-3 md:grid-cols-2">
+                        <div className="flex items-start gap-2">
+                          <MapPinIcon className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-foreground">
+                              {detalle.entrega.agenciaShalom || detalle.entrega.destinoShalom || "Agencia Shalom"}
+                            </p>
+                            {detalle.entrega.direccionAgenciaShalom ? (
+                              <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                                {detalle.entrega.direccionAgenciaShalom}
+                              </p>
+                            ) : null}
+                          </div>
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {detalle.entrega.destinatario ? (
+                            <p><span className="font-semibold text-foreground">Destinatario:</span> {detalle.entrega.destinatario}</p>
+                          ) : null}
+                          {detalle.entrega.documento ? (
+                            <p><span className="font-semibold text-foreground">DNI:</span> {detalle.entrega.documento}</p>
+                          ) : null}
+                          {detalle.entrega.celular ? (
+                            <p><span className="font-semibold text-foreground">Celular:</span> {detalle.entrega.celular}</p>
+                          ) : null}
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
+                        <BuildingOffice2Icon className="h-4 w-4" />
+                        {detalle.entrega.sucursalRecojo || detalle.nombreSucursal || "Sucursal de recojo"}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </section>
+            )}
 
             <section className="border-b border-border/60 px-4 py-5 sm:px-4 sm:py-6">
               <div className="grid grid-cols-2 gap-4 md:grid-cols-2 xl:grid-cols-4">

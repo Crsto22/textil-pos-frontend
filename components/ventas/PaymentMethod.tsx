@@ -7,9 +7,7 @@ import {
   CreditCardIcon,
   DevicePhoneMobileIcon,
 } from "@heroicons/react/24/outline"
-import { Copy } from "lucide-react"
 import type { ReactNode } from "react"
-import { toast } from "sonner"
 
 import { buttonVariants } from "@/components/ui/button"
 import type { MetodoPagoActivo } from "@/lib/types/metodo-pago"
@@ -123,50 +121,6 @@ function resolveMethodStyle(methodName: string) {
   return METHOD_STYLES[methodKey] ?? METHOD_STYLES[methodName] ?? { ...DEFAULT_STYLE, label: methodName }
 }
 
-async function copyBankAccount(accountNumber: string) {
-  try {
-    await navigator.clipboard.writeText(accountNumber)
-    toast.success("Cuenta copiada")
-  } catch {
-    toast.error("No se pudo copiar la cuenta")
-  }
-}
-
-function renderAccounts(method: MetodoPagoActivo) {
-  if (!method.cuentas || method.cuentas.length === 0) return null
-
-  return (
-    <span className="mt-2 block space-y-1">
-      <span className="block text-[11px] font-medium text-slate-500 dark:text-slate-400">
-        Cuentas bancarias
-      </span>
-      <span className="flex flex-wrap gap-1.5">
-        {method.cuentas.map((cuenta) => (
-          <span
-            key={cuenta.idMetodoPagoCuenta}
-            className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-[11px] text-slate-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300"
-          >
-            <span>{cuenta.numeroCuenta}</span>
-            <button
-              type="button"
-              onClick={(event) => {
-                event.preventDefault()
-                event.stopPropagation()
-                void copyBankAccount(cuenta.numeroCuenta)
-              }}
-              className="inline-flex h-4 w-4 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-200 hover:text-slate-700 dark:text-slate-500 dark:hover:bg-slate-700 dark:hover:text-slate-200"
-              aria-label={`Copiar cuenta ${cuenta.numeroCuenta}`}
-              title="Copiar cuenta"
-            >
-              <Copy className="h-3 w-3" />
-            </button>
-          </span>
-        ))}
-      </span>
-    </span>
-  )
-}
-
 export default function PaymentMethod({
   selected,
   onSelect,
@@ -258,7 +212,6 @@ export default function PaymentMethod({
                 <span className="mt-0.5 block line-clamp-2 whitespace-normal text-[11px] leading-tight text-slate-500 dark:text-slate-400">
                   {style.description}
                 </span>
-                {renderAccounts(method)}
               </span>
 
               <span
@@ -322,11 +275,6 @@ export default function PaymentMethod({
               )}
             </span>
             {style.label}
-            {method.cuentas && method.cuentas.length > 0 ? (
-              <span className="px-1 text-center text-[10px] font-normal text-slate-400 dark:text-slate-500">
-                {method.cuentas.length} cuenta{method.cuentas.length === 1 ? "" : "s"}
-              </span>
-            ) : null}
           </button>
         )
       })}

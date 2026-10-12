@@ -29,6 +29,8 @@ interface ProductoGeneralInfoCardProps {
   activePreviewColorId: number | null
   activePreviewImageUrl: string | null
   sizeGuidePreviewImageUrl: string | null
+  sizeGuideAnalysisStatus?: string | null
+  sizeGuideMeasurementType?: string | null
   onOpenImages: () => void
   onOpenColors: () => void
   onOpenTallas: () => void
@@ -67,6 +69,8 @@ export function ProductoGeneralInfoCard({
   activePreviewColorId,
   activePreviewImageUrl,
   sizeGuidePreviewImageUrl,
+  sizeGuideAnalysisStatus,
+  sizeGuideMeasurementType,
   onOpenImages,
   onOpenColors,
   onOpenTallas,
@@ -108,6 +112,34 @@ export function ProductoGeneralInfoCard({
           onOpenSizeGuide={onOpenSizeGuide}
           onActiveColorChange={onPreviewColorChange}
         />
+
+        {sizeGuidePreviewImageUrl && sizeGuideAnalysisStatus && (
+          <div className="flex flex-wrap items-center gap-2 rounded-2xl border bg-background/80 px-4 py-3 text-xs">
+            <span className="font-semibold text-foreground">Análisis de guía:</span>
+            <span
+              className={
+                sizeGuideAnalysisStatus === "AVAILABLE"
+                  ? "rounded-full bg-emerald-100 px-2.5 py-1 font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                  : sizeGuideAnalysisStatus === "FAILED"
+                    ? "rounded-full bg-red-100 px-2.5 py-1 font-medium text-red-700 dark:bg-red-950 dark:text-red-300"
+                    : "rounded-full bg-amber-100 px-2.5 py-1 font-medium text-amber-700 dark:bg-amber-950 dark:text-amber-300"
+              }
+            >
+              {sizeGuideAnalysisStatus === "AVAILABLE"
+                ? "Disponible"
+                : sizeGuideAnalysisStatus === "FAILED"
+                  ? "No se pudo interpretar"
+                  : "Procesando"}
+            </span>
+            {sizeGuideAnalysisStatus === "AVAILABLE" && sizeGuideMeasurementType && (
+              <span className="text-muted-foreground">
+                {sizeGuideMeasurementType === "INDETERMINADO"
+                  ? "Tipo de medida no indicado"
+                  : `Medidas de ${sizeGuideMeasurementType === "CUERPO" ? "cuerpo" : "prenda"}`}
+              </span>
+            )}
+          </div>
+        )}
 
         <div className="space-y-2">
           <Label

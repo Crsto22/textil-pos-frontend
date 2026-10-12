@@ -413,6 +413,9 @@ export function VentasHistorialPage({ lockedTipos, hideSunat = false, showReport
         onRefresh={() => {
           void refreshVentas()
         }}
+        onSearchOrder={(orderId) => {
+          router.push(`/ventas/historial/${orderId}`)
+        }}
       />
 
       <VentasHistorialTable

@@ -9,6 +9,13 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
 import { Input } from "@/components/ui/input"
 import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
   Sheet,
   SheetClose,
   SheetContent,
@@ -42,6 +49,7 @@ interface VentasHistorialFiltersProps {
   onDownloadReportPdf: () => void
   onClear: () => void
   onRefresh?: () => void
+  onSearchOrder: (orderId: number) => void
 }
 
 const PERIOD_OPTIONS: Array<{ value: VentaHistorialFilters["periodo"]; label: string }> = [
@@ -330,8 +338,11 @@ export function VentasHistorialFilters({
   onDownloadReportPdf,
   onClear,
   onRefresh,
+  onSearchOrder,
 }: VentasHistorialFiltersProps) {
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
+  const [orderSearchOpen, setOrderSearchOpen] = useState(false)
+  const [orderId, setOrderId] = useState("")
   const { user } = useAuth()
   const isAdmin = isAdministratorRole(user?.rol)
   const canFilterByUsuario = useCanFilterByUsuario()
@@ -487,6 +498,15 @@ export function VentasHistorialFilters({
     onChange,
   }
 
+  const parsedOrderId = Number(orderId)
+  const validOrderId = Number.isInteger(parsedOrderId) && parsedOrderId > 0
+
+  const handleOrderSearch = () => {
+    if (!validOrderId) return
+    setOrderSearchOpen(false)
+    onSearchOrder(parsedOrderId)
+  }
+
   return (
     <>
       <section className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-700/60 dark:bg-slate-800/80">
@@ -496,19 +516,29 @@ export function VentasHistorialFilters({
               <label className="text-xs font-medium text-slate-500 dark:text-slate-400">
                 Buscar venta
               </label>
-              <div className="relative">
-                <MagnifyingGlassIcon className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <Input
-                  value={filters.search}
-                  onChange={(event) =>
-                    onChange({
-                      ...filters,
-                      search: event.target.value,
-                    })
-                  }
-                  placeholder="Buscar por cliente, comprobante o id..."
-                  className="h-11 border-slate-200 bg-white pl-10 text-sm dark:border-slate-700 dark:bg-slate-800"
-                />
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <div className="relative min-w-0 flex-1">
+                  <MagnifyingGlassIcon className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <Input
+                    value={filters.search}
+                    onChange={(event) =>
+                      onChange({
+                        ...filters,
+                        search: event.target.value,
+                      })
+                    }
+                    placeholder="Buscar por cliente, comprobante o id..."
+                    className="h-11 border-slate-200 bg-white pl-10 text-sm dark:border-slate-700 dark:bg-slate-800"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setOrderSearchOpen(true)}
+                  className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+                >
+                  <MagnifyingGlassIcon className="h-4 w-4" />
+                  Buscar N.º pedido
+                </button>
               </div>
             </div>
 
@@ -658,6 +688,71 @@ export function VentasHistorialFilters({
           </div>
         </div>
       </section>
+
+      <Dialog
+        open={orderSearchOpen}
+        onOpenChange={(open) => {
+          setOrderSearchOpen(open)
+          if (!open) setOrderId("")
+        }}
+      >
+        <DialogContent className="overflow-hidden p-0 sm:max-w-sm">
+          <DialogHeader className="border-b bg-slate-50 px-6 py-5 text-center dark:bg-slate-900/60">
+            <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300">
+              <MagnifyingGlassIcon className="h-5 w-5" />
+            </span>
+            <DialogTitle className="text-center text-xl font-bold">Buscar pedido</DialogTitle>
+          </DialogHeader>
+
+          <form
+            className="space-y-5 px-6 pb-6 pt-5"
+            onSubmit={(event) => {
+              event.preventDefault()
+              handleOrderSearch()
+            }}
+          >
+            <div className="space-y-3">
+              <label
+                htmlFor="order-id-search"
+                className="block text-center text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground"
+              >
+                Número de pedido
+              </label>
+              <Input
+                id="order-id-search"
+                type="text"
+                inputMode="numeric"
+                autoFocus
+                value={orderId}
+                onChange={(event) => {
+                  const digits = event.target.value.replace(/\D/g, "").slice(0, 12)
+                  setOrderId(digits)
+                }}
+                placeholder="****"
+                className="h-20 rounded-2xl border-2 border-slate-200 bg-slate-50 text-center !text-3xl font-black tracking-[0.18em] tabular-nums shadow-inner placeholder:text-slate-300 focus-visible:border-blue-500 focus-visible:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-900/60 dark:placeholder:text-slate-600"
+              />
+            </div>
+
+            <DialogFooter className="grid grid-cols-2 gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => setOrderSearchOpen(false)}
+                className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 px-4 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={!validOrderId}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <MagnifyingGlassIcon className="h-4 w-4" />
+                Buscar pedido
+              </button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <Sheet open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
         <SheetContent side="bottom" className="flex h-[92dvh] flex-col gap-0 p-0 sm:hidden">

@@ -67,6 +67,10 @@ function normalizeVenta(value: unknown): VentaHistorial | null {
     idSucursal: Number.isFinite(Number(item.idSucursal)) ? Number(item.idSucursal) : null,
     nombreSucursal: typeof item.nombreSucursal === "string" ? item.nombreSucursal : "Sin sucursal",
     origen: typeof item.origen === "string" && item.origen.trim() ? item.origen : "POS",
+    metodoEntrega:
+      typeof item.metodoEntrega === "string" && item.metodoEntrega.trim()
+        ? item.metodoEntrega
+        : null,
     idCanalVenta: Number.isFinite(Number(item.idCanalVenta)) ? Number(item.idCanalVenta) : null,
     nombreCanalVenta: typeof item.nombreCanalVenta === "string" ? item.nombreCanalVenta : null,
     plataformaCanalVenta: typeof item.plataformaCanalVenta === "string" ? item.plataformaCanalVenta : null,

@@ -96,6 +96,7 @@ export interface VentaHistorial {
   idSucursal: number | null
   nombreSucursal: string
   origen: string | null
+  metodoEntrega: string | null
   idCanalVenta: number | null
   nombreCanalVenta: string | null
   plataformaCanalVenta: string | null
@@ -147,6 +148,22 @@ export interface VentaDetallePago {
   fecha: string | null
 }
 
+export interface VentaEntregaResponse {
+  metodo: "PICKUP" | "SHALOM" | string | null
+  destinatario: string | null
+  documento: string | null
+  celular: string | null
+  idSucursalRecojo: number | null
+  sucursalRecojo: string | null
+  idAgenciaShalom: number | null
+  agenciaShalom: string | null
+  direccionAgenciaShalom: string | null
+  destinoShalom: string | null
+  estadoFilm: string | null
+  montoFilm: number | null
+  filmPagado: boolean
+}
+
 export interface VentaDetalleResponse {
   idVenta: number
   fecha: string
@@ -186,6 +203,7 @@ export interface VentaDetalleResponse {
   idSucursal: number | null
   nombreSucursal: string
   origen: string | null
+  entrega: VentaEntregaResponse | null
   idCanalVenta: number | null
   nombreCanalVenta: string | null
   plataformaCanalVenta: string | null

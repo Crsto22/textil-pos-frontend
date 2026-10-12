@@ -505,6 +505,8 @@ export function useProductoCreate({ productoId = null }: UseProductoCreateOption
   })
   const [loadingDetalle, setLoadingDetalle] = useState(isEditing)
   const [errorDetalle, setErrorDetalle] = useState<string | null>(null)
+  const [sizeGuideAnalysisStatus, setSizeGuideAnalysisStatus] = useState<string | null>(null)
+  const [sizeGuideMeasurementType, setSizeGuideMeasurementType] = useState<string | null>(null)
 
   const isMultiSucursalNonAdmin = !isAdmin && canFilterBySucursal && (user?.sucursalesPermitidas ?? []).length > 1
   const nonAdminPermittedIds = useMemo(() => {
@@ -1070,6 +1072,8 @@ const activeStockSucursales = useMemo<VariantSucursalStockInput[]>(
           }
           return toGuiaTallasMediaItemFromProducto(payload.producto)
         })
+        setSizeGuideAnalysisStatus(payload.producto.sizeGuideAnalysisStatus ?? "NOT_ANALYZED")
+        setSizeGuideMeasurementType(payload.producto.sizeGuideMeasurementType ?? null)
         setFocusedColorId(nextSelectedColorIds[0] ?? null)
         setErrorDetalle(null)
       } catch (requestError) {
@@ -1093,6 +1097,36 @@ const activeStockSucursales = useMemo<VariantSucursalStockInput[]>(
       controller.abort()
     }
   }, [isEditing, productoId])
+
+  useEffect(() => {
+    if (!isEditing || !hasValidId(productoId) || !guiaTallasMedia) return
+    if (sizeGuideAnalysisStatus === "AVAILABLE" || sizeGuideAnalysisStatus === "FAILED") return
+    const controller = new AbortController()
+
+    const refreshAnalysis = async () => {
+      try {
+        const response = await authFetch(`/api/producto/guia-tallas/${productoId}/analisis`, {
+          signal: controller.signal,
+        })
+        const payload = await parseJsonSafe(response)
+        if (!response.ok || controller.signal.aborted || !payload || typeof payload !== "object") return
+        const analysis = payload as Record<string, unknown>
+        if (typeof analysis.status === "string") setSizeGuideAnalysisStatus(analysis.status)
+        if (typeof analysis.measurementType === "string") {
+          setSizeGuideMeasurementType(analysis.measurementType)
+        }
+      } catch (requestError) {
+        if (!isAbortError(requestError)) console.error("[SIZE-GUIDE/ANALYSIS]", requestError)
+      }
+    }
+
+    void refreshAnalysis()
+    const interval = window.setInterval(() => void refreshAnalysis(), 5000)
+    return () => {
+      controller.abort()
+      window.clearInterval(interval)
+    }
+  }, [guiaTallasMedia, isEditing, productoId, sizeGuideAnalysisStatus])
 
   useEffect(() => {
     const allowedKeys = new Set<string>()
@@ -1863,6 +1897,7 @@ const activeStockSucursales = useMemo<VariantSucursalStockInput[]>(
     setIsSaving(true)
 
     try {
+      const guideRequiresAnalysis = guiaTallasMedia !== null && isLocalMedia(guiaTallasMedia)
       let imagenGlobalUrl: string | null = null
       let imagenGlobalThumbUrl: string | null = null
       let guiaTallasUrl: string | null = null
@@ -2099,6 +2134,13 @@ const activeStockSucursales = useMemo<VariantSucursalStockInput[]>(
       if (nextGuiaTallasMedia !== undefined) {
         replaceGuiaTallasMedia(nextGuiaTallasMedia)
       }
+      if (guideRequiresAnalysis) {
+        setSizeGuideAnalysisStatus("PROCESSING")
+        setSizeGuideMeasurementType(null)
+      } else if (nextGuiaTallasMedia === null) {
+        setSizeGuideAnalysisStatus(null)
+        setSizeGuideMeasurementType(null)
+      }
       return true
     } catch (saveError) {
       const message =
@@ -2209,6 +2251,8 @@ const activeStockSucursales = useMemo<VariantSucursalStockInput[]>(
     mediaByColor,
     globalMedia,
     guiaTallasMedia,
+    sizeGuideAnalysisStatus,
+    sizeGuideMeasurementType,
     replaceMediaByColor,
     replaceGlobalMedia,
     replaceGuiaTallasMedia,

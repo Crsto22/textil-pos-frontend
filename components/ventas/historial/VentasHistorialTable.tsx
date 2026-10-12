@@ -2,6 +2,7 @@ import Image from "next/image"
 import {
   ArrowPathIcon,
   ArrowTopRightOnSquareIcon,
+  BuildingStorefrontIcon,
   ChevronRightIcon,
   DocumentArrowDownIcon,
   DocumentTextIcon,
@@ -23,7 +24,6 @@ import {
 import type { VentaHistorial } from "@/lib/types/venta"
 import {
   formatComprobante,
-  formatFechaHora,
   formatMonto,
   getEstadoBadgeClass,
   getVentaOrigenBadgeClass,
@@ -119,6 +119,58 @@ function OrigenBadge({ origen }: { origen: string | null | undefined }) {
   )
 }
 
+function SaleDate({ value }: { value: string }) {
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return <span>—</span>
+
+  return (
+    <span className="block whitespace-nowrap">
+      <span className="block font-semibold text-foreground">
+        {parsed.toLocaleDateString("es-PE", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+        })}
+      </span>
+      <span className="mt-0.5 block text-xs text-muted-foreground">
+        {parsed.toLocaleTimeString("es-PE", {
+          hour: "2-digit",
+          minute: "2-digit",
+        })}
+      </span>
+    </span>
+  )
+}
+
+function DeliveryMethod({ method }: { method: string | null | undefined }) {
+  const normalized = normalizeValue(method)
+  if (normalized === "SHALOM") {
+    return (
+      <span className="inline-flex items-center gap-2 whitespace-nowrap font-semibold text-slate-700 dark:text-slate-200">
+        <Image
+          src="/img/shalom-delivery.png"
+          alt="Shalom"
+          width={24}
+          height={24}
+          className="h-6 w-6 rounded-md object-cover"
+        />
+        Shalom
+      </span>
+    )
+  }
+  if (normalized === "PICKUP") {
+    return (
+      <span className="inline-flex items-center gap-2 whitespace-nowrap font-semibold text-slate-700 dark:text-slate-200">
+        <span className="flex h-6 w-6 items-center justify-center rounded-md bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+          <BuildingStorefrontIcon className="h-4 w-4" />
+        </span>
+        Recojo en tienda
+      </span>
+    )
+  }
+  return <span className="text-muted-foreground">—</span>
+}
+
 export function VentasHistorialTable({
   ventas,
   loading,
@@ -150,7 +202,7 @@ export function VentasHistorialTable({
 }: VentasHistorialTableProps) {
   const canGoPrev = page > 0
   const canGoNext = page + 1 < totalPages
-  const colSpan = hideSunat ? 10 : 11
+  const colSpan = hideSunat ? 11 : 12
 
   return (
     <section className="space-y-3 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-700/60 dark:bg-slate-800/80">
@@ -168,11 +220,12 @@ export function VentasHistorialTable({
       )}
 
       <div className="hidden overflow-x-auto lg:block">
-        <table className="w-full min-w-[980px] text-sm">
+        <table className="w-full min-w-[1120px] text-sm">
           <thead>
             <tr className="border-b bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
               <th className="px-3 py-3 text-left">N.º pedido</th>
               <th className="px-3 py-3 text-left">Fecha</th>
+              <th className="px-3 py-3 text-left">Envío</th>
               <th className="px-3 py-3 text-left">Comprobante</th>
               <th className="px-3 py-3 text-left">Cliente</th>
               <th className="px-3 py-3 text-left">Usuario</th>
@@ -201,7 +254,8 @@ export function VentasHistorialTable({
               ventas.map((venta) => (
                 <tr key={venta.idVenta} className="border-b last:border-0 hover:bg-muted/20">
                   <td className="px-3 py-3 font-semibold">#{venta.idVenta}</td>
-                  <td className="px-3 py-3 font-medium">{formatFechaHora(venta.fecha)}</td>
+                  <td className="px-3 py-3"><SaleDate value={venta.fecha} /></td>
+                  <td className="px-3 py-3"><DeliveryMethod method={venta.metodoEntrega} /></td>
                   <td className="px-3 py-3">
                     <div className="flex flex-col">
                       <span className="font-semibold">{venta.tipoComprobante}</span>
@@ -311,9 +365,9 @@ export function VentasHistorialTable({
                       <p className="mt-1 text-xs font-semibold text-blue-600 dark:text-blue-400">
                         Pedido #{venta.idVenta}
                       </p>
-                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                        {formatFechaHora(venta.fecha)}
-                      </p>
+                      <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                        <SaleDate value={venta.fecha} />
+                      </div>
                     </div>
                     <ChevronRightIcon className="h-4 w-4 shrink-0 text-slate-300 dark:text-slate-600" />
                   </div>
@@ -332,6 +386,14 @@ export function VentasHistorialTable({
               </div>
 
               <div className="mt-4 grid grid-cols-2 gap-2">
+                <div className="rounded-xl border border-slate-200/70 bg-white px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/80">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                    Envío
+                  </p>
+                  <div className="mt-1 text-xs">
+                    <DeliveryMethod method={venta.metodoEntrega} />
+                  </div>
+                </div>
                 <div className="rounded-xl border border-slate-200/70 bg-white px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/80">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
                     Comprobante
