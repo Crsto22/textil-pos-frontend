@@ -41,12 +41,14 @@ interface VentasHistorialFiltersProps {
   totalElements: number
   reportLoading: boolean
   reportPdfLoading: boolean
+  reportIaPdfLoading: boolean
   lockedTipos?: string[]
   showReportePdf?: boolean
   loading?: boolean
   onChange: (next: VentaHistorialFilters) => void
   onDownloadReport: () => void
   onDownloadReportPdf: () => void
+  onDownloadReportIaPdf: () => void
   onClear: () => void
   onRefresh?: () => void
   onSearchOrder: (orderId: number) => void
@@ -330,12 +332,14 @@ export function VentasHistorialFilters({
   totalElements,
   reportLoading,
   reportPdfLoading,
+  reportIaPdfLoading,
   lockedTipos,
   showReportePdf = false,
   loading = false,
   onChange,
   onDownloadReport,
   onDownloadReportPdf,
+  onDownloadReportIaPdf,
   onClear,
   onRefresh,
   onSearchOrder,
@@ -628,6 +632,16 @@ export function VentasHistorialFilters({
               >
                 {reportLoading ? "Descargando..." : "Reporte Excel"}
               </button>
+              {showReportePdf && (
+                <button
+                  type="button"
+                  onClick={onDownloadReportIaPdf}
+                  disabled={reportIaPdfLoading}
+                  className="inline-flex h-11 items-center justify-center rounded-xl bg-amber-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {reportIaPdfLoading ? "Generando IA..." : "Reporte Envios IA"}
+                </button>
+              )}
             </div>
           </div>
 
@@ -683,6 +697,16 @@ export function VentasHistorialFilters({
                 >
                   {reportLoading ? "Descargando..." : "Reporte Excel"}
                 </button>
+                {showReportePdf && (
+                  <button
+                    type="button"
+                    onClick={onDownloadReportIaPdf}
+                    disabled={reportIaPdfLoading}
+                    className="inline-flex h-11 items-center justify-center rounded-xl bg-amber-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {reportIaPdfLoading ? "Generando IA..." : "Reporte Envios IA"}
+                  </button>
+                )}
               </div>
             </div>
           </div>

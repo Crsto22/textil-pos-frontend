@@ -6,7 +6,7 @@ import { toast } from "sonner"
 import { authFetch } from "@/lib/auth/auth-fetch"
 import type { VentaListadoPeriodo } from "@/lib/types/venta"
 
-interface ExportVentaReportePdfParams {
+export interface ExportVentaReportePdfParams {
   periodo: VentaListadoPeriodo
   desde?: string
   hasta?: string
@@ -93,13 +93,13 @@ async function getErrorMessage(response: Response): Promise<string> {
   return "No se pudo exportar el reporte de ventas en PDF"
 }
 
-function buildFallbackFilename() {
+function buildFallbackFilename(prefix: string) {
   const now = new Date()
   const datePart = now.toISOString().slice(0, 10).replaceAll("-", "")
-  return `reporte_ventas_${datePart}.pdf`
+  return `${prefix}_${datePart}.pdf`
 }
 
-export function useVentaReportePdf() {
+function useVentaReportePdfEndpoint(endpointPath: string, filenamePrefix: string, successMessage: string) {
   const [isExporting, setIsExporting] = useState(false)
 
   const exportReportePdf = useCallback(
@@ -107,9 +107,7 @@ export function useVentaReportePdf() {
       setIsExporting(true)
       try {
         const queryString = buildQueryString(params)
-        const endpoint = queryString
-          ? `/api/venta/reporte/pdf?${queryString}`
-          : "/api/venta/reporte/pdf"
+        const endpoint = queryString ? `${endpointPath}?${queryString}` : endpointPath
 
         const response = await authFetch(endpoint, {
           method: "GET",
@@ -129,10 +127,10 @@ export function useVentaReportePdf() {
 
         const filename =
           extractFilename(response.headers.get("content-disposition")) ??
-          buildFallbackFilename()
+          buildFallbackFilename(filenamePrefix)
 
         triggerDownload(filename, fileBlob)
-        toast.success("Reporte PDF descargado")
+        toast.success(successMessage)
         return true
       } catch {
         toast.error("Error de red al exportar el reporte PDF")
@@ -141,11 +139,27 @@ export function useVentaReportePdf() {
         setIsExporting(false)
       }
     },
-    []
+    [endpointPath, filenamePrefix, successMessage]
   )
 
   return {
     isExporting,
     exportReportePdf,
   }
+}
+
+export function useVentaReportePdf() {
+  return useVentaReportePdfEndpoint(
+    "/api/venta/reporte/pdf",
+    "reporte_ventas",
+    "Reporte PDF descargado"
+  )
+}
+
+export function useVentaReporteIaPdf() {
+  return useVentaReportePdfEndpoint(
+    "/api/venta/reporte/envios-ia/pdf",
+    "reporte_envios_ia_kiments",
+    "Reporte de envios IA descargado"
+  )
 }

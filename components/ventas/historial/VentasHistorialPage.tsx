@@ -11,7 +11,7 @@ import { VentasHistorialTable } from "@/components/ventas/historial/VentasHistor
 import { authFetch } from "@/lib/auth/auth-fetch"
 import { useAuth } from "@/lib/auth/auth-context"
 import { useVentaReporteExcel } from "@/lib/hooks/useVentaReporteExcel"
-import { useVentaReportePdf } from "@/lib/hooks/useVentaReportePdf"
+import { useVentaReporteIaPdf, useVentaReportePdf } from "@/lib/hooks/useVentaReportePdf"
 import { useVentasHistorial } from "@/lib/hooks/useVentasHistorial"
 import {
   downloadVentaDocument,
@@ -91,6 +91,7 @@ export function VentasHistorialPage({ lockedTipos, hideSunat = false, showReport
   } = useVentasHistorial(filters, lockedTipos)
   const { isExporting, exportReporteExcel } = useVentaReporteExcel()
   const { isExporting: isExportingPdf, exportReportePdf } = useVentaReportePdf()
+  const { isExporting: isExportingIaPdf, exportReportePdf: exportReporteIaPdf } = useVentaReporteIaPdf()
 
   useEffect(() => {
     const ventaIdParam = searchParams.get("ventaId")
@@ -231,6 +232,53 @@ export function VentasHistorialPage({ lockedTipos, hideSunat = false, showReport
     await exportReportePdf({
       periodo: filters.periodo,
       idUsuario: filters.idUsuario,
+      idSucursal: filters.idSucursal,
+      idCliente: filters.idCliente,
+      tiposComprobante: reporteTiposComprobante,
+    })
+  }
+
+  const handleDownloadReportIaPdf = async () => {
+    if (filters.usarRangoFechas) {
+      if (!filters.fechaDesde || !filters.fechaHasta) {
+        toast.error("Selecciona fecha desde y hasta")
+        return
+      }
+      if (filters.fechaDesde > filters.fechaHasta) {
+        toast.error("La fecha desde no puede ser mayor a la fecha hasta")
+        return
+      }
+
+      await exportReporteIaPdf({
+        periodo: "RANGO",
+        desde: filters.fechaDesde,
+        hasta: filters.fechaHasta,
+        idSucursal: filters.idSucursal,
+        idCliente: filters.idCliente,
+        tiposComprobante: reporteTiposComprobante,
+      })
+      return
+    }
+
+    if (filters.periodo === "FECHA") {
+      if (!filters.fecha) {
+        toast.error("Selecciona una fecha")
+        return
+      }
+
+      await exportReporteIaPdf({
+        periodo: "RANGO",
+        desde: filters.fecha,
+        hasta: filters.fecha,
+        idSucursal: filters.idSucursal,
+        idCliente: filters.idCliente,
+        tiposComprobante: reporteTiposComprobante,
+      })
+      return
+    }
+
+    await exportReporteIaPdf({
+      periodo: filters.periodo,
       idSucursal: filters.idSucursal,
       idCliente: filters.idCliente,
       tiposComprobante: reporteTiposComprobante,
@@ -399,6 +447,7 @@ export function VentasHistorialPage({ lockedTipos, hideSunat = false, showReport
         totalElements={totalElements}
         reportLoading={isExporting}
         reportPdfLoading={isExportingPdf}
+        reportIaPdfLoading={isExportingIaPdf}
         lockedTipos={lockedTipos}
         showReportePdf={showReportePdf}
         loading={loading}
@@ -408,6 +457,9 @@ export function VentasHistorialPage({ lockedTipos, hideSunat = false, showReport
         }}
         onDownloadReportPdf={() => {
           void handleDownloadReportPdf()
+        }}
+        onDownloadReportIaPdf={() => {
+          void handleDownloadReportIaPdf()
         }}
         onClear={handleClearFilters}
         onRefresh={() => {
